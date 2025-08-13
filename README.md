@@ -33,6 +33,13 @@ Meshgo targets Go 1.24.x. A minimal implementation exists with transport selecti
 go build ./cmd/meshgo
 ```
 
+The prototype exposes a few flags for inspecting stored data:
+
+```sh
+./meshgo -list-chats   # list chats with unread counts
+./meshgo -list-nodes   # list known nodes
+```
+
 ## Roadmap
 - **v1**: serial and IP transport, chat and node management, notifications, tray integration and SQLite persistence.
 - **v1.1+**: quality-of-life improvements, richer node details and additional transports like Bluetooth.

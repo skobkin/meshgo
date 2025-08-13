@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -21,6 +23,10 @@ import (
 // main starts the meshgo application. This is a minimal placeholder that
 // demonstrates wiring the core app with a transport.
 func main() {
+	listChats := flag.Bool("list-chats", false, "list stored chats and exit")
+	listNodes := flag.Bool("list-nodes", false, "list stored nodes and exit")
+	flag.Parse()
+
 	ctx := context.Background()
 
 	cfgDir, err := os.UserConfigDir()
@@ -111,6 +117,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	a := app.New(nil, ms, ns, cs, nil, nil)
+	if *listChats {
+		chats, err := a.ListChats(ctx)
+		if err != nil {
+			slog.Error("list chats", "err", err)
+			os.Exit(1)
+		}
+		for _, c := range chats {
+			fmt.Printf("%s (unread: %d)\n", c.Title, c.UnreadCount)
+		}
+		return
+	}
+	if *listNodes {
+		nodes, err := a.ListNodes(ctx)
+		if err != nil {
+			slog.Error("list nodes", "err", err)
+			os.Exit(1)
+		}
+		for _, n := range nodes {
+			fmt.Printf("%s (%s)\n", n.ID, n.ShortName)
+		}
+		return
+	}
+
 	rc := radio.New(radio.ReconnectConfig{
 		InitialMillis: settings.Reconnect.InitialMillis,
 		MaxMillis:     settings.Reconnect.MaxMillis,
@@ -132,7 +162,7 @@ func main() {
 	tr.OnExit(func() { cancel() })
 	defer cancel()
 	go tr.Run()
-	a := app.New(rc, ms, ns, cs, notifier, tr)
+	a = app.New(rc, ms, ns, cs, notifier, tr)
 	go func() {
 		for ev := range a.Events() {
 			switch ev.Type {
@@ -144,6 +174,14 @@ func main() {
 				slog.Info("disconnected", "err", ev.Err)
 			case app.EventRetrying:
 				slog.Info("retrying", "delay", ev.Delay)
+			case app.EventMessage:
+				if ev.Message != nil {
+					slog.Info("message", "chat", ev.Message.ChatID, "text", ev.Message.Text)
+				}
+			case app.EventNode:
+				if ev.Node != nil {
+					slog.Info("node", "id", ev.Node.ID, "short", ev.Node.ShortName, "signal", ev.Node.Signal)
+				}
 			}
 		}
 	}()
