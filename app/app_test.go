@@ -185,3 +185,39 @@ func TestAppSendTextPersists(t *testing.T) {
 		t.Fatalf("radio not called: %+v", r.sent)
 	}
 }
+
+func TestAppMarkChatRead(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ms, err := storage.OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	m := &domain.Message{ChatID: "chat1", Text: "hi", Timestamp: time.Now(), IsUnread: true}
+	if err := ms.InsertMessage(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := &stubTray{}
+	a := New(newStubRadio(), ms, nil, nil, nil, tr)
+
+	if err := a.MarkChatRead(ctx, "chat1"); err != nil {
+		t.Fatalf("MarkChatRead error: %v", err)
+	}
+	msgs, err := ms.ListMessages(ctx, "chat1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].IsUnread {
+		t.Fatalf("expected message marked read: %+v", msgs)
+	}
+	if tr.unread {
+		t.Fatalf("expected tray unread cleared")
+	}
+}

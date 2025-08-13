@@ -120,3 +120,16 @@ func (a *App) RefreshUnread(ctx context.Context) {
 		a.Tray.SetUnread(count > 0)
 	}
 }
+
+// MarkChatRead marks all messages in the specified chat as read up to now and
+// refreshes the unread indicator.
+func (a *App) MarkChatRead(ctx context.Context, chatID string) error {
+	if a.Messages == nil {
+		return nil
+	}
+	if err := a.Messages.SetRead(ctx, chatID, time.Now()); err != nil {
+		return err
+	}
+	a.RefreshUnread(ctx)
+	return nil
+}
