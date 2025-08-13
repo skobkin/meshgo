@@ -2,13 +2,17 @@ module meshgo
 
 go 1.24.3
 
-require modernc.org/sqlite v1.38.2
+require (
+	github.com/gen2brain/beeep v0.11.1
+	go.bug.st/serial v1.6.4
+	modernc.org/sqlite v1.38.2
+)
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
+	github.com/creack/goselect v0.1.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
-	github.com/gen2brain/beeep v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
