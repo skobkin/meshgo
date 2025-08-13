@@ -1,0 +1,187 @@
+package app
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"meshgo/domain"
+	"meshgo/radio"
+	"meshgo/storage"
+	"meshgo/transport"
+)
+
+type stubRadio struct {
+	events chan radio.Event
+	sent   []string
+}
+
+func newStubRadio() *stubRadio {
+	return &stubRadio{events: make(chan radio.Event, 1)}
+}
+
+func (s *stubRadio) Start(ctx context.Context, t transport.Transport) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *stubRadio) Events() <-chan radio.Event { return s.events }
+func (s *stubRadio) SendText(ctx context.Context, chatID string, toNode uint32, text string) error {
+	s.sent = append(s.sent, text)
+	return nil
+}
+
+type stubNotifier struct{ count int }
+
+func (n *stubNotifier) NotifyNewMessage(chatID, title, body string, ts time.Time) error {
+	n.count++
+	return nil
+}
+
+type stubTray struct{ unread bool }
+
+func (t *stubTray) SetUnread(u bool)                    { t.unread = u }
+func (t *stubTray) OnShowHide(fn func())                {}
+func (t *stubTray) OnToggleNotifications(fn func(bool)) {}
+func (t *stubTray) OnExit(fn func())                    {}
+func (t *stubTray) Run()                                {}
+
+func TestAppStoresPacketsAndNotifies(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ms, err := storage.OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, err := storage.OpenChatStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	if err := cs.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	r := newStubRadio()
+	n := &stubNotifier{}
+	tr := &stubTray{}
+	a := New(r, ms, nil, cs, n, tr)
+	go a.eventLoop(ctx)
+
+	r.events <- radio.Event{Type: radio.EventPacket, Packet: []byte("hello")}
+	time.Sleep(100 * time.Millisecond)
+
+	msgs, err := ms.ListMessages(ctx, "default", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].Text != "hello" {
+		t.Fatalf("unexpected messages: %+v", msgs)
+	}
+	chats, err := cs.ListChats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chats) != 1 || chats[0].ID != "default" {
+		t.Fatalf("expected chat inserted, got %+v", chats)
+	}
+	if n.count != 1 {
+		t.Fatalf("expected notifier call, got %d", n.count)
+	}
+	if !tr.unread {
+		t.Fatalf("expected tray unread to be true")
+	}
+
+	if err := ms.SetRead(ctx, "default", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	a.RefreshUnread(ctx)
+	if tr.unread {
+		t.Fatalf("expected tray unread to be false after marking read")
+	}
+}
+
+func TestAppUpsertsNodes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ns, err := storage.OpenNodeStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+	if err := ns.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	r := newStubRadio()
+	a := New(r, nil, ns, nil, nil, nil)
+	go a.eventLoop(ctx)
+
+	r.events <- radio.Event{Type: radio.EventNode, Node: &domain.Node{ID: "n1", RSSI: -90, SNR: 9}}
+	time.Sleep(100 * time.Millisecond)
+
+	nodes, err := ns.ListNodes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if nodes[0].Signal != domain.SignalGood {
+		t.Fatalf("unexpected signal quality: %v", nodes[0].Signal)
+	}
+}
+
+func TestAppSendTextPersists(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ms, err := storage.OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, err := storage.OpenChatStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	if err := cs.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	r := newStubRadio()
+	a := New(r, ms, nil, cs, nil, nil)
+
+	if err := a.SendText(ctx, "chat1", 0, "hello"); err != nil {
+		t.Fatalf("SendText error: %v", err)
+	}
+	msgs, err := ms.ListMessages(ctx, "chat1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].Text != "hello" || msgs[0].IsUnread {
+		t.Fatalf("unexpected message %+v", msgs)
+	}
+	chats, err := cs.ListChats(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chats) != 1 || chats[0].ID != "chat1" {
+		t.Fatalf("expected chat record, got %+v", chats)
+	}
+	if len(r.sent) != 1 || r.sent[0] != "hello" {
+		t.Fatalf("radio not called: %+v", r.sent)
+	}
+}
