@@ -165,7 +165,18 @@ func (a *App) ListChats(ctx context.Context) ([]*domain.Chat, error) {
 	if a.Chats == nil {
 		return nil, nil
 	}
-	return a.Chats.ListChats(ctx)
+	chats, err := a.Chats.ListChats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if a.Messages != nil {
+		if counts, err := a.Messages.UnreadCountByChat(ctx); err == nil {
+			for _, c := range chats {
+				c.UnreadCount = counts[c.ID]
+			}
+		}
+	}
+	return chats, nil
 }
 
 // ListNodes returns all nodes from the store.
@@ -174,4 +185,20 @@ func (a *App) ListNodes(ctx context.Context) ([]*domain.Node, error) {
 		return nil, nil
 	}
 	return a.Nodes.ListNodes(ctx)
+}
+
+// SetNodeFavorite marks a node as favorite or not.
+func (a *App) SetNodeFavorite(ctx context.Context, id string, fav bool) error {
+	if a.Nodes == nil {
+		return nil
+	}
+	return a.Nodes.SetFavorite(ctx, id, fav)
+}
+
+// SetNodeIgnored marks a node as ignored or not.
+func (a *App) SetNodeIgnored(ctx context.Context, id string, ignored bool) error {
+	if a.Nodes == nil {
+		return nil
+	}
+	return a.Nodes.SetIgnored(ctx, id, ignored)
 }

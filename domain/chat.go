@@ -6,4 +6,5 @@ type Chat struct {
 	Title         string
 	Encryption    int
 	LastMessageTS int64
+	UnreadCount   int
 }

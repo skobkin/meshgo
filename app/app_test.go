@@ -248,7 +248,7 @@ func TestAppListHelpers(t *testing.T) {
 	if err := ms.Init(ctx); err != nil {
 		t.Fatal(err)
 	}
-	m := &domain.Message{ChatID: "chat1", Text: "hello", Timestamp: time.Now()}
+	m := &domain.Message{ChatID: "chat1", Text: "hello", Timestamp: time.Now(), IsUnread: true}
 	if err := ms.InsertMessage(ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -288,6 +288,9 @@ func TestAppListHelpers(t *testing.T) {
 	if err != nil || len(chats) != 1 {
 		t.Fatalf("ListChats: %v %d", err, len(chats))
 	}
+	if chats[0].UnreadCount != 1 {
+		t.Fatalf("expected unread count 1, got %d", chats[0].UnreadCount)
+	}
 
 	nodes, err := a.ListNodes(ctx)
 	if err != nil || len(nodes) != 1 {
@@ -308,5 +311,34 @@ func TestAppSendHelpers(t *testing.T) {
 	}
 	if len(r.sent) != 2 || r.sent[0] != "userinfo" || r.sent[1] != "traceroute" {
 		t.Fatalf("unexpected sent slice: %+v", r.sent)
+	}
+}
+
+func TestAppNodePreferenceHelpers(t *testing.T) {
+	ctx := context.Background()
+	ns, err := storage.OpenNodeStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+	if err := ns.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ns.UpsertNode(ctx, &domain.Node{ID: "n1"}); err != nil {
+		t.Fatal(err)
+	}
+	a := New(newStubRadio(), nil, ns, nil, nil, nil)
+	if err := a.SetNodeFavorite(ctx, "n1", true); err != nil {
+		t.Fatalf("SetNodeFavorite: %v", err)
+	}
+	if err := a.SetNodeIgnored(ctx, "n1", true); err != nil {
+		t.Fatalf("SetNodeIgnored: %v", err)
+	}
+	nodes, err := ns.ListNodes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !nodes[0].Favorite || !nodes[0].Ignored {
+		t.Fatalf("node flags not set: %+v", nodes[0])
 	}
 }

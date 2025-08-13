@@ -79,6 +79,25 @@ func (s *MessageStore) UnreadCount(ctx context.Context) (int, error) {
 	return count, err
 }
 
+// UnreadCountByChat returns unread counts grouped by chat id.
+func (s *MessageStore) UnreadCountByChat(ctx context.Context) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT chat_id, COUNT(*) FROM messages WHERE is_unread=1 GROUP BY chat_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := make(map[string]int)
+	for rows.Next() {
+		var id string
+		var c int
+		if err := rows.Scan(&id, &c); err != nil {
+			return nil, err
+		}
+		counts[id] = c
+	}
+	return counts, rows.Err()
+}
+
 // Close closes the underlying database.
 func (s *MessageStore) Close() error { return s.db.Close() }
 

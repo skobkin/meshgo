@@ -57,3 +57,42 @@ func TestMessageStore_InsertListUnread(t *testing.T) {
 		t.Fatalf("expected 0 unread after SetRead, got %d", count)
 	}
 }
+
+func TestMessageStoreUnreadCountByChat(t *testing.T) {
+	ctx := context.Background()
+	ms, err := OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	msgs := []*domain.Message{
+		{ChatID: "c1", Text: "a", Timestamp: time.Unix(1, 0), IsUnread: true},
+		{ChatID: "c1", Text: "b", Timestamp: time.Unix(2, 0), IsUnread: true},
+		{ChatID: "c2", Text: "c", Timestamp: time.Unix(3, 0), IsUnread: false},
+	}
+	for i, m := range msgs {
+		if err := ms.InsertMessage(ctx, m); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+	counts, err := ms.UnreadCountByChat(ctx)
+	if err != nil {
+		t.Fatalf("counts: %v", err)
+	}
+	if counts["c1"] != 2 || counts["c2"] != 0 {
+		t.Fatalf("unexpected counts: %+v", counts)
+	}
+	if err := ms.SetRead(ctx, "c1", time.Unix(2, 0)); err != nil {
+		t.Fatalf("setread: %v", err)
+	}
+	counts, err = ms.UnreadCountByChat(ctx)
+	if err != nil {
+		t.Fatalf("counts2: %v", err)
+	}
+	if counts["c1"] != 0 {
+		t.Fatalf("expected c1 count 0, got %d", counts["c1"])
+	}
+}

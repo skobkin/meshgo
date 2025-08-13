@@ -77,6 +77,18 @@ func (s *NodeStore) UpsertNode(ctx context.Context, n *domain.Node) error {
 	return err
 }
 
+// SetFavorite marks a node as favorite or not.
+func (s *NodeStore) SetFavorite(ctx context.Context, id string, fav bool) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET favorite=? WHERE id=?`, fav, id)
+	return err
+}
+
+// SetIgnored marks a node as ignored or not.
+func (s *NodeStore) SetIgnored(ctx context.Context, id string, ignored bool) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET ignored=? WHERE id=?`, ignored, id)
+	return err
+}
+
 // ListNodes returns all nodes in the store.
 func (s *NodeStore) ListNodes(ctx context.Context) ([]*domain.Node, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, short_name, long_name, favorite, ignored, unencrypted, enc_default_key, enc_custom_key, rssi, snr, signal_quality, battery_level, is_charging, last_heard FROM nodes`)
