@@ -343,6 +343,32 @@ func TestAppNodePreferenceHelpers(t *testing.T) {
 	}
 }
 
+func TestAppRemoveNode(t *testing.T) {
+	ctx := context.Background()
+	ns, err := storage.OpenNodeStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+	if err := ns.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ns.UpsertNode(ctx, &domain.Node{ID: "n1"}); err != nil {
+		t.Fatal(err)
+	}
+	a := New(newStubRadio(), nil, ns, nil, nil, nil)
+	if err := a.RemoveNode(ctx, "n1"); err != nil {
+		t.Fatalf("RemoveNode: %v", err)
+	}
+	nodes, err := ns.ListNodes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 0 {
+		t.Fatalf("expected node removed, got %d", len(nodes))
+	}
+}
+
 func TestAppEmitsEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

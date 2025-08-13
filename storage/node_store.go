@@ -89,6 +89,12 @@ func (s *NodeStore) SetIgnored(ctx context.Context, id string, ignored bool) err
 	return err
 }
 
+// RemoveNode deletes the node with the given ID.
+func (s *NodeStore) RemoveNode(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM nodes WHERE id=?`, id)
+	return err
+}
+
 // ListNodes returns all nodes in the store.
 func (s *NodeStore) ListNodes(ctx context.Context) ([]*domain.Node, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, short_name, long_name, favorite, ignored, unencrypted, enc_default_key, enc_custom_key, rssi, snr, signal_quality, battery_level, is_charging, last_heard FROM nodes`)

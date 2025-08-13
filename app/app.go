@@ -214,3 +214,11 @@ func (a *App) SetNodeIgnored(ctx context.Context, id string, ignored bool) error
 	}
 	return a.Nodes.SetIgnored(ctx, id, ignored)
 }
+
+// RemoveNode deletes the node with the given ID from the store.
+func (a *App) RemoveNode(ctx context.Context, id string) error {
+	if a.Nodes == nil {
+		return nil
+	}
+	return a.Nodes.RemoveNode(ctx, id)
+}
