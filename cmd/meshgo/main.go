@@ -29,6 +29,10 @@ func main() {
 		os.Exit(1)
 	}
 	cfgDir = filepath.Join(cfgDir, "meshgo")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		slog.Error("create config dir", "err", err)
+		os.Exit(1)
+	}
 	settingsPath := filepath.Join(cfgDir, "config.json")
 
 	settings, err := storage.LoadSettings(settingsPath)
@@ -38,9 +42,17 @@ func main() {
 	}
 	if settings == nil {
 		settings = &storage.Settings{}
+		if err := storage.SaveSettings(settingsPath, settings); err != nil {
+			slog.Error("save default settings", "err", err)
+		}
 	}
 
-	logPath := filepath.Join(cfgDir, "logs", "meshgo.log")
+	logDir := filepath.Join(cfgDir, "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		slog.Error("create log dir", "err", err)
+		os.Exit(1)
+	}
+	logPath := filepath.Join(logDir, "meshgo.log")
 	l, closer, err := logger.New(logPath, settings.Logging.Enabled)
 	if err != nil {
 		slog.Error("init logger", "err", err)
