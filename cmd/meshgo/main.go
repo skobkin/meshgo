@@ -26,6 +26,7 @@ import (
 func main() {
 	listChats := flag.Bool("list-chats", false, "list stored chats and exit")
 	listNodes := flag.Bool("list-nodes", false, "list stored nodes and exit")
+	listChannels := flag.Bool("list-channels", false, "list stored channels and exit")
 	listMessages := flag.String("list-messages", "", "list messages for the given chat and exit")
 	flag.Parse()
 
@@ -119,7 +120,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	a := app.New(nil, ms, ns, cs, nil, nil)
+	chs, err := storage.OpenChannelStore(dbPath)
+	if err != nil {
+		slog.Error("open channel store", "err", err)
+		os.Exit(1)
+	}
+	defer chs.Close()
+	if err := chs.Init(ctx); err != nil {
+		slog.Error("init channel store", "err", err)
+		os.Exit(1)
+	}
+
+	a := app.New(nil, ms, ns, cs, chs, nil, nil)
 	if *listChats {
 		chats, err := a.ListChats(ctx)
 		if err != nil {
@@ -139,6 +151,17 @@ func main() {
 		}
 		for _, n := range nodes {
 			fmt.Printf("%s (%s)\n", n.ID, n.ShortName)
+		}
+		return
+	}
+	if *listChannels {
+		chans, err := a.ListChannels(ctx)
+		if err != nil {
+			slog.Error("list channels", "err", err)
+			os.Exit(1)
+		}
+		for _, c := range chans {
+			fmt.Printf("%s (psk=%d)\n", c.Name, c.PSKClass)
 		}
 		return
 	}
@@ -175,7 +198,7 @@ func main() {
 	tr.OnExit(func() { cancel() })
 	defer cancel()
 	go tr.Run()
-	a = app.New(rc, ms, ns, cs, notifier, tr)
+	a = app.New(rc, ms, ns, cs, chs, notifier, tr)
 	go func() {
 		for ev := range a.Events() {
 			switch ev.Type {

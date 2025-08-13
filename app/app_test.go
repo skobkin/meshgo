@@ -86,7 +86,7 @@ func TestAppStoresPacketsAndNotifies(t *testing.T) {
 	r := newStubRadio()
 	n := &stubNotifier{enabled: true}
 	tr := &stubTray{}
-	a := New(r, ms, nil, cs, n, tr)
+	a := New(r, ms, nil, cs, nil, n, tr)
 	go a.eventLoop(ctx)
 
 	r.events <- radio.Event{Type: radio.EventPacket, Packet: []byte("hello")}
@@ -136,7 +136,7 @@ func TestAppUpsertsNodes(t *testing.T) {
 	}
 
 	r := newStubRadio()
-	a := New(r, nil, ns, nil, nil, nil)
+	a := New(r, nil, ns, nil, nil, nil, nil)
 	go a.eventLoop(ctx)
 
 	r.events <- radio.Event{Type: radio.EventNode, Node: &domain.Node{ID: "n1", RSSI: -90, SNR: 9}}
@@ -177,7 +177,7 @@ func TestAppSendTextPersists(t *testing.T) {
 	}
 
 	r := newStubRadio()
-	a := New(r, ms, nil, cs, nil, nil)
+	a := New(r, ms, nil, cs, nil, nil, nil)
 
 	if err := a.SendText(ctx, "chat1", 0, "hello"); err != nil {
 		t.Fatalf("SendText error: %v", err)
@@ -220,7 +220,7 @@ func TestAppMarkChatRead(t *testing.T) {
 	}
 
 	tr := &stubTray{}
-	a := New(newStubRadio(), ms, nil, nil, nil, tr)
+	a := New(newStubRadio(), ms, nil, nil, nil, nil, tr)
 
 	if err := a.MarkChatRead(ctx, "chat1"); err != nil {
 		t.Fatalf("MarkChatRead error: %v", err)
@@ -277,7 +277,7 @@ func TestAppListHelpers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a := New(newStubRadio(), ms, ns, cs, nil, nil)
+	a := New(newStubRadio(), ms, ns, cs, nil, nil, nil)
 
 	msgs, err := a.ListMessages(ctx, "chat1", 10)
 	if err != nil || len(msgs) != 1 {
@@ -301,7 +301,7 @@ func TestAppListHelpers(t *testing.T) {
 func TestAppSendHelpers(t *testing.T) {
 	ctx := context.Background()
 	r := newStubRadio()
-	a := New(r, nil, nil, nil, nil, nil)
+	a := New(r, nil, nil, nil, nil, nil, nil)
 
 	if err := a.SendExchangeUserInfo(ctx, 1); err != nil {
 		t.Fatalf("SendExchangeUserInfo error: %v", err)
@@ -327,7 +327,7 @@ func TestAppNodePreferenceHelpers(t *testing.T) {
 	if err := ns.UpsertNode(ctx, &domain.Node{ID: "n1"}); err != nil {
 		t.Fatal(err)
 	}
-	a := New(newStubRadio(), nil, ns, nil, nil, nil)
+	a := New(newStubRadio(), nil, ns, nil, nil, nil, nil)
 	if err := a.SetNodeFavorite(ctx, "n1", true); err != nil {
 		t.Fatalf("SetNodeFavorite: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestAppRemoveNode(t *testing.T) {
 	if err := ns.UpsertNode(ctx, &domain.Node{ID: "n1"}); err != nil {
 		t.Fatal(err)
 	}
-	a := New(newStubRadio(), nil, ns, nil, nil, nil)
+	a := New(newStubRadio(), nil, ns, nil, nil, nil, nil)
 	if err := a.RemoveNode(ctx, "n1"); err != nil {
 		t.Fatalf("RemoveNode: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestAppEmitsEvents(t *testing.T) {
 	}
 
 	r := newStubRadio()
-	a := New(r, ms, ns, nil, nil, nil)
+	a := New(r, ms, ns, nil, nil, nil, nil)
 	go a.eventLoop(ctx)
 
 	evs := a.Events()
@@ -425,5 +425,28 @@ func TestAppEmitsEvents(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatalf("timeout waiting for node event")
+	}
+}
+
+func TestListChannels(t *testing.T) {
+	ctx := context.Background()
+	chs, err := storage.OpenChannelStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chs.Close()
+	if err := chs.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := chs.UpsertChannel(ctx, &domain.Channel{Name: "foo", PSKClass: 2}); err != nil {
+		t.Fatal(err)
+	}
+	a := New(newStubRadio(), nil, nil, nil, chs, nil, nil)
+	chans, err := a.ListChannels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chans) != 1 || chans[0].Name != "foo" || chans[0].PSKClass != 2 {
+		t.Fatalf("unexpected channels: %#v", chans)
 	}
 }

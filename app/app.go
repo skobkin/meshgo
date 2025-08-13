@@ -27,14 +27,15 @@ type App struct {
 	Messages *storage.MessageStore
 	Nodes    *storage.NodeStore
 	Chats    *storage.ChatStore
+	Channels *storage.ChannelStore
 	Notifier notify.Notifier
 	Tray     tray.Tray
 	events   chan Event
 }
 
-// New creates an App using the provided radio client, message store and notifier.
-func New(r Radio, ms *storage.MessageStore, ns *storage.NodeStore, cs *storage.ChatStore, n notify.Notifier, tr tray.Tray) *App {
-	return &App{Radio: r, Messages: ms, Nodes: ns, Chats: cs, Notifier: n, Tray: tr, events: make(chan Event, 16)}
+// New creates an App using the provided radio client, stores and notifier.
+func New(r Radio, ms *storage.MessageStore, ns *storage.NodeStore, cs *storage.ChatStore, chs *storage.ChannelStore, n notify.Notifier, tr tray.Tray) *App {
+	return &App{Radio: r, Messages: ms, Nodes: ns, Chats: cs, Channels: chs, Notifier: n, Tray: tr, events: make(chan Event, 16)}
 }
 
 // Run starts the radio client with the given transport and processes events
@@ -189,6 +190,14 @@ func (a *App) ListChats(ctx context.Context) ([]*domain.Chat, error) {
 		}
 	}
 	return chats, nil
+}
+
+// ListChannels returns all channels from the store.
+func (a *App) ListChannels(ctx context.Context) ([]*domain.Channel, error) {
+	if a.Channels == nil {
+		return nil, nil
+	}
+	return a.Channels.ListChannels(ctx)
 }
 
 // ListNodes returns all nodes from the store.
