@@ -342,3 +342,62 @@ func TestAppNodePreferenceHelpers(t *testing.T) {
 		t.Fatalf("node flags not set: %+v", nodes[0])
 	}
 }
+
+func TestAppEmitsEvents(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ms, err := storage.OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	ns, err := storage.OpenNodeStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+	if err := ns.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	r := newStubRadio()
+	a := New(r, ms, ns, nil, nil, nil)
+	go a.eventLoop(ctx)
+
+	evs := a.Events()
+
+	r.events <- radio.Event{Type: radio.EventConnecting}
+	select {
+	case ev := <-evs:
+		if ev.Type != EventConnecting {
+			t.Fatalf("expected EventConnecting, got %v", ev.Type)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for connecting event")
+	}
+
+	r.events <- radio.Event{Type: radio.EventPacket, Packet: []byte("hi")}
+	select {
+	case ev := <-evs:
+		if ev.Type != EventMessage || ev.Message == nil || ev.Message.Text != "hi" {
+			t.Fatalf("unexpected message event: %+v", ev)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for message event")
+	}
+
+	r.events <- radio.Event{Type: radio.EventNode, Node: &domain.Node{ID: "n1"}}
+	select {
+	case ev := <-evs:
+		if ev.Type != EventNode || ev.Node == nil || ev.Node.ID != "n1" {
+			t.Fatalf("unexpected node event: %+v", ev)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for node event")
+	}
+}

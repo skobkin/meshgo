@@ -133,6 +133,20 @@ func main() {
 	defer cancel()
 	go tr.Run()
 	a := app.New(rc, ms, ns, cs, notifier, tr)
+	go func() {
+		for ev := range a.Events() {
+			switch ev.Type {
+			case app.EventConnecting:
+				slog.Info("connecting")
+			case app.EventConnected:
+				slog.Info("connected")
+			case app.EventDisconnected:
+				slog.Info("disconnected", "err", ev.Err)
+			case app.EventRetrying:
+				slog.Info("retrying", "delay", ev.Delay)
+			}
+		}
+	}()
 	if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("run app", "err", err)
 		os.Exit(1)

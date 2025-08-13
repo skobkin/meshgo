@@ -29,11 +29,12 @@ type App struct {
 	Chats    *storage.ChatStore
 	Notifier notify.Notifier
 	Tray     tray.Tray
+	events   chan Event
 }
 
 // New creates an App using the provided radio client, message store and notifier.
 func New(r Radio, ms *storage.MessageStore, ns *storage.NodeStore, cs *storage.ChatStore, n notify.Notifier, tr tray.Tray) *App {
-	return &App{Radio: r, Messages: ms, Nodes: ns, Chats: cs, Notifier: n, Tray: tr}
+	return &App{Radio: r, Messages: ms, Nodes: ns, Chats: cs, Notifier: n, Tray: tr, events: make(chan Event, 16)}
 }
 
 // Run starts the radio client with the given transport and processes events
@@ -82,6 +83,7 @@ func (a *App) SendTraceroute(ctx context.Context, node uint32) error {
 }
 
 func (a *App) eventLoop(ctx context.Context) {
+	defer close(a.events)
 	for {
 		select {
 		case <-ctx.Done():
@@ -95,6 +97,14 @@ func (a *App) eventLoop(ctx context.Context) {
 				a.handlePacket(ctx, ev.Packet)
 			case radio.EventNode:
 				a.handleNode(ctx, ev.Node)
+			case radio.EventConnecting:
+				a.events <- Event{Type: EventConnecting}
+			case radio.EventConnected:
+				a.events <- Event{Type: EventConnected}
+			case radio.EventDisconnected:
+				a.events <- Event{Type: EventDisconnected, Err: ev.Err}
+			case radio.EventRetrying:
+				a.events <- Event{Type: EventRetrying, Delay: ev.Delay}
 			}
 		}
 	}
@@ -118,6 +128,7 @@ func (a *App) handlePacket(ctx context.Context, pkt []byte) {
 			_ = a.Notifier.NotifyNewMessage(m.ChatID, "New Message", m.Text, m.Timestamp)
 		}
 		a.RefreshUnread(ctx)
+		a.events <- Event{Type: EventMessage, Message: m}
 	}
 }
 
@@ -127,6 +138,7 @@ func (a *App) handleNode(ctx context.Context, n *domain.Node) {
 	}
 	n.Signal = domain.ComputeSignalQuality(n.RSSI, n.SNR)
 	_ = a.Nodes.UpsertNode(ctx, n)
+	a.events <- Event{Type: EventNode, Node: n}
 }
 
 // RefreshUnread updates the tray unread state based on the message store.
