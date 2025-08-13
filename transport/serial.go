@@ -35,7 +35,9 @@ func (s *SerialTransport) Connect(ctx context.Context) error {
 // Close closes the serial port if it is open.
 func (s *SerialTransport) Close() error {
 	if s.port != nil {
-		return s.port.Close()
+		err := s.port.Close()
+		s.port = nil
+		return err
 	}
 	return nil
 }

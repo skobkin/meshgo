@@ -25,7 +25,9 @@ func (t *TCPTransport) Connect(ctx context.Context) error {
 // Close closes the underlying connection if open.
 func (t *TCPTransport) Close() error {
 	if t.conn != nil {
-		return t.conn.Close()
+		err := t.conn.Close()
+		t.conn = nil
+		return err
 	}
 	return nil
 }
