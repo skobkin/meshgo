@@ -17,6 +17,8 @@ type Radio interface {
 	Start(ctx context.Context, t transport.Transport) error
 	Events() <-chan radio.Event
 	SendText(ctx context.Context, chatID string, toNode uint32, text string) error
+	SendExchangeUserInfo(ctx context.Context, node uint32) error
+	SendTraceroute(ctx context.Context, node uint32) error
 }
 
 // App wires together the transport, radio client and persistence layers.
@@ -61,6 +63,22 @@ func (a *App) SendText(ctx context.Context, chatID string, toNode uint32, text s
 	}
 	a.RefreshUnread(ctx)
 	return nil
+}
+
+// SendExchangeUserInfo requests user information from the specified node.
+func (a *App) SendExchangeUserInfo(ctx context.Context, node uint32) error {
+	if a.Radio == nil {
+		return nil
+	}
+	return a.Radio.SendExchangeUserInfo(ctx, node)
+}
+
+// SendTraceroute requests a traceroute to the specified node.
+func (a *App) SendTraceroute(ctx context.Context, node uint32) error {
+	if a.Radio == nil {
+		return nil
+	}
+	return a.Radio.SendTraceroute(ctx, node)
 }
 
 func (a *App) eventLoop(ctx context.Context) {

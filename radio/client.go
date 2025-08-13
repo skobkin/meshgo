@@ -109,6 +109,28 @@ func (c *Client) SendText(ctx context.Context, chatID string, toNode uint32, tex
 	return t.WritePacket(ctx, []byte(text))
 }
 
+// SendExchangeUserInfo requests user information from the specified node.
+func (c *Client) SendExchangeUserInfo(ctx context.Context, node uint32) error {
+	c.tMu.RLock()
+	t := c.t
+	c.tMu.RUnlock()
+	if t == nil {
+		return errors.New("not connected")
+	}
+	return t.WritePacket(ctx, []byte("userinfo"))
+}
+
+// SendTraceroute requests a traceroute to the specified node.
+func (c *Client) SendTraceroute(ctx context.Context, node uint32) error {
+	c.tMu.RLock()
+	t := c.t
+	c.tMu.RUnlock()
+	if t == nil {
+		return errors.New("not connected")
+	}
+	return t.WritePacket(ctx, []byte("traceroute"))
+}
+
 func (c *Client) setTransport(t transport.Transport) {
 	c.tMu.Lock()
 	c.t = t

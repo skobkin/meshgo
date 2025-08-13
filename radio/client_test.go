@@ -69,3 +69,27 @@ func TestSendTextWritesPacket(t *testing.T) {
 		t.Fatalf("expected 'msg', got %q", st.written)
 	}
 }
+
+func TestSendExchangeUserInfoWritesPacket(t *testing.T) {
+	c := New(ReconnectConfig{})
+	st := &stubTransport{}
+	c.t = st
+	if err := c.SendExchangeUserInfo(context.Background(), 1); err != nil {
+		t.Fatalf("SendExchangeUserInfo error: %v", err)
+	}
+	if string(st.written) != "userinfo" {
+		t.Fatalf("expected 'userinfo', got %q", st.written)
+	}
+}
+
+func TestSendTracerouteWritesPacket(t *testing.T) {
+	c := New(ReconnectConfig{})
+	st := &stubTransport{}
+	c.t = st
+	if err := c.SendTraceroute(context.Background(), 1); err != nil {
+		t.Fatalf("SendTraceroute error: %v", err)
+	}
+	if string(st.written) != "traceroute" {
+		t.Fatalf("expected 'traceroute', got %q", st.written)
+	}
+}

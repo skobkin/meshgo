@@ -30,6 +30,14 @@ func (s *stubRadio) SendText(ctx context.Context, chatID string, toNode uint32, 
 	s.sent = append(s.sent, text)
 	return nil
 }
+func (s *stubRadio) SendExchangeUserInfo(ctx context.Context, node uint32) error {
+	s.sent = append(s.sent, "userinfo")
+	return nil
+}
+func (s *stubRadio) SendTraceroute(ctx context.Context, node uint32) error {
+	s.sent = append(s.sent, "traceroute")
+	return nil
+}
 
 type stubNotifier struct{ count int }
 
@@ -277,5 +285,21 @@ func TestAppListHelpers(t *testing.T) {
 	nodes, err := a.ListNodes(ctx)
 	if err != nil || len(nodes) != 1 {
 		t.Fatalf("ListNodes: %v %d", err, len(nodes))
+	}
+}
+
+func TestAppSendHelpers(t *testing.T) {
+	ctx := context.Background()
+	r := newStubRadio()
+	a := New(r, nil, nil, nil, nil, nil)
+
+	if err := a.SendExchangeUserInfo(ctx, 1); err != nil {
+		t.Fatalf("SendExchangeUserInfo error: %v", err)
+	}
+	if err := a.SendTraceroute(ctx, 1); err != nil {
+		t.Fatalf("SendTraceroute error: %v", err)
+	}
+	if len(r.sent) != 2 || r.sent[0] != "userinfo" || r.sent[1] != "traceroute" {
+		t.Fatalf("unexpected sent slice: %+v", r.sent)
 	}
 }
