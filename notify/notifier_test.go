@@ -23,7 +23,7 @@ func TestBeeepNotifier(t *testing.T) {
 	}
 
 	// When disabled it should not invoke notifyFunc.
-	n.Enabled = false
+	n.SetEnabled(false)
 	called = false
 	if err := n.NotifyNewMessage("chat", "t", "b", time.Now()); err != nil {
 		t.Fatalf("NotifyNewMessage returned error: %v", err)

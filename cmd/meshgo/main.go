@@ -121,10 +121,18 @@ func main() {
 	notifier := notify.NewBeeep(settings.Notifications.Enabled)
 
 	tr := &tray.Noop{}
+	tr.OnToggleNotifications(func(e bool) {
+		notifier.SetEnabled(e)
+		settings.Notifications.Enabled = e
+		if err := storage.SaveSettings(settingsPath, settings); err != nil {
+			slog.Error("save settings", "err", err)
+		}
+	})
+	ctx, cancel := context.WithCancel(ctx)
+	tr.OnExit(func() { cancel() })
+	defer cancel()
 	go tr.Run()
 	a := app.New(rc, ms, ns, cs, notifier, tr)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
 		slog.Error("run app", "err", err)
 		os.Exit(1)

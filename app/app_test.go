@@ -39,12 +39,19 @@ func (s *stubRadio) SendTraceroute(ctx context.Context, node uint32) error {
 	return nil
 }
 
-type stubNotifier struct{ count int }
+type stubNotifier struct {
+	count   int
+	enabled bool
+}
 
 func (n *stubNotifier) NotifyNewMessage(chatID, title, body string, ts time.Time) error {
-	n.count++
+	if n.enabled {
+		n.count++
+	}
 	return nil
 }
+
+func (n *stubNotifier) SetEnabled(e bool) { n.enabled = e }
 
 type stubTray struct{ unread bool }
 
@@ -77,7 +84,7 @@ func TestAppStoresPacketsAndNotifies(t *testing.T) {
 	}
 
 	r := newStubRadio()
-	n := &stubNotifier{}
+	n := &stubNotifier{enabled: true}
 	tr := &stubTray{}
 	a := New(r, ms, nil, cs, n, tr)
 	go a.eventLoop(ctx)
