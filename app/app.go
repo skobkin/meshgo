@@ -133,3 +133,27 @@ func (a *App) MarkChatRead(ctx context.Context, chatID string) error {
 	a.RefreshUnread(ctx)
 	return nil
 }
+
+// ListMessages returns recent messages for the chat.
+func (a *App) ListMessages(ctx context.Context, chatID string, limit int) ([]*domain.Message, error) {
+	if a.Messages == nil {
+		return nil, nil
+	}
+	return a.Messages.ListMessages(ctx, chatID, limit)
+}
+
+// ListChats returns all chats from the store.
+func (a *App) ListChats(ctx context.Context) ([]*domain.Chat, error) {
+	if a.Chats == nil {
+		return nil, nil
+	}
+	return a.Chats.ListChats(ctx)
+}
+
+// ListNodes returns all nodes from the store.
+func (a *App) ListNodes(ctx context.Context) ([]*domain.Node, error) {
+	if a.Nodes == nil {
+		return nil, nil
+	}
+	return a.Nodes.ListNodes(ctx)
+}

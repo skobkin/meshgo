@@ -221,3 +221,61 @@ func TestAppMarkChatRead(t *testing.T) {
 		t.Fatalf("expected tray unread cleared")
 	}
 }
+
+func TestAppListHelpers(t *testing.T) {
+	ctx := context.Background()
+
+	ms, err := storage.OpenMessageStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ms.Close()
+	if err := ms.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	m := &domain.Message{ChatID: "chat1", Text: "hello", Timestamp: time.Now()}
+	if err := ms.InsertMessage(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, err := storage.OpenChatStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+	if err := cs.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.UpsertChat(ctx, &domain.Chat{ID: "chat1", Title: "chat1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ns, err := storage.OpenNodeStore(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ns.Close()
+	if err := ns.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := ns.UpsertNode(ctx, &domain.Node{ID: "n1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	a := New(newStubRadio(), ms, ns, cs, nil, nil)
+
+	msgs, err := a.ListMessages(ctx, "chat1", 10)
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("ListMessages: %v %d", err, len(msgs))
+	}
+
+	chats, err := a.ListChats(ctx)
+	if err != nil || len(chats) != 1 {
+		t.Fatalf("ListChats: %v %d", err, len(chats))
+	}
+
+	nodes, err := a.ListNodes(ctx)
+	if err != nil || len(nodes) != 1 {
+		t.Fatalf("ListNodes: %v %d", err, len(nodes))
+	}
+}
