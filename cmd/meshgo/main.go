@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"meshgo/app"
 	"meshgo/logger"
@@ -25,6 +26,7 @@ import (
 func main() {
 	listChats := flag.Bool("list-chats", false, "list stored chats and exit")
 	listNodes := flag.Bool("list-nodes", false, "list stored nodes and exit")
+	listMessages := flag.String("list-messages", "", "list messages for the given chat and exit")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -137,6 +139,17 @@ func main() {
 		}
 		for _, n := range nodes {
 			fmt.Printf("%s (%s)\n", n.ID, n.ShortName)
+		}
+		return
+	}
+	if *listMessages != "" {
+		msgs, err := a.ListMessages(ctx, *listMessages, 100)
+		if err != nil {
+			slog.Error("list messages", "err", err)
+			os.Exit(1)
+		}
+		for _, m := range msgs {
+			fmt.Printf("%s: %s\n", m.Timestamp.Format(time.RFC3339), m.Text)
 		}
 		return
 	}
