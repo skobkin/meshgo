@@ -29,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 	cfgDir = filepath.Join(cfgDir, "meshgo")
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
 		slog.Error("create config dir", "err", err)
 		os.Exit(1)
 	}
@@ -48,7 +48,7 @@ func main() {
 	}
 
 	logDir := filepath.Join(cfgDir, "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, 0755); err != nil {
 		slog.Error("create log dir", "err", err)
 		os.Exit(1)
 	}
