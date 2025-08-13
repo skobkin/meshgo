@@ -1,0 +1,79 @@
+package transport
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"go.bug.st/serial"
+)
+
+// SerialTransport connects to a Meshtastic device over a serial port.
+type SerialTransport struct {
+	name string
+	baud int
+	port serial.Port
+}
+
+// NewSerial creates a serial transport for the given port name using the
+// default Meshtastic baud rate of 115200.
+func NewSerial(name string) *SerialTransport {
+	return &SerialTransport{name: name, baud: 115200}
+}
+
+// Connect opens the serial port with the configured baud rate.
+func (s *SerialTransport) Connect(ctx context.Context) error {
+	mode := &serial.Mode{BaudRate: s.baud}
+	p, err := serial.Open(s.name, mode)
+	if err != nil {
+		return err
+	}
+	s.port = p
+	return nil
+}
+
+// Close closes the serial port if it is open.
+func (s *SerialTransport) Close() error {
+	if s.port != nil {
+		err := s.port.Close()
+		s.port = nil
+		return err
+	}
+	return nil
+}
+
+// ReadPacket reads up to 1024 bytes from the serial port.
+func (s *SerialTransport) ReadPacket(ctx context.Context) ([]byte, error) {
+	if s.port == nil {
+		return nil, errors.New("serial port not open")
+	}
+	if d, ok := ctx.Deadline(); ok {
+		_ = s.port.SetReadTimeout(time.Until(d))
+	}
+	buf := make([]byte, 1024)
+	n, err := s.port.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+// WritePacket writes the given bytes to the serial port.
+func (s *SerialTransport) WritePacket(ctx context.Context, b []byte) error {
+	if s.port == nil {
+		return errors.New("serial port not open")
+	}
+	if d, ok := ctx.Deadline(); ok {
+		if wt, ok := s.port.(interface{ SetWriteTimeout(time.Duration) error }); ok {
+			_ = wt.SetWriteTimeout(time.Until(d))
+		}
+	}
+	_, err := s.port.Write(b)
+	return err
+}
+
+// IsConnected reports whether the transport has an open serial port.
+func (s *SerialTransport) IsConnected() bool { return s.port != nil }
+
+// Endpoint returns the configured port name.
+func (s *SerialTransport) Endpoint() string { return s.name }
