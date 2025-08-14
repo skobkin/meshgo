@@ -46,6 +46,7 @@ func (n *Noop) Run() {
 	}
 	slog.Info("tray disabled; running without system tray")
 	if n.ready != nil {
+		slog.Info("tray ready")
 		n.ready()
 	}
 	<-n.quit

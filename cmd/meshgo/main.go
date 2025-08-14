@@ -248,9 +248,12 @@ func main() {
 	}()
 
 	tr.OnReady(func() {
+		slog.Info("tray ready")
 		if !hasConn {
+			slog.Info("no connection configured; radio not started")
 			return
 		}
+		slog.Info("starting radio", "endpoint", t.Endpoint())
 		go func() {
 			if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
 				slog.Error("run app", "err", err)
