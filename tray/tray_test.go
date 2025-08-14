@@ -3,7 +3,7 @@ package tray
 import "testing"
 
 func TestNoopCallbacks(t *testing.T) {
-	n := &Noop{}
+	n := &Noop{quit: make(chan struct{})}
 	calledShow := false
 	n.OnShowHide(func() { calledShow = true })
 	if n.showHide == nil {
@@ -29,12 +29,16 @@ func TestNoopCallbacks(t *testing.T) {
 	if n.exit == nil {
 		t.Fatalf("exit callback not set")
 	}
-	n.exit()
+
+	// Run should block until Quit is called and trigger the exit callback.
+	done := make(chan struct{})
+	go func() {
+		n.Run()
+		close(done)
+	}()
+	n.Quit()
+	<-done
 	if !exited {
 		t.Fatalf("exit callback not invoked")
 	}
-
-	// Run and Quit should be no-ops
-	n.Run()
-	n.Quit()
 }

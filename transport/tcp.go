@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"time"
 )
@@ -17,16 +18,24 @@ func NewTCP(addr string) *TCPTransport { return &TCPTransport{addr: addr} }
 
 // Connect dials the configured TCP endpoint.
 func (t *TCPTransport) Connect(ctx context.Context) error {
+	slog.Info("tcp connect", "addr", t.addr)
 	var err error
 	t.conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", t.addr)
+	if err != nil {
+		slog.Error("tcp connect failed", "addr", t.addr, "err", err)
+	}
 	return err
 }
 
 // Close closes the underlying connection if open.
 func (t *TCPTransport) Close() error {
 	if t.conn != nil {
+		slog.Info("tcp close", "addr", t.addr)
 		err := t.conn.Close()
 		t.conn = nil
+		if err != nil {
+			slog.Error("tcp close error", "addr", t.addr, "err", err)
+		}
 		return err
 	}
 	return nil
@@ -42,6 +51,7 @@ func (t *TCPTransport) ReadPacket(ctx context.Context) ([]byte, error) {
 	buf := make([]byte, 1024)
 	n, err := t.conn.Read(buf)
 	if err != nil {
+		slog.Error("tcp read", "err", err)
 		return nil, err
 	}
 	return buf[:n], nil
@@ -54,6 +64,9 @@ func (t *TCPTransport) WritePacket(ctx context.Context, b []byte) error {
 	}
 	_ = t.conn.SetWriteDeadline(deadlineFromContext(ctx))
 	_, err := t.conn.Write(b)
+	if err != nil {
+		slog.Error("tcp write", "err", err)
+	}
 	return err
 }
 

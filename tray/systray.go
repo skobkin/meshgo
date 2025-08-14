@@ -4,6 +4,7 @@ package tray
 
 import (
 	"encoding/base64"
+	"log/slog"
 
 	"github.com/getlantern/systray"
 )
@@ -57,6 +58,7 @@ func (s *Systray) OnExit(fn func()) { s.exit = fn }
 
 // Run starts the tray event loop and blocks until the tray is closed.
 func (s *Systray) Run() {
+	slog.Info("starting systray")
 	systray.Run(s.onReady, s.onExit)
 }
 
@@ -66,6 +68,7 @@ func (s *Systray) Quit() {
 }
 
 func (s *Systray) onReady() {
+	slog.Info("systray ready")
 	systray.SetIcon(iconDefault)
 	systray.SetTooltip("meshgo")
 
@@ -106,4 +109,6 @@ func (s *Systray) onReady() {
 	}()
 }
 
-func (s *Systray) onExit() {}
+func (s *Systray) onExit() {
+	slog.Info("systray exit")
+}

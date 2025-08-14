@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"go.bug.st/serial"
@@ -23,9 +24,11 @@ func NewSerial(name string) *SerialTransport {
 
 // Connect opens the serial port with the configured baud rate.
 func (s *SerialTransport) Connect(ctx context.Context) error {
+	slog.Info("serial open", "port", s.name, "baud", s.baud)
 	mode := &serial.Mode{BaudRate: s.baud}
 	p, err := serial.Open(s.name, mode)
 	if err != nil {
+		slog.Error("serial open failed", "port", s.name, "err", err)
 		return err
 	}
 	s.port = p
@@ -35,8 +38,12 @@ func (s *SerialTransport) Connect(ctx context.Context) error {
 // Close closes the serial port if it is open.
 func (s *SerialTransport) Close() error {
 	if s.port != nil {
+		slog.Info("serial close", "port", s.name)
 		err := s.port.Close()
 		s.port = nil
+		if err != nil {
+			slog.Error("serial close error", "port", s.name, "err", err)
+		}
 		return err
 	}
 	return nil
@@ -53,6 +60,7 @@ func (s *SerialTransport) ReadPacket(ctx context.Context) ([]byte, error) {
 	buf := make([]byte, 1024)
 	n, err := s.port.Read(buf)
 	if err != nil {
+		slog.Error("serial read", "err", err)
 		return nil, err
 	}
 	return buf[:n], nil
@@ -69,6 +77,9 @@ func (s *SerialTransport) WritePacket(ctx context.Context, b []byte) error {
 		}
 	}
 	_, err := s.port.Write(b)
+	if err != nil {
+		slog.Error("serial write", "err", err)
+	}
 	return err
 }
 

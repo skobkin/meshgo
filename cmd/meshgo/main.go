@@ -69,11 +69,13 @@ func main() {
 	}
 	defer closer.Close()
 	slog.SetDefault(l)
+	slog.Info("starting meshgo", "log", logPath)
 
 	var t transport.Transport
 	switch settings.Connection.Type {
 	case "serial":
 		t = transport.NewSerial(settings.Connection.Serial.Port)
+		slog.Info("configured transport", "type", "serial", "endpoint", t.Endpoint())
 	default:
 		host := settings.Connection.IP.Host
 		if host == "" {
@@ -84,6 +86,7 @@ func main() {
 			port = 4403
 		}
 		t = transport.NewTCP(net.JoinHostPort(host, strconv.Itoa(port)))
+		slog.Info("configured transport", "type", "tcp", "endpoint", t.Endpoint())
 	}
 
 	dbPath := filepath.Join(cfgDir, "meshgo.db")
