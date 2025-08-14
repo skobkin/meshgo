@@ -12,6 +12,9 @@ import (
 	"strconv"
 	"time"
 
+	fyneapp "fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/widget"
+
 	"meshgo/app"
 	"meshgo/logger"
 	"meshgo/notify"
@@ -218,6 +221,22 @@ func main() {
 	notifier := notify.NewBeeep(settings.Notifications.Enabled)
 
 	tr := tray.NewSystray(settings.Notifications.Enabled)
+
+	uiApp := fyneapp.New()
+	win := uiApp.NewWindow("meshgo")
+	win.SetContent(widget.NewLabel("meshgo running"))
+	win.SetCloseIntercept(func() { win.Hide() })
+
+	visible := true
+	tr.OnShowHide(func() {
+		if visible {
+			win.Hide()
+		} else {
+			win.Show()
+		}
+		visible = !visible
+	})
+
 	tr.OnToggleNotifications(func(e bool) {
 		notifier.SetEnabled(e)
 		settings.Notifications.Enabled = e
@@ -225,9 +244,14 @@ func main() {
 			slog.Error("save settings", "err", err)
 		}
 	})
+
 	ctx, cancel := context.WithCancel(ctx)
-	tr.OnExit(func() { cancel() })
+	tr.OnExit(func() {
+		cancel()
+		uiApp.Quit()
+	})
 	defer cancel()
+
 	a = app.New(rc, ms, ns, cs, chs, notifier, tr)
 
 	go func() {
@@ -277,5 +301,7 @@ func main() {
 		}()
 	})
 
-	tr.Run()
+	go tr.Run()
+	win.Show()
+	uiApp.Run()
 }
