@@ -34,6 +34,7 @@ func TestNoopCallbacks(t *testing.T) {
 		t.Fatalf("exit callback not invoked")
 	}
 
-	// Run should be a no-op
+	// Run and Quit should be no-ops
 	n.Run()
+	n.Quit()
 }

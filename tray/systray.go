@@ -58,6 +58,11 @@ func (s *Systray) Run() {
 	systray.Run(s.onReady, s.onExit)
 }
 
+// Quit stops the tray event loop.
+func (s *Systray) Quit() {
+	systray.Quit()
+}
+
 func (s *Systray) onReady() {
 	systray.SetIcon(iconDefault)
 	systray.SetTooltip("meshgo")

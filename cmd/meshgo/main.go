@@ -197,8 +197,8 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	tr.OnExit(func() { cancel() })
 	defer cancel()
-	go tr.Run()
 	a = app.New(rc, ms, ns, cs, chs, notifier, tr)
+
 	go func() {
 		for ev := range a.Events() {
 			switch ev.Type {
@@ -221,8 +221,14 @@ func main() {
 			}
 		}
 	}()
-	if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
-		slog.Error("run app", "err", err)
-		os.Exit(1)
-	}
+
+	go func() {
+		if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("run app", "err", err)
+		}
+		cancel()
+		tr.Quit()
+	}()
+
+	tr.Run()
 }
