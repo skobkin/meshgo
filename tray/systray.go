@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	// 1x1 transparent PNG placeholder
-	iconDefault = mustDecodeIcon("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=")
-	// identical placeholder used for unread state; replace with real asset later
-	iconUnread = mustDecodeIcon("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=")
+	// simple gray square 16x16 PNG
+	iconDefault = mustDecodeIcon("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHklEQVR4nGI5ceIEAymAiSTVoxpGNQwpDYAAAAD//2Z5Antq1nXTAAAAAElFTkSuQmCC")
+	// same base with a red badge in the top-right corner for unread state
+	iconUnread = mustDecodeIcon("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAALklEQVR4nGI5ceIEA24gYmGBJsKERzVWMBw0sOCXfoMRhoPQD6MaiAGAAAAA//9gPwV9LZxsbwAAAABJRU5ErkJggg==")
 )
 
 func mustDecodeIcon(s string) []byte {
