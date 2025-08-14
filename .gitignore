@@ -25,3 +25,6 @@ go.work.sum
 # env file
 .env
 
+# PRD document
+meshgo_gpt5_prd_full_enhanced.md
+
