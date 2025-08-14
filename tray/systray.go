@@ -1,3 +1,5 @@
+//go:build cgo
+
 package tray
 
 import (
@@ -31,7 +33,7 @@ type Systray struct {
 
 // NewSystray creates a new Systray. The enabled parameter sets the initial
 // notifications state and checkbox.
-func NewSystray(enabled bool) *Systray {
+func NewSystray(enabled bool) Tray {
 	return &Systray{notifications: enabled}
 }
 

@@ -1,9 +1,15 @@
+//go:build cgo
+
 package tray
 
 import "testing"
 
 func TestSystrayCallbacks(t *testing.T) {
-	s := NewSystray(true)
+	tr := NewSystray(true)
+	s, ok := tr.(*Systray)
+	if !ok {
+		t.Fatalf("expected *Systray, got %T", tr)
+	}
 	calledShow := false
 	s.OnShowHide(func() { calledShow = true })
 	if s.showHide == nil {
