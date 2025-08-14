@@ -27,6 +27,13 @@ Settings and the SQLite database are stored beneath the user configuration direc
 This project is licensed under the [MIT License](LICENSE). All dependencies are chosen from MIT, Apache-2.0 or BSD-compatible licenses.
 
 ## Building
+### Linux prerequisites
+Building with tray support on Linux requires the Ayatana appindicator development packages. Install them with:
+
+```sh
+sudo apt-get install -y libayatana-appindicator3-dev
+```
+
 Meshgo targets Go 1.24.x. A minimal implementation exists with transport selection, a reconnecting radio client and persistence scaffolding. You can build the current command-line prototype with:
 
 ```sh

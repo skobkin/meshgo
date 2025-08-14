@@ -60,6 +60,7 @@ func (t *stubTray) OnShowHide(fn func())                {}
 func (t *stubTray) OnToggleNotifications(fn func(bool)) {}
 func (t *stubTray) OnExit(fn func())                    {}
 func (t *stubTray) Run()                                {}
+func (t *stubTray) Quit()                               {}
 
 func TestAppStoresPacketsAndNotifies(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

@@ -12,6 +12,8 @@ type Tray interface {
 	OnExit(fn func())
 	// Run starts the tray event loop and blocks until the tray is closed.
 	Run()
+	// Quit requests the tray event loop to exit.
+	Quit()
 }
 
 // Noop implements Tray with no side effects.
@@ -30,3 +32,5 @@ func (n *Noop) OnToggleNotifications(fn func(bool)) { n.toggle = fn }
 func (n *Noop) OnExit(fn func()) { n.exit = fn }
 
 func (n *Noop) Run() {}
+
+func (n *Noop) Quit() {}
