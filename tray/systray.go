@@ -30,6 +30,7 @@ type Systray struct {
 	toggle        func(bool)
 	exit          func()
 	notifications bool
+	ready         func()
 }
 
 // NewSystray creates a new Systray. The enabled parameter sets the initial
@@ -56,6 +57,9 @@ func (s *Systray) OnToggleNotifications(fn func(bool)) { s.toggle = fn }
 // OnExit registers a callback for exit requests.
 func (s *Systray) OnExit(fn func()) { s.exit = fn }
 
+// OnReady registers a callback invoked when the tray is ready.
+func (s *Systray) OnReady(fn func()) { s.ready = fn }
+
 // Run starts the tray event loop and blocks until the tray is closed.
 func (s *Systray) Run() {
 	slog.Info("starting systray")
@@ -71,6 +75,9 @@ func (s *Systray) onReady() {
 	slog.Info("systray ready")
 	systray.SetIcon(iconDefault)
 	systray.SetTooltip("meshgo")
+	if s.ready != nil {
+		s.ready()
+	}
 
 	mShow := systray.AddMenuItem("Show/Hide", "Show or hide the window")
 	mToggle := systray.AddMenuItemCheckbox("Enable notifications", "Toggle notifications", s.notifications)

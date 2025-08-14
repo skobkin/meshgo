@@ -29,13 +29,19 @@ func TestNoopCallbacks(t *testing.T) {
 	if n.exit == nil {
 		t.Fatalf("exit callback not set")
 	}
+	readyCh := make(chan struct{})
+	n.OnReady(func() { close(readyCh) })
+	if n.ready == nil {
+		t.Fatalf("ready callback not set")
+	}
 
-	// Run should block until Quit is called and trigger the exit callback.
+	// Run should block until Quit is called and trigger callbacks.
 	done := make(chan struct{})
 	go func() {
 		n.Run()
 		close(done)
 	}()
+	<-readyCh
 	n.Quit()
 	<-done
 	if !exited {

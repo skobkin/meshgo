@@ -53,7 +53,9 @@ func (a *App) Run(ctx context.Context, t transport.Transport) error {
 
 // SendText sends a text message via the radio client and persists it to the store.
 func (a *App) SendText(ctx context.Context, chatID string, toNode uint32, text string) error {
+	slog.Info("app send text", "chat", chatID, "to", toNode)
 	if err := a.Radio.SendText(ctx, chatID, toNode, text); err != nil {
+		slog.Error("app send text failed", "err", err)
 		return err
 	}
 	if a.Messages != nil {
@@ -63,6 +65,7 @@ func (a *App) SendText(ctx context.Context, chatID string, toNode uint32, text s
 			Timestamp: time.Now(),
 		}
 		if err := a.Messages.InsertMessage(ctx, m); err != nil {
+			slog.Error("store message", "err", err)
 			return err
 		}
 		if a.Chats != nil {
@@ -90,7 +93,11 @@ func (a *App) SendTraceroute(ctx context.Context, node uint32) error {
 }
 
 func (a *App) eventLoop(ctx context.Context) {
-	defer close(a.events)
+	slog.Info("event loop started")
+	defer func() {
+		slog.Info("event loop stopped")
+		close(a.events)
+	}()
 	for {
 		select {
 		case <-ctx.Done():

@@ -42,6 +42,7 @@ func main() {
 		slog.Error("create config dir", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("using config dir", "path", cfgDir)
 	settingsPath := filepath.Join(cfgDir, "config.json")
 
 	settings, err := storage.LoadSettings(settingsPath)
@@ -53,7 +54,11 @@ func main() {
 		settings = &storage.Settings{}
 		if err := storage.SaveSettings(settingsPath, settings); err != nil {
 			slog.Error("save default settings", "err", err)
+		} else {
+			slog.Info("wrote default settings", "path", settingsPath)
 		}
+	} else {
+		slog.Info("loaded settings", "path", settingsPath)
 	}
 
 	logDir := filepath.Join(cfgDir, "logs")
@@ -61,6 +66,7 @@ func main() {
 		slog.Error("create log dir", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("using log dir", "path", logDir)
 	logPath := filepath.Join(logDir, "meshgo.log")
 	l, closer, err := logger.New(logPath, settings.Logging.Enabled)
 	if err != nil {
@@ -71,22 +77,36 @@ func main() {
 	slog.SetDefault(l)
 	slog.Info("starting meshgo", "log", logPath)
 
-	var t transport.Transport
+	var (
+		t       transport.Transport
+		hasConn bool
+	)
 	switch settings.Connection.Type {
 	case "serial":
-		t = transport.NewSerial(settings.Connection.Serial.Port)
-		slog.Info("configured transport", "type", "serial", "endpoint", t.Endpoint())
+		if settings.Connection.Serial.Port != "" {
+			t = transport.NewSerial(settings.Connection.Serial.Port)
+			slog.Info("configured transport", "type", "serial", "endpoint", t.Endpoint())
+			hasConn = true
+		}
+	case "tcp":
+		fallthrough
 	default:
 		host := settings.Connection.IP.Host
-		if host == "" {
-			host = "localhost"
-		}
 		port := settings.Connection.IP.Port
-		if port == 0 {
-			port = 4403
+		if host != "" || port != 0 || settings.Connection.Type == "tcp" {
+			if host == "" {
+				host = "localhost"
+			}
+			if port == 0 {
+				port = 4403
+			}
+			t = transport.NewTCP(net.JoinHostPort(host, strconv.Itoa(port)))
+			slog.Info("configured transport", "type", "tcp", "endpoint", t.Endpoint())
+			hasConn = true
 		}
-		t = transport.NewTCP(net.JoinHostPort(host, strconv.Itoa(port)))
-		slog.Info("configured transport", "type", "tcp", "endpoint", t.Endpoint())
+	}
+	if !hasConn {
+		slog.Info("no connection configured; radio disabled")
 	}
 
 	dbPath := filepath.Join(cfgDir, "meshgo.db")
@@ -95,44 +115,52 @@ func main() {
 		slog.Error("open message store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened message store", "db", dbPath)
 	defer ms.Close()
 	if err := ms.Init(ctx); err != nil {
 		slog.Error("init message store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized message store")
 
 	ns, err := storage.OpenNodeStore(dbPath)
 	if err != nil {
 		slog.Error("open node store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened node store")
 	defer ns.Close()
 	if err := ns.Init(ctx); err != nil {
 		slog.Error("init node store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized node store")
 
 	cs, err := storage.OpenChatStore(dbPath)
 	if err != nil {
 		slog.Error("open chat store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened chat store")
 	defer cs.Close()
 	if err := cs.Init(ctx); err != nil {
 		slog.Error("init chat store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized chat store")
 
 	chs, err := storage.OpenChannelStore(dbPath)
 	if err != nil {
 		slog.Error("open channel store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened channel store")
 	defer chs.Close()
 	if err := chs.Init(ctx); err != nil {
 		slog.Error("init channel store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized channel store")
 
 	a := app.New(nil, ms, ns, cs, chs, nil, nil)
 	if *listChats {
@@ -203,35 +231,51 @@ func main() {
 	a = app.New(rc, ms, ns, cs, chs, notifier, tr)
 
 	go func() {
-		for ev := range a.Events() {
-			switch ev.Type {
-			case app.EventConnecting:
-				slog.Info("connecting")
-			case app.EventConnected:
-				slog.Info("connected")
-			case app.EventDisconnected:
-				slog.Info("disconnected", "err", ev.Err)
-			case app.EventRetrying:
-				slog.Info("retrying", "delay", ev.Delay)
-			case app.EventMessage:
-				if ev.Message != nil {
-					slog.Info("message", "chat", ev.Message.ChatID, "text", ev.Message.Text)
+		for {
+			select {
+			case ev, ok := <-a.Events():
+				if !ok {
+					return
 				}
-			case app.EventNode:
-				if ev.Node != nil {
-					slog.Info("node", "id", ev.Node.ID, "short", ev.Node.ShortName, "signal", ev.Node.Signal)
+				switch ev.Type {
+				case app.EventConnecting:
+					slog.Info("connecting")
+				case app.EventConnected:
+					slog.Info("connected")
+				case app.EventDisconnected:
+					slog.Info("disconnected", "err", ev.Err)
+				case app.EventRetrying:
+					slog.Info("retrying", "delay", ev.Delay)
+				case app.EventMessage:
+					if ev.Message != nil {
+						slog.Info("message", "chat", ev.Message.ChatID, "text", ev.Message.Text)
+					}
+				case app.EventNode:
+					if ev.Node != nil {
+						slog.Info("node", "id", ev.Node.ID, "short", ev.Node.ShortName, "signal", ev.Node.Signal)
+					}
 				}
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
 
-	go func() {
-		if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
-			slog.Error("run app", "err", err)
+	tr.OnReady(func() {
+		slog.Info("tray ready")
+		if !hasConn {
+			slog.Info("no connection configured; radio not started")
+			return
 		}
-		cancel()
-		tr.Quit()
-	}()
+		slog.Info("starting radio", "endpoint", t.Endpoint())
+		go func() {
+			if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Error("run app", "err", err)
+			}
+			cancel()
+			tr.Quit()
+		}()
+	})
 
 	tr.Run()
 }

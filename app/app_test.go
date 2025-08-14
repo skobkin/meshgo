@@ -59,6 +59,7 @@ func (t *stubTray) SetUnread(u bool)                    { t.unread = u }
 func (t *stubTray) OnShowHide(fn func())                {}
 func (t *stubTray) OnToggleNotifications(fn func(bool)) {}
 func (t *stubTray) OnExit(fn func())                    {}
+func (t *stubTray) OnReady(fn func())                   {}
 func (t *stubTray) Run()                                {}
 func (t *stubTray) Quit()                               {}
 

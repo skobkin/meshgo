@@ -23,8 +23,10 @@ func (t *TCPTransport) Connect(ctx context.Context) error {
 	t.conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", t.addr)
 	if err != nil {
 		slog.Error("tcp connect failed", "addr", t.addr, "err", err)
+		return err
 	}
-	return err
+	slog.Info("tcp connected", "addr", t.addr)
+	return nil
 }
 
 // Close closes the underlying connection if open.
