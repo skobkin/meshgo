@@ -1,9 +1,12 @@
 package tray
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNoopCallbacks(t *testing.T) {
-	n := &Noop{}
+	n := &Noop{quit: make(chan struct{})}
 	calledShow := false
 	n.OnShowHide(func() { calledShow = true })
 	if n.showHide == nil {
@@ -29,12 +32,21 @@ func TestNoopCallbacks(t *testing.T) {
 	if n.exit == nil {
 		t.Fatalf("exit callback not set")
 	}
-	n.exit()
+
+	// Run should close Ready, block until Quit is called and trigger exit callback.
+	done := make(chan struct{})
+	go func() {
+		n.Run()
+		close(done)
+	}()
+	select {
+	case <-n.Ready():
+	case <-time.After(time.Second):
+		t.Fatalf("Ready not closed")
+	}
+	n.Quit()
+	<-done
 	if !exited {
 		t.Fatalf("exit callback not invoked")
 	}
-
-	// Run and Quit should be no-ops
-	n.Run()
-	n.Quit()
 }

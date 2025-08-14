@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
@@ -57,7 +58,9 @@ func (c *Client) Start(ctx context.Context, t transport.Transport) error {
 		default:
 		}
 		c.events <- Event{Type: EventConnecting}
+		slog.Info("radio connecting", "endpoint", t.Endpoint())
 		if err := t.Connect(ctx); err != nil {
+			slog.Error("radio connect failed", "err", err)
 			c.events <- Event{Type: EventDisconnected, Err: err}
 			delay := jitterDuration(backoff, c.cfg.Jitter)
 			c.events <- Event{Type: EventRetrying, Delay: delay}
@@ -67,10 +70,12 @@ func (c *Client) Start(ctx context.Context, t transport.Transport) error {
 			backoff = nextBackoff(backoff, c.cfg)
 			continue
 		}
+		slog.Info("radio connected", "endpoint", t.Endpoint())
 		c.events <- Event{Type: EventConnected}
 		c.setTransport(t)
 		start := time.Now()
 		if err := c.readLoop(ctx, t); err != nil {
+			slog.Error("radio read loop ended", "err", err)
 			c.events <- Event{Type: EventDisconnected, Err: err}
 		}
 		c.setTransport(nil)
@@ -92,6 +97,7 @@ func (c *Client) readLoop(ctx context.Context, t transport.Transport) error {
 	for {
 		pkt, err := t.ReadPacket(ctx)
 		if err != nil {
+			slog.Error("read packet failed", "err", err)
 			return err
 		}
 		c.events <- Event{Type: EventPacket, Packet: pkt}

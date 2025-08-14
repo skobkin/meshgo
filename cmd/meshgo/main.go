@@ -69,21 +69,28 @@ func main() {
 	}
 	defer closer.Close()
 	slog.SetDefault(l)
+	slog.Info("starting meshgo", "log", logPath)
 
 	var t transport.Transport
 	switch settings.Connection.Type {
 	case "serial":
-		t = transport.NewSerial(settings.Connection.Serial.Port)
-	default:
+		if settings.Connection.Serial.Port != "" {
+			t = transport.NewSerial(settings.Connection.Serial.Port)
+			slog.Info("configured transport", "type", "serial", "endpoint", t.Endpoint())
+		} else {
+			slog.Info("serial port not configured; running offline")
+		}
+	case "tcp":
 		host := settings.Connection.IP.Host
-		if host == "" {
-			host = "localhost"
-		}
 		port := settings.Connection.IP.Port
-		if port == 0 {
-			port = 4403
+		if host != "" && port != 0 {
+			t = transport.NewTCP(net.JoinHostPort(host, strconv.Itoa(port)))
+			slog.Info("configured transport", "type", "tcp", "endpoint", t.Endpoint())
+		} else {
+			slog.Info("tcp endpoint not configured; running offline")
 		}
-		t = transport.NewTCP(net.JoinHostPort(host, strconv.Itoa(port)))
+	default:
+		slog.Info("no connection configured; running offline")
 	}
 
 	dbPath := filepath.Join(cfgDir, "meshgo.db")
@@ -199,36 +206,46 @@ func main() {
 	defer cancel()
 	a = app.New(rc, ms, ns, cs, chs, notifier, tr)
 
+	trDone := make(chan struct{})
 	go func() {
-		for ev := range a.Events() {
-			switch ev.Type {
-			case app.EventConnecting:
-				slog.Info("connecting")
-			case app.EventConnected:
-				slog.Info("connected")
-			case app.EventDisconnected:
-				slog.Info("disconnected", "err", ev.Err)
-			case app.EventRetrying:
-				slog.Info("retrying", "delay", ev.Delay)
-			case app.EventMessage:
-				if ev.Message != nil {
-					slog.Info("message", "chat", ev.Message.ChatID, "text", ev.Message.Text)
-				}
-			case app.EventNode:
-				if ev.Node != nil {
-					slog.Info("node", "id", ev.Node.ID, "short", ev.Node.ShortName, "signal", ev.Node.Signal)
+		tr.Run()
+		close(trDone)
+	}()
+	<-tr.Ready()
+
+	if t != nil {
+		go func() {
+			for ev := range a.Events() {
+				switch ev.Type {
+				case app.EventConnecting:
+					slog.Info("connecting")
+				case app.EventConnected:
+					slog.Info("connected")
+				case app.EventDisconnected:
+					slog.Info("disconnected", "err", ev.Err)
+				case app.EventRetrying:
+					slog.Info("retrying", "delay", ev.Delay)
+				case app.EventMessage:
+					if ev.Message != nil {
+						slog.Info("message", "chat", ev.Message.ChatID, "text", ev.Message.Text)
+					}
+				case app.EventNode:
+					if ev.Node != nil {
+						slog.Info("node", "id", ev.Node.ID, "short", ev.Node.ShortName, "signal", ev.Node.Signal)
+					}
 				}
 			}
-		}
-	}()
+		}()
 
-	go func() {
-		if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
-			slog.Error("run app", "err", err)
-		}
-		cancel()
-		tr.Quit()
-	}()
+		go func() {
+			if err := a.Run(ctx, t); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Error("run app", "err", err)
+			}
+			cancel()
+		}()
+	}
 
-	tr.Run()
+	<-ctx.Done()
+	tr.Quit()
+	<-trDone
 }

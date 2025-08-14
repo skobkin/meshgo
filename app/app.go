@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"meshgo/domain"
@@ -41,8 +42,13 @@ func New(r Radio, ms *storage.MessageStore, ns *storage.NodeStore, cs *storage.C
 // Run starts the radio client with the given transport and processes events
 // until the context is cancelled.
 func (a *App) Run(ctx context.Context, t transport.Transport) error {
+	slog.Info("app starting", "endpoint", t.Endpoint())
 	go a.eventLoop(ctx)
-	return a.Radio.Start(ctx, t)
+	err := a.Radio.Start(ctx, t)
+	if err != nil {
+		slog.Error("radio stopped", "err", err)
+	}
+	return err
 }
 
 // SendText sends a text message via the radio client and persists it to the store.
@@ -122,6 +128,7 @@ func (a *App) handlePacket(ctx context.Context, pkt []byte) {
 		IsUnread:  true,
 	}
 	if err := a.Messages.InsertMessage(ctx, m); err == nil {
+		slog.Info("packet received", "chat", m.ChatID, "text", m.Text)
 		if a.Chats != nil {
 			_ = a.Chats.UpsertChat(ctx, &domain.Chat{ID: m.ChatID, Title: m.ChatID, LastMessageTS: m.Timestamp.Unix()})
 		}
@@ -139,6 +146,7 @@ func (a *App) handleNode(ctx context.Context, n *domain.Node) {
 	}
 	n.Signal = domain.ComputeSignalQuality(n.RSSI, n.SNR)
 	_ = a.Nodes.UpsertNode(ctx, n)
+	slog.Info("node event", "id", n.ID, "short", n.ShortName, "signal", n.Signal)
 	a.events <- Event{Type: EventNode, Node: n}
 }
 

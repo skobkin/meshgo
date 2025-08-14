@@ -53,7 +53,10 @@ func (n *stubNotifier) NotifyNewMessage(chatID, title, body string, ts time.Time
 
 func (n *stubNotifier) SetEnabled(e bool) { n.enabled = e }
 
-type stubTray struct{ unread bool }
+type stubTray struct {
+	unread bool
+	ready  chan struct{}
+}
 
 func (t *stubTray) SetUnread(u bool)                    { t.unread = u }
 func (t *stubTray) OnShowHide(fn func())                {}
@@ -61,6 +64,13 @@ func (t *stubTray) OnToggleNotifications(fn func(bool)) {}
 func (t *stubTray) OnExit(fn func())                    {}
 func (t *stubTray) Run()                                {}
 func (t *stubTray) Quit()                               {}
+func (t *stubTray) Ready() <-chan struct{} {
+	if t.ready == nil {
+		t.ready = make(chan struct{})
+		close(t.ready)
+	}
+	return t.ready
+}
 
 func TestAppStoresPacketsAndNotifies(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
