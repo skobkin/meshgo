@@ -32,6 +32,7 @@ func (s *SerialTransport) Connect(ctx context.Context) error {
 		return err
 	}
 	s.port = p
+	slog.Info("serial opened", "port", s.name)
 	return nil
 }
 

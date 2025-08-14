@@ -110,9 +110,16 @@ func (c *Client) SendText(ctx context.Context, chatID string, toNode uint32, tex
 	t := c.t
 	c.tMu.RUnlock()
 	if t == nil {
-		return errors.New("not connected")
+		err := errors.New("not connected")
+		slog.Error("radio send text failed", "err", err)
+		return err
 	}
-	return t.WritePacket(ctx, []byte(text))
+	slog.Info("radio send text", "chat", chatID, "to", toNode)
+	if err := t.WritePacket(ctx, []byte(text)); err != nil {
+		slog.Error("radio send text failed", "err", err)
+		return err
+	}
+	return nil
 }
 
 // SendExchangeUserInfo requests user information from the specified node.
@@ -121,9 +128,16 @@ func (c *Client) SendExchangeUserInfo(ctx context.Context, node uint32) error {
 	t := c.t
 	c.tMu.RUnlock()
 	if t == nil {
-		return errors.New("not connected")
+		err := errors.New("not connected")
+		slog.Error("radio send userinfo failed", "err", err)
+		return err
 	}
-	return t.WritePacket(ctx, []byte("userinfo"))
+	slog.Info("radio send userinfo", "node", node)
+	if err := t.WritePacket(ctx, []byte("userinfo")); err != nil {
+		slog.Error("radio send userinfo failed", "err", err)
+		return err
+	}
+	return nil
 }
 
 // SendTraceroute requests a traceroute to the specified node.
@@ -132,9 +146,16 @@ func (c *Client) SendTraceroute(ctx context.Context, node uint32) error {
 	t := c.t
 	c.tMu.RUnlock()
 	if t == nil {
-		return errors.New("not connected")
+		err := errors.New("not connected")
+		slog.Error("radio send traceroute failed", "err", err)
+		return err
 	}
-	return t.WritePacket(ctx, []byte("traceroute"))
+	slog.Info("radio send traceroute", "node", node)
+	if err := t.WritePacket(ctx, []byte("traceroute")); err != nil {
+		slog.Error("radio send traceroute failed", "err", err)
+		return err
+	}
+	return nil
 }
 
 func (c *Client) setTransport(t transport.Transport) {

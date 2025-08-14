@@ -42,6 +42,7 @@ func main() {
 		slog.Error("create config dir", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("using config dir", "path", cfgDir)
 	settingsPath := filepath.Join(cfgDir, "config.json")
 
 	settings, err := storage.LoadSettings(settingsPath)
@@ -53,7 +54,11 @@ func main() {
 		settings = &storage.Settings{}
 		if err := storage.SaveSettings(settingsPath, settings); err != nil {
 			slog.Error("save default settings", "err", err)
+		} else {
+			slog.Info("wrote default settings", "path", settingsPath)
 		}
+	} else {
+		slog.Info("loaded settings", "path", settingsPath)
 	}
 
 	logDir := filepath.Join(cfgDir, "logs")
@@ -61,6 +66,7 @@ func main() {
 		slog.Error("create log dir", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("using log dir", "path", logDir)
 	logPath := filepath.Join(logDir, "meshgo.log")
 	l, closer, err := logger.New(logPath, settings.Logging.Enabled)
 	if err != nil {
@@ -109,44 +115,52 @@ func main() {
 		slog.Error("open message store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened message store", "db", dbPath)
 	defer ms.Close()
 	if err := ms.Init(ctx); err != nil {
 		slog.Error("init message store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized message store")
 
 	ns, err := storage.OpenNodeStore(dbPath)
 	if err != nil {
 		slog.Error("open node store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened node store")
 	defer ns.Close()
 	if err := ns.Init(ctx); err != nil {
 		slog.Error("init node store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized node store")
 
 	cs, err := storage.OpenChatStore(dbPath)
 	if err != nil {
 		slog.Error("open chat store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened chat store")
 	defer cs.Close()
 	if err := cs.Init(ctx); err != nil {
 		slog.Error("init chat store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized chat store")
 
 	chs, err := storage.OpenChannelStore(dbPath)
 	if err != nil {
 		slog.Error("open channel store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("opened channel store")
 	defer chs.Close()
 	if err := chs.Init(ctx); err != nil {
 		slog.Error("init channel store", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("initialized channel store")
 
 	a := app.New(nil, ms, ns, cs, chs, nil, nil)
 	if *listChats {
