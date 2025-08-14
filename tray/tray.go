@@ -12,6 +12,8 @@ type Tray interface {
 	OnToggleNotifications(fn func(enabled bool))
 	// OnExit registers a callback for exit requests.
 	OnExit(fn func())
+	// OnReady registers a callback invoked when the tray is ready.
+	OnReady(fn func())
 	// Run starts the tray event loop and blocks until the tray is closed.
 	Run()
 	// Quit requests the tray event loop to exit.
@@ -23,6 +25,7 @@ type Noop struct {
 	showHide func()
 	toggle   func(bool)
 	exit     func()
+	ready    func()
 	quit     chan struct{}
 }
 
@@ -34,12 +37,17 @@ func (n *Noop) OnToggleNotifications(fn func(bool)) { n.toggle = fn }
 
 func (n *Noop) OnExit(fn func()) { n.exit = fn }
 
+func (n *Noop) OnReady(fn func()) { n.ready = fn }
+
 // Run blocks until Quit is called.
 func (n *Noop) Run() {
 	if n.quit == nil {
 		n.quit = make(chan struct{})
 	}
 	slog.Info("tray disabled; running without system tray")
+	if n.ready != nil {
+		n.ready()
+	}
 	<-n.quit
 }
 

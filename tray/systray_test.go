@@ -30,6 +30,16 @@ func TestSystrayCallbacks(t *testing.T) {
 		t.Fatalf("toggle callback not invoked")
 	}
 
+	ready := false
+	s.OnReady(func() { ready = true })
+	if s.ready == nil {
+		t.Fatalf("ready callback not set")
+	}
+	s.ready()
+	if !ready {
+		t.Fatalf("ready callback not invoked")
+	}
+
 	exited := false
 	s.OnExit(func() { exited = true })
 	if s.exit == nil {
