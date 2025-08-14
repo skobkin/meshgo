@@ -186,7 +186,7 @@ func main() {
 
 	notifier := notify.NewBeeep(settings.Notifications.Enabled)
 
-	tr := &tray.Noop{}
+	tr := tray.NewSystray(settings.Notifications.Enabled)
 	tr.OnToggleNotifications(func(e bool) {
 		notifier.SetEnabled(e)
 		settings.Notifications.Enabled = e
