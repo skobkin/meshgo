@@ -446,3 +446,35 @@ func (s *SQLiteStore) GetInt(key string, defaultVal int) int {
 func (s *SQLiteStore) SetInt(key string, value int) error {
 	return s.Set(key, strconv.Itoa(value))
 }
+
+func (s *SQLiteStore) GetAllChats(ctx context.Context) ([]*core.Chat, error) {
+	query := `
+SELECT id, title, encryption, last_message_ts, unread_count, is_channel
+FROM chats 
+ORDER BY last_message_ts DESC
+`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chats: %w", err)
+	}
+	defer rows.Close()
+
+	var chats []*core.Chat
+	for rows.Next() {
+		chat := &core.Chat{}
+		var lastMessageTs int64
+		err := rows.Scan(&chat.ID, &chat.Title, &chat.Encryption, 
+			&lastMessageTs, &chat.UnreadCount, &chat.IsChannel)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan chat row: %w", err)
+		}
+		chat.LastMessageTS = time.Unix(lastMessageTs, 0)
+		chats = append(chats, chat)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating chat rows: %w", err)
+	}
+
+	return chats, nil
+}

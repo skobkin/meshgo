@@ -309,9 +309,10 @@ func (rc *RadioClient) extractNodeInfo(data []byte) {
 		} else {
 			if len(current) > 3 {
 				name := string(current)
-				// Filter for reasonable node names
-				if rc.isValidNodeName(name) {
-					nodeNames = append(nodeNames, name)
+				// Clean and filter for reasonable node names
+				cleanName := rc.cleanNodeName(name)
+				if cleanName != "" && rc.isValidNodeName(cleanName) {
+					nodeNames = append(nodeNames, cleanName)
 				}
 			}
 			current = nil
@@ -319,8 +320,9 @@ func (rc *RadioClient) extractNodeInfo(data []byte) {
 	}
 	if len(current) > 3 {
 		name := string(current)
-		if rc.isValidNodeName(name) {
-			nodeNames = append(nodeNames, name)
+		cleanName := rc.cleanNodeName(name)
+		if cleanName != "" && rc.isValidNodeName(cleanName) {
+			nodeNames = append(nodeNames, cleanName)
 		}
 	}
 	
@@ -393,6 +395,33 @@ func (rc *RadioClient) extractNodeInfo(data []byte) {
 			}
 		}
 	}
+}
+
+func (rc *RadioClient) cleanNodeName(name string) string {
+	// Remove common garbage characters and trim
+	cleaned := name
+	
+	// Remove trailing quotes and special chars
+	for len(cleaned) > 0 {
+		lastChar := cleaned[len(cleaned)-1]
+		if lastChar == '"' || lastChar == '\'' || lastChar == '\\' || lastChar < 32 || lastChar > 126 {
+			cleaned = cleaned[:len(cleaned)-1]
+		} else {
+			break
+		}
+	}
+	
+	// Remove leading quotes and special chars
+	for len(cleaned) > 0 {
+		firstChar := cleaned[0]
+		if firstChar == '"' || firstChar == '\'' || firstChar == '\\' || firstChar < 32 || firstChar > 126 {
+			cleaned = cleaned[1:]
+		} else {
+			break
+		}
+	}
+	
+	return cleaned
 }
 
 func (rc *RadioClient) isValidNodeName(name string) bool {

@@ -324,9 +324,13 @@ func (app *App) updateUnreadCounts() {
 }
 
 func (app *App) refreshChats() {
-	// For now, just update with empty list
-	// In a real implementation, would load from storage
-	app.ui.UpdateChats([]*core.Chat{})
+	chats, err := app.storage.GetAllChats(app.ctx)
+	if err != nil {
+		app.logger.Error("Failed to load chats", "error", err)
+		return
+	}
+	
+	app.ui.UpdateChats(chats)
 }
 
 func (app *App) refreshNodes() {
