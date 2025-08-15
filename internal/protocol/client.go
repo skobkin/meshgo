@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
+
 	"meshgo/internal/core"
 	"meshgo/internal/protocol/gomeshproto"
 )
@@ -387,11 +388,6 @@ func (rc *RadioClient) handleFromRadioSafely(data []byte) error {
 		return fmt.Errorf("failed to decode FromRadio with gomeshproto: %w", err)
 	}
 
-	// Null pointer safety check
-	if fromRadio == nil {
-		return fmt.Errorf("decoded FromRadio is nil")
-	}
-
 	// Process the FromRadio message safely
 	rc.handleFromRadioWithGomeshproto(fromRadio)
 	return nil
@@ -623,7 +619,8 @@ func (rc *RadioClient) handleMeshPacketGomeshproto(packet *gomeshproto.MeshPacke
 
 	// Update receive metadata
 	if packet.RxTime == 0 {
-		packet.RxTime = uint32(time.Now().Unix())
+		now := time.Now().Unix()
+		packet.RxTime = uint32(now & 0xFFFFFFFF) // Safe truncation to 32-bit
 	}
 
 	// Get the decoded payload
@@ -949,7 +946,8 @@ func (rc *RadioClient) handleMeshPacket(packet *MeshPacket) {
 
 	// Update receive metadata
 	if packet.RxTime == 0 {
-		packet.RxTime = uint32(time.Now().Unix())
+		now := time.Now().Unix()
+		packet.RxTime = uint32(now & 0xFFFFFFFF) // Safe truncation to 32-bit
 	}
 
 	// Get the decoded payload
@@ -1003,9 +1001,10 @@ func (rc *RadioClient) handleNodeInfoFromRadio(nodeInfo *NodeInfo) {
 	rc.logger.Info("Received NodeInfo from config", "node_num", nodeInfo.Num)
 
 	// Create a fake packet to reuse existing logic
+	now := time.Now().Unix()
 	packet := &MeshPacket{
 		From:   nodeInfo.Num,
-		RxTime: uint32(time.Now().Unix()),
+		RxTime: uint32(now & 0xFFFFFFFF), // Safe truncation to 32-bit
 	}
 
 	node := rc.updateNodeFromPacket(packet, nodeInfo)
@@ -1260,7 +1259,8 @@ func (rc *RadioClient) getChatID(packet *MeshPacket) string {
 
 func (rc *RadioClient) generatePacketID() uint32 {
 	// Simple packet ID generation - in real app would be more sophisticated
-	return uint32(time.Now().UnixNano() & 0xFFFFFFFF)
+	nano := time.Now().UnixNano()
+	return uint32(nano & 0xFFFFFFFF) // Safe truncation to 32-bit
 }
 
 func (rc *RadioClient) isRunning() bool {
@@ -1375,7 +1375,6 @@ func (rc *RadioClient) tryExtractSignalMetrics(node *core.Node, data []byte) {
 			// Check if this looks like valid RSSI/SNR values
 			if rssiCandidate >= -120 && rssiCandidate <= -30 && // Valid RSSI range
 				snrCandidate >= -20 && snrCandidate <= 20 { // Valid SNR range
-
 				// Found potential signal metrics
 				node.RSSI = int(rssiCandidate)
 				node.SNR = snrCandidate
@@ -1484,7 +1483,8 @@ func (rc *RadioClient) updateNodeEncryptionFromMessage(node *core.Node, packet *
 
 		// Check the channel to determine encryption type
 		rc.channelDBMu.RLock()
-		channel, hasChannel := rc.channelDB[int32(packet.Channel)]
+		channelID := int32(packet.Channel & 0x7FFFFFFF) // Safe conversion to signed int32
+		channel, hasChannel := rc.channelDB[channelID]
 		rc.channelDBMu.RUnlock()
 
 		if hasChannel && channel.Settings != nil {
@@ -1524,7 +1524,6 @@ func (rc *RadioClient) updateNodeEncryptionFromMessage(node *core.Node, packet *
 			"enc_default", node.EncDefaultKey,
 			"enc_custom", node.EncCustomKey,
 			"unencrypted", node.Unencrypted)
-
 	} else if packet.GetDecoded() != nil {
 		// Message was unencrypted (we got decoded data directly)
 		node.Unencrypted = true

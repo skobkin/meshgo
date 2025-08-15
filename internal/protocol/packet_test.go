@@ -3,6 +3,8 @@ package protocol
 import (
 	"reflect"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func TestEncodeDecode_MeshPacket(t *testing.T) {
@@ -10,11 +12,15 @@ func TestEncodeDecode_MeshPacket(t *testing.T) {
 		From:     12345,
 		To:       67890,
 		Channel:  1,
-		ID:       54321,
-		PortNum:  PortTextMessageApp,
-		Payload:  []byte("Hello, World!"),
+		Id:       54321,
 		WantAck:  true,
-		Priority: Default,
+		Priority: PriorityDefault,
+		PayloadVariant: &MeshPacket_Decoded{
+			Decoded: &Data{
+				Portnum: PortTextMessageApp,
+				Payload: []byte("Hello, World!"),
+			},
+		},
 	}
 
 	// Encode
@@ -39,26 +45,49 @@ func TestEncodeDecode_MeshPacket(t *testing.T) {
 	if decoded.Channel != original.Channel {
 		t.Errorf("Channel: got %d, want %d", decoded.Channel, original.Channel)
 	}
-	if decoded.ID != original.ID {
-		t.Errorf("ID: got %d, want %d", decoded.ID, original.ID)
-	}
-	if decoded.PortNum != original.PortNum {
-		t.Errorf("PortNum: got %d, want %d", decoded.PortNum, original.PortNum)
+	if decoded.Id != original.Id {
+		t.Errorf("Id: got %d, want %d", decoded.Id, original.Id)
 	}
 	if decoded.WantAck != original.WantAck {
 		t.Errorf("WantAck: got %t, want %t", decoded.WantAck, original.WantAck)
 	}
-	if !reflect.DeepEqual(decoded.Payload, original.Payload) {
-		t.Errorf("Payload: got %v, want %v", decoded.Payload, original.Payload)
+	if decoded.Priority != original.Priority {
+		t.Errorf("Priority: got %d, want %d", decoded.Priority, original.Priority)
+	}
+
+	// Compare decoded payload
+	originalDecoded := original.GetDecoded()
+	decodedDecoded := decoded.GetDecoded()
+	if originalDecoded == nil || decodedDecoded == nil {
+		t.Fatal("Decoded payload is nil")
+	}
+	if decodedDecoded.Portnum != originalDecoded.Portnum {
+		t.Errorf("Portnum: got %d, want %d", decodedDecoded.Portnum, originalDecoded.Portnum)
+	}
+	if !reflect.DeepEqual(decodedDecoded.Payload, originalDecoded.Payload) {
+		t.Errorf("Payload: got %v, want %v", decodedDecoded.Payload, originalDecoded.Payload)
 	}
 }
 
 func TestEncodeTextMessage(t *testing.T) {
 	text := "Hello, Mesh!"
-	encoded := EncodeTextMessage(text)
+	encoded, err := EncodeTextMessage(text)
+	if err != nil {
+		t.Fatalf("EncodeTextMessage() error = %v", err)
+	}
 
-	if string(encoded) != text {
-		t.Errorf("EncodeTextMessage() = %s, want %s", string(encoded), text)
+	// Decode the Data message and check the payload
+	data := &Data{}
+	err = proto.Unmarshal(encoded, data)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal encoded data: %v", err)
+	}
+
+	if data.Portnum != PortTextMessageApp {
+		t.Errorf("Portnum: got %d, want %d", data.Portnum, PortTextMessageApp)
+	}
+	if string(data.Payload) != text {
+		t.Errorf("Payload: got %s, want %s", string(data.Payload), text)
 	}
 }
 
@@ -66,9 +95,10 @@ func TestDecodeTextMessage(t *testing.T) {
 	text := "Test message"
 	payload := []byte(text)
 
-	decoded, err := decodePayload(PortTextMessageApp, payload)
+	data := &Data{Portnum: PortTextMessageApp, Payload: payload}
+	decoded, err := DecodePayload(data)
 	if err != nil {
-		t.Fatalf("decodePayload() error = %v", err)
+		t.Fatalf("DecodePayload() error = %v", err)
 	}
 
 	textMsg, ok := decoded.(*TextMessage)
@@ -105,9 +135,10 @@ func TestDecodePosition(t *testing.T) {
 	payload[14] = 0xF7
 	payload[15] = 0x5F
 
-	decoded, err := decodePayload(PortPositionApp, payload)
+	data := &Data{Portnum: PortPositionApp, Payload: payload}
+	decoded, err := DecodePayload(data)
 	if err != nil {
-		t.Fatalf("decodePayload() error = %v", err)
+		t.Fatalf("DecodePayload() error = %v", err)
 	}
 
 	position, ok := decoded.(*Position)

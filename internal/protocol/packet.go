@@ -79,7 +79,7 @@ type MeshPacket struct {
 func (x *MeshPacket) Reset() {
 	*x = MeshPacket{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[0]
+		mi := &filePacketProtoMsgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -92,7 +92,7 @@ func (x *MeshPacket) String() string {
 func (*MeshPacket) ProtoMessage() {}
 
 func (x *MeshPacket) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[0]
+	mi := &filePacketProtoMsgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -230,7 +230,7 @@ type Data struct {
 func (x *Data) Reset() {
 	*x = Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[1]
+		mi := &filePacketProtoMsgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -243,7 +243,7 @@ func (x *Data) String() string {
 func (*Data) ProtoMessage() {}
 
 func (x *Data) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[1]
+	mi := &filePacketProtoMsgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -294,7 +294,7 @@ type User struct {
 func (x *User) Reset() {
 	*x = User{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[2]
+		mi := &filePacketProtoMsgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -307,7 +307,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[2]
+	mi := &filePacketProtoMsgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -357,7 +357,7 @@ type Position struct {
 func (x *Position) Reset() {
 	*x = Position{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[3]
+		mi := &filePacketProtoMsgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -370,7 +370,7 @@ func (x *Position) String() string {
 func (*Position) ProtoMessage() {}
 
 func (x *Position) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[3]
+	mi := &filePacketProtoMsgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +431,7 @@ type DeviceMetrics struct {
 func (x *DeviceMetrics) Reset() {
 	*x = DeviceMetrics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[4]
+		mi := &filePacketProtoMsgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -444,7 +444,7 @@ func (x *DeviceMetrics) String() string {
 func (*DeviceMetrics) ProtoMessage() {}
 
 func (x *DeviceMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[4]
+	mi := &filePacketProtoMsgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,7 +490,7 @@ type NodeInfo struct {
 func (x *NodeInfo) Reset() {
 	*x = NodeInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[5]
+		mi := &filePacketProtoMsgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -503,7 +503,7 @@ func (x *NodeInfo) String() string {
 func (*NodeInfo) ProtoMessage() {}
 
 func (x *NodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[5]
+	mi := &filePacketProtoMsgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -577,7 +577,7 @@ type ToRadio struct {
 func (x *ToRadio) Reset() {
 	*x = ToRadio{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[6]
+		mi := &filePacketProtoMsgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -590,7 +590,7 @@ func (x *ToRadio) String() string {
 func (*ToRadio) ProtoMessage() {}
 
 func (x *ToRadio) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[6]
+	mi := &filePacketProtoMsgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -663,7 +663,7 @@ type FromRadio struct {
 func (x *FromRadio) Reset() {
 	*x = FromRadio{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[7]
+		mi := &filePacketProtoMsgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -676,7 +676,7 @@ func (x *FromRadio) String() string {
 func (*FromRadio) ProtoMessage() {}
 
 func (x *FromRadio) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[7]
+	mi := &filePacketProtoMsgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -783,7 +783,7 @@ type MyNodeInfo struct {
 func (x *MyNodeInfo) Reset() {
 	*x = MyNodeInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_packet_proto_msgTypes[8]
+		mi := &filePacketProtoMsgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -796,7 +796,7 @@ func (x *MyNodeInfo) String() string {
 func (*MyNodeInfo) ProtoMessage() {}
 
 func (x *MyNodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_packet_proto_msgTypes[8]
+	mi := &filePacketProtoMsgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,19 +979,19 @@ func CreateStartConfigRequest() *ToRadio {
 
 // Protobuf message info (required for protobuf implementation)
 var (
-	file_packet_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+	filePacketProtoMsgTypes = make([]protoimpl.MessageInfo, 9)
 )
 
 func init() {
 	// Initialize message infos for protobuf - this is generated code normally
 	// but for our hand-crafted structs we need to provide basic implementation
-	file_packet_proto_msgTypes[0].GoReflectType = reflect.TypeOf((*MeshPacket)(nil))
-	file_packet_proto_msgTypes[1].GoReflectType = reflect.TypeOf((*Data)(nil))
-	file_packet_proto_msgTypes[2].GoReflectType = reflect.TypeOf((*User)(nil))
-	file_packet_proto_msgTypes[3].GoReflectType = reflect.TypeOf((*Position)(nil))
-	file_packet_proto_msgTypes[4].GoReflectType = reflect.TypeOf((*DeviceMetrics)(nil))
-	file_packet_proto_msgTypes[5].GoReflectType = reflect.TypeOf((*NodeInfo)(nil))
-	file_packet_proto_msgTypes[6].GoReflectType = reflect.TypeOf((*ToRadio)(nil))
-	file_packet_proto_msgTypes[7].GoReflectType = reflect.TypeOf((*FromRadio)(nil))
-	file_packet_proto_msgTypes[8].GoReflectType = reflect.TypeOf((*MyNodeInfo)(nil))
+	filePacketProtoMsgTypes[0].GoReflectType = reflect.TypeOf((*MeshPacket)(nil))
+	filePacketProtoMsgTypes[1].GoReflectType = reflect.TypeOf((*Data)(nil))
+	filePacketProtoMsgTypes[2].GoReflectType = reflect.TypeOf((*User)(nil))
+	filePacketProtoMsgTypes[3].GoReflectType = reflect.TypeOf((*Position)(nil))
+	filePacketProtoMsgTypes[4].GoReflectType = reflect.TypeOf((*DeviceMetrics)(nil))
+	filePacketProtoMsgTypes[5].GoReflectType = reflect.TypeOf((*NodeInfo)(nil))
+	filePacketProtoMsgTypes[6].GoReflectType = reflect.TypeOf((*ToRadio)(nil))
+	filePacketProtoMsgTypes[7].GoReflectType = reflect.TypeOf((*FromRadio)(nil))
+	filePacketProtoMsgTypes[8].GoReflectType = reflect.TypeOf((*MyNodeInfo)(nil))
 }
