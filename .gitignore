@@ -30,3 +30,7 @@ meshgo_gpt5_prd_full_enhanced.md
 
 # Claude Code
 .claude
+
+# Temporary compiled binaries
+meshgo
+meshgo.exe

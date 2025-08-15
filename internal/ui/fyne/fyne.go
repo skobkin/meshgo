@@ -451,20 +451,27 @@ func (f *FyneUI) Run() error {
 func (f *FyneUI) Shutdown() error {
 	f.logger.Info("Shutting down Fyne GUI")
 	if f.window != nil {
-		f.window.Close()
+		// Ensure window close happens on the main Fyne thread
+		fyne.DoAndWait(func() {
+			f.window.Close()
+		})
 	}
 	return nil
 }
 
 func (f *FyneUI) ShowMain() {
 	if f.window != nil {
-		f.window.Show()
+		fyne.Do(func() {
+			f.window.Show()
+		})
 	}
 }
 
 func (f *FyneUI) HideMain() {
 	if f.window != nil {
-		f.window.Hide()
+		fyne.Do(func() {
+			f.window.Hide()
+		})
 	}
 }
 
@@ -479,16 +486,20 @@ func (f *FyneUI) SetTrayBadge(hasUnread bool) {
 		title = "● " + title
 	}
 	if f.window != nil {
-		f.window.SetTitle(title)
+		fyne.Do(func() {
+			f.window.SetTitle(title)
+		})
 	}
 }
 
 func (f *FyneUI) ShowTrayNotification(title, body string) error {
 	if f.window != nil {
 		// Use system notifications through Fyne
-		f.app.SendNotification(&fyne.Notification{
-			Title:   title,
-			Content: body,
+		fyne.Do(func() {
+			f.app.SendNotification(&fyne.Notification{
+				Title:   title,
+				Content: body,
+			})
 		})
 	}
 	return nil
