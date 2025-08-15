@@ -29,6 +29,8 @@ func NewFyneSystemTray(logger *slog.Logger, app fyne.App) *FyneSystemTray {
 		notificationsEnabled: true,
 	}
 	
+	// Icon is already set by the main app
+	
 	// Try to get desktop app interface
 	if desk, ok := app.(desktop.App); ok {
 		tray.desk = desk

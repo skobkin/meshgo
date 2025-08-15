@@ -53,6 +53,7 @@ type EventCallbacks struct {
 	// Settings events
 	OnUpdateConnection    func(connType, serialPort string, serialBaud int, ipHost string, ipPort int) error
 	OnUpdateNotifications func(enabled bool) error
+	OnToggleNotifications func(enabled bool) error
 	OnUpdateLogging       func(enabled, level string) error
 	OnUpdateUI            func(startMinimized bool, theme string) error
 	
