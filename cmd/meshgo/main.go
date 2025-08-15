@@ -27,6 +27,7 @@ const Version = "1.0.0"
 
 type SystemTrayInterface interface {
 	SetUnread(bool)
+	SetWindowVisible(bool)
 	OnShowHide(func())
 	OnToggleNotifications(func(bool))
 	OnExit(func())
@@ -196,6 +197,10 @@ func (app *App) Shutdown() {
 	if err := app.ui.Shutdown(); err != nil {
 		app.logger.Error("Failed to shutdown UI", "error", err)
 	}
+	
+	if app.tray != nil {
+		app.tray.Quit()
+	}
 }
 
 func (app *App) startServices() {
@@ -349,6 +354,9 @@ func (app *App) setupUICallbacks() {
 		OnTraceroute: app.handleTraceroute,
 		OnUpdateNotifications: app.handleUpdateNotifications,
 		OnExit: app.handleExit,
+		OnWindowVisibilityChanged: func(visible bool) {
+			app.tray.SetWindowVisible(visible)
+		},
 	}
 	
 	app.ui.SetEventCallbacks(callbacks)
@@ -356,10 +364,16 @@ func (app *App) setupUICallbacks() {
 
 func (app *App) setupTrayCallbacks() {
 	app.tray.OnShowHide(func() {
-		if app.ui.IsVisible() {
+		isVisible := app.ui.IsVisible()
+		app.logger.Info("Tray Show/Hide clicked", "currentlyVisible", isVisible)
+		if isVisible {
+			app.logger.Info("Hiding window")
 			app.ui.HideMain()
+			app.tray.SetWindowVisible(false)
 		} else {
+			app.logger.Info("Showing window")
 			app.ui.ShowMain()
+			app.tray.SetWindowVisible(true)
 		}
 	})
 
@@ -374,12 +388,23 @@ func (app *App) setupTrayCallbacks() {
 func (app *App) handleConnect(connType, endpoint string) error {
 	app.logger.Info("Connection requested", "type", connType, "endpoint", endpoint)
 
+	// Smart connection type detection - override user selection if endpoint format suggests different type
+	if strings.Contains(endpoint, ":") && (strings.Contains(endpoint, ".") || strings.Contains(endpoint, "localhost")) {
+		// Looks like host:port format, treat as IP connection
+		connType = "ip"
+		app.logger.Info("Auto-detected connection type as IP based on endpoint format", "endpoint", endpoint)
+	}
+
 	var t core.Transport
 
 	switch strings.ToLower(connType) {
 	case "serial":
 		settings := app.configMgr.Settings()
 		t = transport.NewSerialTransport(endpoint, settings.Connection.Serial.Baud)
+		
+		// Save serial endpoint to settings
+		settings.Connection.Type = "serial"
+		settings.Connection.Serial.Port = endpoint
 
 	case "ip", "tcp":
 		parts := strings.Split(endpoint, ":")
@@ -393,9 +418,20 @@ func (app *App) handleConnect(connType, endpoint string) error {
 		}
 		
 		t = transport.NewTCPTransport(parts[0], port)
+		
+		// Save IP endpoint to settings
+		settings := app.configMgr.Settings()
+		settings.Connection.Type = "ip"
+		settings.Connection.IP.Host = parts[0]
+		settings.Connection.IP.Port = port
 
 	default:
 		return fmt.Errorf("unsupported connection type: %s", connType)
+	}
+	
+	// Save updated settings
+	if err := app.configMgr.Save(); err != nil {
+		app.logger.Warn("Failed to save connection settings", "error", err)
 	}
 
 	// Stop existing connection

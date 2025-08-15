@@ -59,6 +59,7 @@ type EventCallbacks struct {
 	
 	// Application events
 	OnExit func()
+	OnWindowVisibilityChanged func(visible bool)
 }
 
 // Chat represents a chat/conversation for the UI

@@ -33,6 +33,11 @@ func (st *SystemTray) SetUnread(hasUnread bool) {
 	st.logger.Debug("Fallback tray unread status", "hasUnread", hasUnread)
 }
 
+func (st *SystemTray) SetWindowVisible(visible bool) {
+	st.logger.Debug("Fallback tray window visibility", "visible", visible)
+	// No-op in fallback implementation
+}
+
 func (st *SystemTray) OnShowHide(fn func()) {
 	st.onShowHide = fn
 }

@@ -34,6 +34,11 @@ func (st *FyneSystemTray) SetUnread(hasUnread bool) {
 	st.logger.Debug("Fyne tray unread status (stub)", "hasUnread", hasUnread)
 }
 
+func (st *FyneSystemTray) SetWindowVisible(visible bool) {
+	st.logger.Debug("Fyne tray window visibility (stub)", "visible", visible)
+	// No-op in stub implementation
+}
+
 func (st *FyneSystemTray) OnShowHide(fn func()) {
 	st.onShowHide = fn
 }

@@ -14,9 +14,11 @@ type FyneSystemTray struct {
 	app                 fyne.App
 	hasUnread           bool
 	notificationsEnabled bool
+	windowVisible       bool
 	onShowHide          func()
 	onToggleNotifs      func(bool)
 	onExit              func()
+	shuttingDown        bool
 	
 	// Desktop integration
 	desk    desktop.App
@@ -27,9 +29,13 @@ func NewFyneSystemTray(logger *slog.Logger, app fyne.App) *FyneSystemTray {
 		logger:              logger,
 		app:                 app,
 		notificationsEnabled: true,
+		windowVisible:       true, // Window starts visible
 	}
 	
 	// Icon is already set by the main app
+	
+	// Note: We don't use lifecycle hooks as they can cause circular shutdown calls
+	// The system tray quit will be handled by the application's main quit sequence
 	
 	// Try to get desktop app interface
 	if desk, ok := app.(desktop.App); ok {
@@ -47,30 +53,14 @@ func (st *FyneSystemTray) setupSystemTray() {
 		return
 	}
 	
-	// Set up system tray menu
-	menu := fyne.NewMenu("MeshGo",
-		fyne.NewMenuItem("Show/Hide", func() {
-			if st.onShowHide != nil {
-				st.onShowHide()
-			}
-		}),
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Notifications", func() {
-			st.notificationsEnabled = !st.notificationsEnabled
-			if st.onToggleNotifs != nil {
-				st.onToggleNotifs(st.notificationsEnabled)
-			}
-			st.updateMenu()
-		}),
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Exit", func() {
-			if st.onExit != nil {
-				st.onExit()
-			}
-		}),
-	)
+	// Try to set up left-click handler if supported
+	// Note: Fyne's system tray API is limited, but we can try SetSystemTrayIcon with a callback
+	if iconSetter, ok := st.desk.(interface{ SetSystemTrayIcon(fyne.Resource) }); ok {
+		st.logger.Debug("System tray supports icon setting")
+		_ = iconSetter // Available for future icon changes
+	}
 	
-	st.desk.SetSystemTrayMenu(menu)
+	// Create initial menu
 	st.updateMenu()
 	
 	st.logger.Info("Fyne system tray initialized")
@@ -81,30 +71,51 @@ func (st *FyneSystemTray) updateMenu() {
 		return
 	}
 	
-	// Update notifications menu item text
-	menu := fyne.NewMenu("MeshGo",
-		fyne.NewMenuItem("Show/Hide", func() {
-			if st.onShowHide != nil {
-				st.onShowHide()
-			}
-		}),
+	// Create menu items manually to avoid any automatic additions
+	showHideItem := fyne.NewMenuItem(st.getShowHideMenuText(), func() {
+		st.logger.Info("Tray Show/Hide menu item clicked (from updateMenu)")
+		if st.onShowHide != nil {
+			st.onShowHide()
+		} else {
+			st.logger.Warn("No onShowHide callback set (from updateMenu)")
+		}
+	})
+	
+	notifItem := fyne.NewMenuItem(st.getNotificationMenuText(), func() {
+		st.notificationsEnabled = !st.notificationsEnabled
+		if st.onToggleNotifs != nil {
+			st.onToggleNotifs(st.notificationsEnabled)
+		}
+		st.updateMenu()
+	})
+	
+	// Create quit menu item that properly handles shutdown
+	exitItem := fyne.NewMenuItem("Quit", func() {
+		st.logger.Info("Exit menu item clicked")
+		if !st.shuttingDown && st.onExit != nil {
+			st.shuttingDown = true
+			// Use a goroutine to avoid blocking the UI thread
+			go st.onExit()
+		}
+	})
+	
+	// Create menu with our custom quit item
+	menu := fyne.NewMenu("",
+		showHideItem,
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem(st.getNotificationMenuText(), func() {
-			st.notificationsEnabled = !st.notificationsEnabled
-			if st.onToggleNotifs != nil {
-				st.onToggleNotifs(st.notificationsEnabled)
-			}
-			st.updateMenu()
-		}),
+		notifItem,
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Exit", func() {
-			if st.onExit != nil {
-				st.onExit()
-			}
-		}),
+		exitItem,
 	)
 	
 	st.desk.SetSystemTrayMenu(menu)
+}
+
+func (st *FyneSystemTray) getShowHideMenuText() string {
+	if st.windowVisible {
+		return "🔼 Hide Window"
+	}
+	return "🔽 Show Window"
 }
 
 func (st *FyneSystemTray) getNotificationMenuText() string {
@@ -143,9 +154,15 @@ func (st *FyneSystemTray) Run() {
 	st.logger.Debug("Fyne system tray running with app")
 }
 
+func (st *FyneSystemTray) SetWindowVisible(visible bool) {
+	if st.windowVisible != visible {
+		st.windowVisible = visible
+		st.updateMenu() // Refresh menu to show correct Show/Hide text
+	}
+}
+
 func (st *FyneSystemTray) Quit() {
 	st.logger.Debug("Fyne system tray quit requested")
-	if st.app != nil {
-		st.app.Quit()
-	}
+	st.shuttingDown = true
+	// The actual quit will be handled by the main app shutdown sequence
 }

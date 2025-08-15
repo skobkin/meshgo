@@ -24,8 +24,9 @@ type FyneUI struct {
 	// UI state
 	chats     map[string]*ui.ChatViewModel
 	nodes     map[string]*ui.NodeViewModel
-	connected bool
+	connectionState core.ConnectionState
 	endpoint  string
+	windowVisible bool
 	
 	// Data bindings
 	statusBinding    binding.String
@@ -57,6 +58,7 @@ func NewFyneUI(logger *slog.Logger) *FyneUI {
 		chats:         make(map[string]*ui.ChatViewModel),
 		nodes:         make(map[string]*ui.NodeViewModel),
 		statusBinding: binding.NewString(),
+		windowVisible: true, // Window starts visible
 	}
 	
 	ui.setupUI()
@@ -88,12 +90,14 @@ func (f *FyneUI) setupUI() {
 	mainContent := container.NewBorder(nil, statusLabel, nil, nil, tabs)
 	f.window.SetContent(mainContent)
 	
-	// Handle window close
+	// Handle window close - minimize to tray instead of exit
 	f.window.SetCloseIntercept(func() {
-		if f.callbacks != nil && f.callbacks.OnExit != nil {
-			f.callbacks.OnExit()
-		} else {
-			f.app.Quit()
+		f.logger.Info("Window close requested - minimizing to tray")
+		f.window.Hide()
+		f.windowVisible = false
+		// Notify tray about visibility change via callback
+		if f.callbacks != nil && f.callbacks.OnWindowVisibilityChanged != nil {
+			f.callbacks.OnWindowVisibilityChanged(false)
 		}
 	})
 }
@@ -264,12 +268,9 @@ func (f *FyneUI) updateDiagnostics() {
 		return
 	}
 	
-	status := "Disconnected"
-	if f.connected {
-		status = "Connected"
-		if f.endpoint != "" {
-			status += " to " + f.endpoint
-		}
+	status := f.connectionState.String()
+	if f.endpoint != "" && f.connectionState != core.StateDisconnected {
+		status += " to " + f.endpoint
 	}
 	
 	diagnosticsText := fmt.Sprintf("Connection status: %s\nLast error: None", status)
@@ -281,7 +282,8 @@ func (f *FyneUI) handleConnectButton() {
 		return
 	}
 	
-	if f.connected {
+	// Allow disconnect if we're connected, connecting, or retrying
+	if f.connectionState == core.StateConnected || f.connectionState == core.StateConnecting || f.connectionState == core.StateRetrying {
 		// Disconnect
 		if f.callbacks.OnDisconnect != nil {
 			f.callbacks.OnDisconnect()
@@ -450,10 +452,10 @@ func (f *FyneUI) Run() error {
 
 func (f *FyneUI) Shutdown() error {
 	f.logger.Info("Shutting down Fyne GUI")
-	if f.window != nil {
-		// Ensure window close happens on the main Fyne thread
-		fyne.DoAndWait(func() {
-			f.window.Close()
+	// Use fyne.Do to ensure proper thread safety
+	if f.app != nil {
+		fyne.Do(func() {
+			f.app.Quit()
 		})
 	}
 	return nil
@@ -461,22 +463,37 @@ func (f *FyneUI) Shutdown() error {
 
 func (f *FyneUI) ShowMain() {
 	if f.window != nil {
+		f.logger.Debug("ShowMain called")
 		fyne.Do(func() {
 			f.window.Show()
+			f.window.RequestFocus() // Ensure window gets focus and comes to front
+			f.windowVisible = true
+			f.logger.Debug("Window shown, focused, and visibility set to true")
+			// Notify about visibility change
+			if f.callbacks != nil && f.callbacks.OnWindowVisibilityChanged != nil {
+				f.callbacks.OnWindowVisibilityChanged(true)
+			}
 		})
 	}
 }
 
 func (f *FyneUI) HideMain() {
 	if f.window != nil {
+		f.logger.Debug("HideMain called")
 		fyne.Do(func() {
 			f.window.Hide()
+			f.windowVisible = false
+			f.logger.Debug("Window hidden and visibility set to false")
+			// Notify about visibility change
+			if f.callbacks != nil && f.callbacks.OnWindowVisibilityChanged != nil {
+				f.callbacks.OnWindowVisibilityChanged(false)
+			}
 		})
 	}
 }
 
 func (f *FyneUI) IsVisible() bool {
-	return f.window != nil && f.window.Content().Visible()
+	return f.window != nil && f.windowVisible
 }
 
 func (f *FyneUI) SetTrayBadge(hasUnread bool) {
@@ -513,7 +530,9 @@ func (f *FyneUI) UpdateChats(chats []*core.Chat) {
 	}
 	
 	if f.chatsList != nil {
-		f.chatsList.Refresh()
+		fyne.Do(func() {
+			f.chatsList.Refresh()
+		})
 	}
 }
 
@@ -525,12 +544,14 @@ func (f *FyneUI) UpdateNodes(nodes []*core.Node) {
 	}
 	
 	if f.nodesList != nil {
-		f.nodesList.Refresh()
+		fyne.Do(func() {
+			f.nodesList.Refresh()
+		})
 	}
 }
 
 func (f *FyneUI) UpdateConnectionStatus(state core.ConnectionState, endpoint string) {
-	f.connected = state == core.StateConnected
+	f.connectionState = state
 	f.endpoint = endpoint
 	
 	status := fmt.Sprintf("Status: %s", state.String())
@@ -538,24 +559,49 @@ func (f *FyneUI) UpdateConnectionStatus(state core.ConnectionState, endpoint str
 		status += fmt.Sprintf(" -> %s", endpoint)
 	}
 	
-	f.statusBinding.Set(status)
-	
-	// Update connection button
-	if f.connectionButton != nil {
-		if f.connected {
-			f.connectionButton.SetText("Disconnect")
-		} else {
-			f.connectionButton.SetText("Connect")
+	// All UI updates must happen on the Fyne thread
+	fyne.Do(func() {
+		f.statusBinding.Set(status)
+		
+		// Update connection button based on state
+		if f.connectionButton != nil {
+			switch state {
+			case core.StateDisconnected:
+				f.connectionButton.SetText("Connect")
+			case core.StateConnecting:
+				f.connectionButton.SetText("Cancel")
+			case core.StateConnected:
+				f.connectionButton.SetText("Disconnect")
+			case core.StateRetrying:
+				f.connectionButton.SetText("Stop Retrying")
+			}
 		}
-	}
-	
-	// Update diagnostics
-	f.updateDiagnostics()
+		
+		// Update diagnostics
+		f.updateDiagnostics()
+	})
 }
 
 func (f *FyneUI) UpdateSettings(settings *core.Settings) {
 	f.logger.Debug("Settings updated in Fyne UI")
-	// Update UI based on settings if needed
+	
+	// Update connection form with saved settings
+	fyne.Do(func() {
+		if f.connectTypeSelect != nil {
+			f.connectTypeSelect.SetSelected(settings.Connection.Type)
+		}
+		
+		if f.connectEntry != nil {
+			var endpoint string
+			switch settings.Connection.Type {
+			case "serial":
+				endpoint = settings.Connection.Serial.Port
+			case "ip":
+				endpoint = fmt.Sprintf("%s:%d", settings.Connection.IP.Host, settings.Connection.IP.Port)
+			}
+			f.connectEntry.SetText(endpoint)
+		}
+	})
 }
 
 func (f *FyneUI) ShowTraceroute(node *core.Node, hops []string) {
