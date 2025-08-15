@@ -9,7 +9,7 @@ platform:
 
 steps:
   - name: lint
-    image: golangci/golangci-lint:v1.60.3
+    image: golangci/golangci-lint:v2.4-alpine
     commands:
       - golangci-lint run --timeout=10m
     when:

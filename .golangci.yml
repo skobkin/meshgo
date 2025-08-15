@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 10m
   tests: true
@@ -5,19 +7,21 @@ run:
     - !no_fyne
     - !no_systray
 
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
 linters:
   enable:
     # Enabled by default
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
     
     # Additional useful linters
-    - gofmt
-    - goimports
     - gocritic
     - revive
     - gosec
@@ -25,7 +29,6 @@ linters:
     - unconvert
     - misspell
     - prealloc
-    - exportloopref
     - whitespace
     - gocyclo
     - dupl
@@ -35,14 +38,14 @@ linters:
     - dogsled
     - gocognit
     
-  disable:
-    - typecheck  # Often gives false positives with CGO
 
-linters-settings:
+formatters-settings:
   gofmt:
     simplify: true
   goimports:
     local-prefixes: meshgo
+
+linters-settings:
   gocritic:
     enabled-tags:
       - diagnostic
