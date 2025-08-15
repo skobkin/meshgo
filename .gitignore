@@ -35,3 +35,8 @@ meshgo_gpt5_prd_full_enhanced.md
 /meshgo
 /meshgo.exe
 /build/
+/dist/
+
+# Coverage files
+coverage.out
+coverage.html

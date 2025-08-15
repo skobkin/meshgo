@@ -1,0 +1,202 @@
+---
+kind: pipeline
+type: docker
+name: checks
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: lint
+    image: golangci/golangci-lint:v1.60.3
+    commands:
+      - golangci-lint run --timeout=10m
+    when:
+      event:
+        - push
+        - pull_request
+
+  - name: format-check
+    image: golang:1.23
+    commands:
+      - gofmt -l . | tee /tmp/fmt-diff
+      - test ! -s /tmp/fmt-diff || (echo "Code not formatted properly:" && cat /tmp/fmt-diff && exit 1)
+    when:
+      event:
+        - push
+        - pull_request
+
+  - name: build-check
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+    commands:
+      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - go mod download
+      - go build -v ./...
+    when:
+      event:
+        - push
+        - pull_request
+
+  - name: test
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+    commands:
+      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - go mod download
+      - go test -v -race -cover ./...
+    when:
+      event:
+        - push
+        - pull_request
+
+---
+kind: pipeline
+type: docker
+name: release
+
+platform:
+  os: linux
+  arch: amd64
+
+depends_on:
+  - checks
+
+trigger:
+  event:
+    - tag
+
+steps:
+  - name: prepare-release
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+    commands:
+      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev zip
+      - mkdir -p dist
+    
+  - name: build-linux-amd64
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+      GOOS: linux
+      GOARCH: amd64
+    commands:
+      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-linux-amd64 ./cmd/meshgo
+      - cd dist && zip -9 meshgo-linux-amd64.zip meshgo-linux-amd64
+    depends_on:
+      - prepare-release
+
+  - name: build-linux-arm64
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+      GOOS: linux
+      GOARCH: arm64
+      CC: aarch64-linux-gnu-gcc
+    commands:
+      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev gcc-aarch64-linux-gnu
+      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-linux-arm64 ./cmd/meshgo
+      - cd dist && zip -9 meshgo-linux-arm64.zip meshgo-linux-arm64
+    depends_on:
+      - prepare-release
+
+  - name: build-windows-amd64
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+      GOOS: windows
+      GOARCH: amd64
+      CC: x86_64-w64-mingw32-gcc
+      CXX: x86_64-w64-mingw32-g++
+    commands:
+      - apt-get update && apt-get install -y pkg-config gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-windows-amd64.exe ./cmd/meshgo
+      - cd dist && zip -9 meshgo-windows-amd64.zip meshgo-windows-amd64.exe
+    depends_on:
+      - prepare-release
+
+  - name: build-darwin-amd64
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+      GOOS: darwin
+      GOARCH: amd64
+    commands:
+      # Note: macOS builds with CGO require specific setup that may not work in standard Docker
+      # For production use, consider using a macOS runner or disable CGO for Darwin builds
+      - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
+      - cd dist && zip -9 meshgo-darwin-amd64.zip meshgo-darwin-amd64
+    depends_on:
+      - prepare-release
+
+  - name: build-darwin-arm64
+    image: golang:1.23
+    environment:
+      CGO_ENABLED: 1
+      GOOS: darwin
+      GOARCH: arm64
+    commands:
+      # Note: macOS builds with CGO require specific setup that may not work in standard Docker
+      # For production use, consider using a macOS runner or disable CGO for Darwin builds
+      - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-arm64 ./cmd/meshgo
+      - cd dist && zip -9 meshgo-darwin-arm64.zip meshgo-darwin-arm64
+    depends_on:
+      - prepare-release
+
+  - name: create-release
+    image: plugins/gitea-release
+    settings:
+      base_url: ${FORGEJO_URL}
+      api_key:
+        from_secret: forgejo_token
+      title: "MeshGo ${DRONE_TAG}"
+      note: |
+        ## MeshGo ${DRONE_TAG}
+        
+        This is an automated release of MeshGo built from tag `${DRONE_TAG}`.
+        
+        ### Downloads
+        
+        Choose the appropriate binary for your platform:
+        - **Linux AMD64**: `meshgo-linux-amd64.zip` - For most Linux systems
+        - **Linux ARM64**: `meshgo-linux-arm64.zip` - For ARM64 Linux systems (Raspberry Pi, etc.)
+        - **Windows AMD64**: `meshgo-windows-amd64.zip` - For Windows 10/11 64-bit
+        - **macOS Intel**: `meshgo-darwin-amd64.zip` - For Intel-based Macs
+        - **macOS Apple Silicon**: `meshgo-darwin-arm64.zip` - For M1/M2/M3 Macs
+        
+        ### Installation
+        
+        1. Download the appropriate ZIP file for your platform
+        2. Extract the binary from the ZIP file
+        3. Make the binary executable (Linux/macOS): `chmod +x meshgo*`
+        4. Run the application: `./meshgo` (or `meshgo.exe` on Windows)
+        
+        ### Changes
+        
+        See the [commit history](${DRONE_REPO_LINK}/commits/${DRONE_TAG}) for detailed changes in this release.
+      files:
+        - dist/meshgo-linux-amd64.zip
+        - dist/meshgo-linux-arm64.zip
+        - dist/meshgo-windows-amd64.zip
+        - dist/meshgo-darwin-amd64.zip
+        - dist/meshgo-darwin-arm64.zip
+      checksum:
+        - sha256
+        - sha512
+      draft: false
+      prerelease: false
+    depends_on:
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-windows-amd64
+      - build-darwin-amd64
+      - build-darwin-arm64
+
+---
+kind: secret
+name: forgejo_token

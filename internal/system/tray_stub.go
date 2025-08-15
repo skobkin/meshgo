@@ -8,18 +8,18 @@ import (
 
 // Stub implementation when systray is disabled
 type SystemTray struct {
-	logger              *slog.Logger
-	hasUnread           bool
+	logger               *slog.Logger
+	hasUnread            bool
 	notificationsEnabled bool
-	onShowHide          func()
-	onToggleNotifs      func(bool)
-	onExit              func()
+	onShowHide           func()
+	onToggleNotifs       func(bool)
+	onExit               func()
 }
 
 func NewSystemTray(logger *slog.Logger) *SystemTray {
 	logger.Info("System tray disabled (built with no_systray tag)")
 	return &SystemTray{
-		logger:              logger,
+		logger:               logger,
 		notificationsEnabled: true,
 	}
 }
@@ -28,7 +28,7 @@ func (st *SystemTray) SetUnread(hasUnread bool) {
 	if st.hasUnread == hasUnread {
 		return
 	}
-	
+
 	st.hasUnread = hasUnread
 	st.logger.Debug("Tray unread status (stub)", "hasUnread", hasUnread)
 }

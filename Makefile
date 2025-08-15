@@ -76,6 +76,11 @@ fmt:  ## Format Go code
 	@echo "Formatting code..."
 	go fmt ./...
 
+fmt-check:  ## Check if code is formatted properly
+	@echo "Checking code format..."
+	@gofmt -l . | tee /tmp/fmt-diff
+	@test ! -s /tmp/fmt-diff || (echo "Code not formatted properly. Run 'make fmt' to fix." && exit 1)
+
 vet:  ## Run go vet
 	@echo "Running go vet..."
 	go vet ./...
@@ -87,6 +92,8 @@ lint:  ## Run golangci-lint (requires golangci-lint installed)
 	else \
 		echo "golangci-lint not found. Install it with: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.54.2"; \
 	fi
+
+ci-check: deps fmt-check vet test  ## Run all CI checks locally
 
 ## Dependencies
 deps:  ## Download dependencies

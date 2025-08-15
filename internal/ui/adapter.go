@@ -22,7 +22,7 @@ type Adapter interface {
 
 	// Content updates
 	UpdateChats(chats []*core.Chat)
-	UpdateNodes(nodes []*core.Node) 
+	UpdateNodes(nodes []*core.Node)
 	UpdateConnectionStatus(state core.ConnectionState, endpoint string)
 	UpdateSettings(settings *core.Settings)
 
@@ -30,43 +30,43 @@ type Adapter interface {
 	ShowTraceroute(node *core.Node, hops []string)
 	ShowError(title, message string)
 	ShowInfo(title, message string)
-	
+
 	// Event callbacks - UI calls these when user interacts
 	SetEventCallbacks(callbacks *EventCallbacks)
 }
 
 type EventCallbacks struct {
 	// Connection events
-	OnConnect     func(connType, endpoint string) error
-	OnDisconnect  func() error
-	
-	// Message events  
-	OnSendMessage func(chatID, text string) error
-	OnMarkChatRead func(chatID string) error
+	OnConnect    func(connType, endpoint string) error
+	OnDisconnect func() error
+
+	// Message events
+	OnSendMessage      func(chatID, text string) error
+	OnMarkChatRead     func(chatID string) error
 	OnLoadChatMessages func(chatID string) ([]*core.Message, error)
-	OnGetNodeName func(nodeID string) string
-	
+	OnGetNodeName      func(nodeID string) string
+
 	// Node events
-	OnToggleNodeFavorite  func(nodeID string) error
-	OnToggleNodeIgnored   func(nodeID string) error
-	OnRemoveNode          func(nodeID string) error
-	OnExchangeUserInfo    func(nodeID string) error
-	OnTraceroute          func(nodeID string) error
-	OnOpenDirectMessage   func(nodeID string) error
-	
+	OnToggleNodeFavorite func(nodeID string) error
+	OnToggleNodeIgnored  func(nodeID string) error
+	OnRemoveNode         func(nodeID string) error
+	OnExchangeUserInfo   func(nodeID string) error
+	OnTraceroute         func(nodeID string) error
+	OnOpenDirectMessage  func(nodeID string) error
+
 	// Settings events
-	OnUpdateConnection    func(connType, serialPort string, serialBaud int, ipHost string, ipPort int) error
-	OnUpdateNotifications func(enabled bool) error
-	OnToggleNotifications func(enabled bool) error
+	OnUpdateConnection       func(connType, serialPort string, serialBaud int, ipHost string, ipPort int) error
+	OnUpdateNotifications    func(enabled bool) error
+	OnToggleNotifications    func(enabled bool) error
 	OnUpdateConnectOnStartup func(enabled bool) error
-	OnUpdateLogging       func(enabled, level string) error
-	OnUpdateLogLevel      func(level string) error
-	OnUpdateUI            func(startMinimized bool, theme string) error
-	
+	OnUpdateLogging          func(enabled, level string) error
+	OnUpdateLogLevel         func(level string) error
+	OnUpdateUI               func(startMinimized bool, theme string) error
+
 	// Application events
-	OnExit func()
+	OnExit                    func()
 	OnWindowVisibilityChanged func(visible bool)
-	
+
 	// Maintenance events
 	OnClearChats func() error
 	OnClearNodes func() error
@@ -83,53 +83,53 @@ type ChatViewModel struct {
 // Node represents a node for the UI with additional display info
 type NodeViewModel struct {
 	*core.Node
-	StatusText      string `json:"status_text"`
-	SignalBars      int    `json:"signal_bars"`     // 0-3 bars
-	BatteryPercent  int    `json:"battery_percent"`
-	IsOnline        bool   `json:"is_online"`
-	DistanceText    string `json:"distance_text,omitempty"`
+	StatusText     string `json:"status_text"`
+	SignalBars     int    `json:"signal_bars"` // 0-3 bars
+	BatteryPercent int    `json:"battery_percent"`
+	IsOnline       bool   `json:"is_online"`
+	DistanceText   string `json:"distance_text,omitempty"`
 }
 
 // Connection state for UI display
 type ConnectionViewModel struct {
-	State            core.ConnectionState `json:"state"`
-	Endpoint         string               `json:"endpoint"`
-	StateText        string               `json:"state_text"`
-	RetryCountdown   int                  `json:"retry_countdown,omitempty"`
-	LastError        string               `json:"last_error,omitempty"`
-	ConnectedSince   string               `json:"connected_since,omitempty"`
-	PacketsRX        int64                `json:"packets_rx"`
-	PacketsTX        int64                `json:"packets_tx"`
-	PacketsDropped   int64                `json:"packets_dropped"`
+	State          core.ConnectionState `json:"state"`
+	Endpoint       string               `json:"endpoint"`
+	StateText      string               `json:"state_text"`
+	RetryCountdown int                  `json:"retry_countdown,omitempty"`
+	LastError      string               `json:"last_error,omitempty"`
+	ConnectedSince string               `json:"connected_since,omitempty"`
+	PacketsRX      int64                `json:"packets_rx"`
+	PacketsTX      int64                `json:"packets_tx"`
+	PacketsDropped int64                `json:"packets_dropped"`
 }
 
 // Settings for UI display
 type SettingsViewModel struct {
 	*core.Settings
-	AvailablePorts   []string `json:"available_ports"`
-	AvailableThemes  []string `json:"available_themes"`
-	LogFilePath      string   `json:"log_file_path"`
-	DatabasePath     string   `json:"database_path"`
-	ConfigPath       string   `json:"config_path"`
-	Version          string   `json:"version"`
-	BuildInfo        string   `json:"build_info"`
+	AvailablePorts  []string `json:"available_ports"`
+	AvailableThemes []string `json:"available_themes"`
+	LogFilePath     string   `json:"log_file_path"`
+	DatabasePath    string   `json:"database_path"`
+	ConfigPath      string   `json:"config_path"`
+	Version         string   `json:"version"`
+	BuildInfo       string   `json:"build_info"`
 }
 
 // Traceroute result for UI display
 type TracerouteViewModel struct {
-	Destination *core.Node           `json:"destination"`
-	Hops        []*TracerouteHop     `json:"hops"`
-	Status      string               `json:"status"`
-	StartTime   string               `json:"start_time"`
-	Duration    string               `json:"duration"`
+	Destination *core.Node       `json:"destination"`
+	Hops        []*TracerouteHop `json:"hops"`
+	Status      string           `json:"status"`
+	StartTime   string           `json:"start_time"`
+	Duration    string           `json:"duration"`
 }
 
 type TracerouteHop struct {
-	HopNumber   int        `json:"hop_number"`
-	Node        *core.Node `json:"node"`
-	ResponseTime string    `json:"response_time"`
-	RSSI        int        `json:"rssi"`
-	SNR         float32    `json:"snr"`
+	HopNumber    int        `json:"hop_number"`
+	Node         *core.Node `json:"node"`
+	ResponseTime string     `json:"response_time"`
+	RSSI         int        `json:"rssi"`
+	SNR          float32    `json:"snr"`
 }
 
 // Helper functions to convert core models to view models
@@ -140,11 +140,11 @@ func ChatToViewModel(chat *core.Chat, messages []*core.Message, participants []*
 		Messages:     messages,
 		Participants: participants,
 	}
-	
+
 	if len(messages) > 0 {
 		vm.LastMessage = messages[len(messages)-1]
 	}
-	
+
 	return vm
 }
 
@@ -152,10 +152,10 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 	vm := &NodeViewModel{
 		Node: node,
 	}
-	
+
 	// Online status (node heard in last 5 minutes)
 	vm.IsOnline = node.LastHeard.After(time.Now().Add(-5 * time.Minute))
-	
+
 	// Calculate signal quality for all nodes
 	if vm.IsOnline {
 		// Check if we have actual signal data
@@ -167,7 +167,7 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 				vm.StatusText = "Good"
 			case core.SignalFair:
 				vm.SignalBars = 2
-				vm.StatusText = "Fair" 
+				vm.StatusText = "Fair"
 			case core.SignalBad:
 				vm.SignalBars = 1
 				vm.StatusText = "Poor"
@@ -182,7 +182,7 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 		vm.SignalBars = 0
 		vm.StatusText = "Offline"
 	}
-	
+
 	// Battery percentage
 	if node.BatteryLevel != nil {
 		vm.BatteryPercent = *node.BatteryLevel
@@ -190,7 +190,7 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 			vm.BatteryPercent = 100 // Cap at 100% for display
 		}
 	}
-	
+
 	return vm
 }
 
@@ -200,13 +200,13 @@ func ConnectionToViewModel(state core.ConnectionState, endpoint string) *Connect
 		Endpoint:  endpoint,
 		StateText: state.String(),
 	}
-	
+
 	return vm
 }
 
 func SettingsToViewModel(settings *core.Settings, configManager *core.ConfigManager) *SettingsViewModel {
 	vm := &SettingsViewModel{
-		Settings: settings,
+		Settings:        settings,
 		AvailableThemes: []string{"system", "light", "dark"},
 		LogFilePath:     "",
 		DatabasePath:    "",
@@ -214,10 +214,10 @@ func SettingsToViewModel(settings *core.Settings, configManager *core.ConfigMana
 		Version:         "1.0.0", // Would be injected at build time
 		BuildInfo:       "Development build",
 	}
-	
+
 	if settings.Logging.Enabled {
 		vm.LogFilePath = configManager.LogDir()
 	}
-	
+
 	return vm
 }

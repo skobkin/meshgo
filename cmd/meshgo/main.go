@@ -45,12 +45,12 @@ type App struct {
 	ui           ui.Adapter
 	radioClient  *protocol.RadioClient
 	reconnectMgr *core.ReconnectManager
-	
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
-	
-	consoleMode  bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+
+	consoleMode bool
 }
 
 func main() {
@@ -75,10 +75,10 @@ func NewApp(consoleMode bool) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config manager: %w", err)
 	}
-	
+
 	// Create programmable level for dynamic log level changes
 	logLevel := &slog.LevelVar{}
-	
+
 	// Set initial log level from config
 	levelStr := strings.ToLower(configMgr.Settings().Logging.Level)
 	switch levelStr {
@@ -93,7 +93,7 @@ func NewApp(consoleMode bool) (*App, error) {
 	default:
 		logLevel.Set(slog.LevelInfo) // Default fallback
 	}
-	
+
 	// Setup logger with programmable level
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,
@@ -107,7 +107,7 @@ func NewApp(consoleMode bool) (*App, error) {
 
 	// Initialize system components
 	notifier := system.NewNotifier(logger)
-	
+
 	// Initialize UI - Fyne GUI by default, console only in debug mode
 	var ui ui.Adapter
 	if consoleMode {
@@ -115,7 +115,7 @@ func NewApp(consoleMode bool) (*App, error) {
 	} else {
 		ui = fyne.NewFyneUI(logger)
 	}
-	
+
 	// Initialize system tray with Fyne integration
 	var tray SystemTrayInterface
 	if fyneUI, ok := ui.(*fyne.FyneUI); ok && !consoleMode {
@@ -123,7 +123,7 @@ func NewApp(consoleMode bool) (*App, error) {
 	} else {
 		tray = system.NewSystemTray(logger)
 	}
-	
+
 	// Initialize radio client
 	radioClient := protocol.NewRadioClient(logger)
 
@@ -179,7 +179,7 @@ func (app *App) Run() error {
 				app.logger.Error("Console UI error", "error", err)
 			}
 		}()
-		
+
 		// Wait for shutdown signal
 		<-app.ctx.Done()
 	} else {
@@ -199,7 +199,7 @@ func (app *App) Run() error {
 
 func (app *App) Shutdown() {
 	app.logger.Info("Shutting down...")
-	
+
 	app.cancel()
 
 	if app.reconnectMgr != nil {
@@ -217,7 +217,7 @@ func (app *App) Shutdown() {
 	if err := app.ui.Shutdown(); err != nil {
 		app.logger.Error("Failed to shutdown UI", "error", err)
 	}
-	
+
 	if app.tray != nil {
 		app.tray.Quit()
 	}
@@ -238,7 +238,7 @@ func (app *App) startServices() {
 
 	// Load initial data
 	app.loadInitialData()
-	
+
 	// Auto-connect if enabled
 	if settings.Connection.ConnectOnStartup {
 		app.logger.Info("Auto-connecting on startup")
@@ -323,9 +323,9 @@ func (app *App) handleReconnectEvent(event core.Event) {
 }
 
 func (app *App) handleMessageReceived(msg *core.Message) {
-	app.logger.Info("Message received", 
-		"from", msg.SenderID, 
-		"chat", msg.ChatID, 
+	app.logger.Info("Message received",
+		"from", msg.SenderID,
+		"chat", msg.ChatID,
 		"text", msg.Text)
 
 	// Save to database
@@ -334,7 +334,7 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 		return
 	}
 	app.logger.Debug("Message saved to database", "chat_id", msg.ChatID)
-	
+
 	// Update chat title with real channel name if it's a channel message
 	app.updateChatTitle(msg.ChatID)
 
@@ -345,7 +345,7 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 	if msg.IsUnread {
 		var notificationTitle string
 		var senderName string
-		
+
 		// Get sender name for the message content
 		if node, _ := app.storage.GetNode(app.ctx, msg.SenderID); node != nil {
 			senderName = node.LongName
@@ -356,7 +356,7 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 		if senderName == "" {
 			senderName = msg.SenderID // fallback to ID
 		}
-		
+
 		// Generate notification title based on chat type
 		if strings.HasPrefix(msg.ChatID, "channel_") {
 			// For channel messages, get real channel name from RadioClient
@@ -376,7 +376,7 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 			// For direct messages, show sender name as title
 			notificationTitle = senderName
 		}
-		
+
 		// For channel messages, prepend sender name to message text
 		notificationText := msg.Text
 		if strings.HasPrefix(msg.ChatID, "channel_") {
@@ -405,7 +405,7 @@ func (app *App) handleNodeUpdated(node *core.Node) {
 		app.logger.Debug("Failed to save node to database", "error", err, "node_id", node.ID)
 		// Don't fail the whole operation if database save fails
 	}
-	
+
 	// Refresh nodes UI
 	app.refreshNodes()
 }
@@ -428,12 +428,12 @@ func (app *App) refreshChats() {
 		app.logger.Error("Failed to load chats", "error", err)
 		return
 	}
-	
+
 	app.logger.Debug("Refreshing chats", "chat_count", len(chats))
 	for _, chat := range chats {
 		app.logger.Debug("Chat found", "id", chat.ID, "title", chat.Title, "unread", chat.UnreadCount)
 	}
-	
+
 	app.ui.UpdateChats(chats)
 }
 
@@ -453,7 +453,7 @@ func (app *App) updateChatTitle(chatID string) {
 	if !strings.HasPrefix(chatID, "channel_") {
 		return // Only update channel chat titles
 	}
-	
+
 	channelNum := strings.TrimPrefix(chatID, "channel_")
 	if channelIndex, err := strconv.ParseInt(channelNum, 10, 32); err == nil {
 		realChannelName := app.radioClient.GetChannelName(int32(channelIndex))
@@ -472,21 +472,21 @@ func (app *App) handleChatUpdated(chatData map[string]interface{}) {
 	chatID, _ := chatData["chat_id"].(string)
 	encryption, _ := chatData["encryption"].(int)
 	title, _ := chatData["title"].(string)
-	
+
 	app.logger.Debug("Handling chat update", "chat_id", chatID, "encryption", encryption, "title", title)
-	
+
 	if chatID == "" {
 		app.logger.Debug("Chat update missing chat_id")
 		return
 	}
-	
+
 	// Update chat encryption in database
 	if err := app.storage.UpdateChatEncryption(app.ctx, chatID, encryption); err != nil {
 		app.logger.Error("Failed to update chat encryption", "error", err, "chat_id", chatID, "encryption", encryption)
 	} else {
 		app.logger.Debug("Updated chat encryption", "chat_id", chatID, "encryption", encryption)
 	}
-	
+
 	// Update chat title if provided
 	if title != "" {
 		if err := app.storage.UpdateChatTitle(app.ctx, chatID, title); err != nil {
@@ -495,31 +495,31 @@ func (app *App) handleChatUpdated(chatData map[string]interface{}) {
 			app.logger.Debug("Updated chat title", "chat_id", chatID, "title", title)
 		}
 	}
-	
+
 	// Refresh chats UI to show updated encryption indicators
 	app.refreshChats()
 }
 
 func (app *App) setupUICallbacks() {
 	callbacks := &ui.EventCallbacks{
-		OnConnect:    app.handleConnect,
-		OnDisconnect: app.handleDisconnect,
-		OnSendMessage: app.handleSendMessage,
-		OnLoadChatMessages: app.handleLoadChatMessages,
-		OnGetNodeName: app.handleGetNodeName,
-		OnToggleNodeFavorite: app.handleToggleNodeFavorite,
-		OnTraceroute: app.handleTraceroute,
-		OnUpdateNotifications: app.handleUpdateNotifications,
+		OnConnect:                app.handleConnect,
+		OnDisconnect:             app.handleDisconnect,
+		OnSendMessage:            app.handleSendMessage,
+		OnLoadChatMessages:       app.handleLoadChatMessages,
+		OnGetNodeName:            app.handleGetNodeName,
+		OnToggleNodeFavorite:     app.handleToggleNodeFavorite,
+		OnTraceroute:             app.handleTraceroute,
+		OnUpdateNotifications:    app.handleUpdateNotifications,
 		OnUpdateConnectOnStartup: app.handleUpdateConnectOnStartup,
-		OnUpdateLogLevel: app.handleUpdateLogLevel,
-		OnExit: app.handleExit,
+		OnUpdateLogLevel:         app.handleUpdateLogLevel,
+		OnExit:                   app.handleExit,
 		OnWindowVisibilityChanged: func(visible bool) {
 			app.tray.SetWindowVisible(visible)
 		},
 		OnClearChats: app.handleClearChats,
 		OnClearNodes: app.handleClearNodes,
 	}
-	
+
 	app.ui.SetEventCallbacks(callbacks)
 }
 
@@ -562,7 +562,7 @@ func (app *App) handleConnect(connType, endpoint string) error {
 	case "serial":
 		settings := app.configMgr.Settings()
 		t = transport.NewSerialTransport(endpoint, settings.Connection.Serial.Baud)
-		
+
 		// Save serial endpoint to settings
 		settings.Connection.Type = "serial"
 		settings.Connection.Serial.Port = endpoint
@@ -572,14 +572,14 @@ func (app *App) handleConnect(connType, endpoint string) error {
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid IP endpoint format, expected host:port")
 		}
-		
+
 		port, err := strconv.Atoi(parts[1])
 		if err != nil {
 			return fmt.Errorf("invalid port number: %w", err)
 		}
-		
+
 		t = transport.NewTCPTransport(parts[0], port)
-		
+
 		// Save IP endpoint to settings
 		settings := app.configMgr.Settings()
 		settings.Connection.Type = "ip"
@@ -589,7 +589,7 @@ func (app *App) handleConnect(connType, endpoint string) error {
 	default:
 		return fmt.Errorf("unsupported connection type: %s", connType)
 	}
-	
+
 	// Save updated settings
 	if err := app.configMgr.Save(); err != nil {
 		app.logger.Warn("Failed to save connection settings", "error", err)
@@ -654,17 +654,17 @@ func (app *App) handleLoadChatMessages(chatID string) ([]*core.Message, error) {
 		app.logger.Error("Failed to load chat messages", "error", err, "chat_id", chatID)
 		return nil, fmt.Errorf("failed to load messages: %w", err)
 	}
-	
+
 	app.logger.Debug("Loaded chat messages", "chat_id", chatID, "count", len(messages))
-	
+
 	// Mark messages as read when loading them
 	if err := app.storage.MarkAsRead(app.ctx, chatID); err != nil {
 		app.logger.Warn("Failed to mark messages as read", "error", err, "chat_id", chatID)
 	}
-	
+
 	// Update unread counts after marking as read
 	app.updateUnreadCounts()
-	
+
 	return messages, nil
 }
 
@@ -681,7 +681,7 @@ func (app *App) handleGetNodeName(nodeID string) string {
 			}
 		}
 	}
-	
+
 	// Fallback to database
 	if node, err := app.storage.GetNode(app.ctx, nodeID); err == nil && node != nil {
 		if node.LongName != "" {
@@ -691,12 +691,12 @@ func (app *App) handleGetNodeName(nodeID string) string {
 			return node.ShortName
 		}
 	}
-	
+
 	// If it's our own node, check radio client's own node ID
 	if ownID := fmt.Sprintf("%d", app.radioClient.GetOwnNodeID()); ownID == nodeID {
 		return "You"
 	}
-	
+
 	// Fallback to nodeID if no name found
 	return nodeID
 }
@@ -711,7 +711,7 @@ func (app *App) handleToggleNodeFavorite(nodeID string) error {
 			break
 		}
 	}
-	
+
 	// Fallback to database if not in live nodes
 	if targetNode == nil {
 		var err error
@@ -725,12 +725,12 @@ func (app *App) handleToggleNodeFavorite(nodeID string) error {
 	}
 
 	newFavorite := !targetNode.Favorite
-	
+
 	// Update in database
 	if err := app.storage.UpdateNodeFavorite(app.ctx, nodeID, newFavorite); err != nil {
 		return fmt.Errorf("failed to update favorite in database: %w", err)
 	}
-	
+
 	// Also update the in-memory version
 	targetNode.Favorite = newFavorite
 
@@ -768,10 +768,10 @@ func (app *App) handleUpdateConnectOnStartup(enabled bool) error {
 
 func (app *App) handleUpdateLogLevel(level string) error {
 	app.logger.Info("Log level changed", "level", level)
-	
+
 	// Update the current logger level immediately
 	levelStr := strings.ToLower(level)
-	
+
 	// Set the new log level
 	switch levelStr {
 	case "debug":
@@ -785,43 +785,43 @@ func (app *App) handleUpdateLogLevel(level string) error {
 	default:
 		app.logLevel.Set(slog.LevelInfo) // Default fallback
 	}
-	
+
 	app.logger.Debug("Log level updated", "level", levelStr)
-	
+
 	// Save to config
 	return app.configMgr.UpdateLogging(app.configMgr.Settings().Logging.Enabled, levelStr)
 }
 
 func (app *App) handleClearChats() error {
 	app.logger.Info("Clear chats requested")
-	
+
 	if err := app.storage.ClearAllChats(app.ctx); err != nil {
 		app.logger.Error("Failed to clear chats", "error", err)
 		return fmt.Errorf("failed to clear chats: %w", err)
 	}
-	
+
 	app.logger.Info("All chats cleared successfully")
-	
+
 	// Refresh UI after clearing
 	app.refreshChats()
 	app.updateUnreadCounts()
-	
+
 	return nil
 }
 
 func (app *App) handleClearNodes() error {
 	app.logger.Info("Clear nodes requested")
-	
+
 	if err := app.storage.ClearAllNodes(app.ctx); err != nil {
 		app.logger.Error("Failed to clear nodes", "error", err)
 		return fmt.Errorf("failed to clear nodes: %w", err)
 	}
-	
+
 	app.logger.Info("All nodes cleared successfully")
-	
+
 	// Refresh UI after clearing
 	app.refreshNodes()
-	
+
 	return nil
 }
 

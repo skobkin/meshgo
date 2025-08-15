@@ -136,7 +136,7 @@ func (t *TCPTransport) Endpoint() string {
 
 func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 	const maxPacketSize = 512 // Meshtastic max packet size for BLE compatibility
-	
+
 	// Set read deadline but not too aggressive - Meshtastic devices are slow
 	if err := conn.SetReadDeadline(time.Now().Add(35 * time.Second)); err != nil {
 		return nil, fmt.Errorf("failed to set read deadline: %w", err)
@@ -145,7 +145,7 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 	// Use a simple blocking read approach that waits for data
 	// This is more efficient than polling and handles the "no data available" case better
 	buffer := make([]byte, 4+maxPacketSize) // Header + max payload
-	
+
 	// Read at least the 4-byte header first
 	headerRead := 0
 	for headerRead < 4 {
@@ -155,7 +155,7 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 		}
 		headerRead += n
 	}
-	
+
 	// Check magic bytes in the header we just read
 	if buffer[0] != 0x94 || buffer[1] != 0xC3 {
 		// Return error to trigger retry - header logging removed to reduce noise
@@ -164,9 +164,9 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 
 	// Extract packet size from header bytes 2-3 (big-endian)
 	packetSize := int(buffer[2])<<8 | int(buffer[3])
-	
+
 	// Debug logging removed to reduce verbosity
-	
+
 	if packetSize <= 0 || packetSize > maxPacketSize {
 		// Packet size validation - error logging removed to reduce verbosity
 		return nil, fmt.Errorf("invalid packet size: %d", packetSize)
@@ -185,7 +185,7 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 	// Extract just the payload (skip the 4-byte header)
 	payload := make([]byte, packetSize)
 	copy(payload, buffer[4:4+packetSize])
-	
+
 	// Debug logging removed to reduce verbosity
 
 	return payload, nil
@@ -202,15 +202,15 @@ func (t *TCPTransport) framePacket(data []byte) []byte {
 	// Meshtastic TCP framing: [0x94][0xC3][length_high][length_low] + protobuf data
 	// Upper 16 bits: 0x94C3 (magic bytes)
 	// Lower 16 bits: packet length (max 512 bytes)
-	
+
 	if len(data) > 512 {
 		// This shouldn't happen with proper Meshtastic packets
 		panic("packet too large for Meshtastic protocol")
 	}
-	
+
 	framed := make([]byte, len(data)+4)
-	framed[0] = 0x94 // Magic byte 1
-	framed[1] = 0xC3 // Magic byte 2
+	framed[0] = 0x94                   // Magic byte 1
+	framed[1] = 0xC3                   // Magic byte 2
 	framed[2] = byte(len(data) >> 8)   // Length high byte
 	framed[3] = byte(len(data) & 0xFF) // Length low byte
 	copy(framed[4:], data)

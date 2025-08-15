@@ -38,13 +38,13 @@ func NewConsoleUI(logger *slog.Logger) *ConsoleUI {
 func (c *ConsoleUI) Run() error {
 	c.running = true
 	c.logger.Info("Starting console UI")
-	
+
 	fmt.Println("=== MeshGo Console UI ===")
 	fmt.Println("Type 'help' for available commands")
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
 	inputChan := make(chan string)
-	
+
 	// Read input in separate goroutine
 	go func() {
 		defer close(inputChan)
@@ -59,29 +59,29 @@ func (c *ConsoleUI) Run() error {
 			}
 		}
 	}()
-	
+
 	for c.running {
 		fmt.Print("> ")
-		
+
 		select {
 		case <-c.ctx.Done():
 			fmt.Println("\nShutting down console UI...")
 			return nil
-			
+
 		case line, ok := <-inputChan:
 			if !ok {
 				return scanner.Err()
 			}
-			
+
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue
 			}
-			
+
 			c.handleCommand(line)
 		}
 	}
-	
+
 	return scanner.Err()
 }
 
@@ -123,7 +123,7 @@ func (c *ConsoleUI) ShowTrayNotification(title, body string) error {
 
 func (c *ConsoleUI) UpdateChats(chats []*core.Chat) {
 	fmt.Printf("Updated %d chats\n", len(chats))
-	
+
 	// Display chat summary with unread counts
 	if len(chats) > 0 {
 		fmt.Println("=== CHATS ===")
@@ -133,7 +133,7 @@ func (c *ConsoleUI) UpdateChats(chats []*core.Chat) {
 				unreadIndicator = fmt.Sprintf(" [%d UNREAD]", chat.UnreadCount)
 			}
 			fmt.Printf("📱 %s%s\n", chat.Title, unreadIndicator)
-			
+
 			vm := ui.ChatToViewModel(chat, nil, nil)
 			c.chats[chat.ID] = vm
 		}
@@ -265,7 +265,7 @@ func (c *ConsoleUI) showStatus() {
 	} else {
 		fmt.Println("Status: Disconnected")
 	}
-	
+
 	fmt.Printf("Chats: %d\n", len(c.chats))
 	fmt.Printf("Nodes: %d\n", len(c.nodes))
 }
@@ -275,7 +275,7 @@ func (c *ConsoleUI) listChats() {
 		fmt.Println("No chats available")
 		return
 	}
-	
+
 	fmt.Println("Chats:")
 	for _, chat := range c.chats {
 		unread := ""
@@ -291,25 +291,25 @@ func (c *ConsoleUI) listNodes() {
 		fmt.Println("No nodes available")
 		return
 	}
-	
+
 	fmt.Println("Nodes:")
 	for _, node := range c.nodes {
 		status := "offline"
 		if node.IsOnline {
 			status = "online"
 		}
-		
+
 		battery := ""
 		if node.BatteryPercent > 0 {
 			battery = fmt.Sprintf(" [%d%%]", node.BatteryPercent)
 		}
-		
+
 		favorite := ""
 		if node.Favorite {
 			favorite = " ⭐"
 		}
-		
-		fmt.Printf("  %s: %s (%s) - %s%s%s\n", 
+
+		fmt.Printf("  %s: %s (%s) - %s%s%s\n",
 			node.ID, node.LongName, node.ShortName, status, battery, favorite)
 	}
 }
@@ -319,15 +319,15 @@ func (c *ConsoleUI) handleSend(args []string) {
 		fmt.Println("Usage: send <chatID> <message>")
 		return
 	}
-	
+
 	chatID := args[0]
 	message := strings.Join(args[1:], " ")
-	
+
 	if c.callbacks == nil || c.callbacks.OnSendMessage == nil {
 		fmt.Println("No send handler available")
 		return
 	}
-	
+
 	if err := c.callbacks.OnSendMessage(chatID, message); err != nil {
 		fmt.Printf("Failed to send message: %v\n", err)
 	} else {
@@ -340,14 +340,14 @@ func (c *ConsoleUI) handleTraceroute(args []string) {
 		fmt.Println("Usage: trace <nodeID>")
 		return
 	}
-	
+
 	nodeID := args[0]
-	
+
 	if c.callbacks == nil || c.callbacks.OnTraceroute == nil {
 		fmt.Println("No traceroute handler available")
 		return
 	}
-	
+
 	if err := c.callbacks.OnTraceroute(nodeID); err != nil {
 		fmt.Printf("Traceroute failed: %v\n", err)
 	} else {
@@ -360,14 +360,14 @@ func (c *ConsoleUI) handleFavorite(args []string) {
 		fmt.Println("Usage: favorite <nodeID>")
 		return
 	}
-	
+
 	nodeID := args[0]
-	
+
 	if c.callbacks == nil || c.callbacks.OnToggleNodeFavorite == nil {
 		fmt.Println("No favorite handler available")
 		return
 	}
-	
+
 	if err := c.callbacks.OnToggleNodeFavorite(nodeID); err != nil {
 		fmt.Printf("Failed to toggle favorite: %v\n", err)
 	} else {
@@ -378,7 +378,7 @@ func (c *ConsoleUI) handleFavorite(args []string) {
 func (c *ConsoleUI) handleExit() {
 	fmt.Println("Exiting...")
 	c.running = false
-	
+
 	if c.callbacks != nil && c.callbacks.OnExit != nil {
 		c.callbacks.OnExit()
 	}

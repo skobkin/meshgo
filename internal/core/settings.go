@@ -8,18 +8,18 @@ import (
 )
 
 type Settings struct {
-	Connection    ConnectionSettings    `json:"connection"`
-	Reconnect     ReconnectSettings     `json:"reconnect"`
-	Notifications NotificationSettings  `json:"notifications"`
-	Logging       LoggingSettings       `json:"logging"`
-	UI            UISettings            `json:"ui"`
+	Connection    ConnectionSettings   `json:"connection"`
+	Reconnect     ReconnectSettings    `json:"reconnect"`
+	Notifications NotificationSettings `json:"notifications"`
+	Logging       LoggingSettings      `json:"logging"`
+	UI            UISettings           `json:"ui"`
 }
 
 type ConnectionSettings struct {
-	Type            string         `json:"type"` // "serial" or "ip"
-	ConnectOnStartup bool          `json:"connect_on_startup"`
-	Serial          SerialSettings `json:"serial"`
-	IP              IPSettings     `json:"ip"`
+	Type             string         `json:"type"` // "serial" or "ip"
+	ConnectOnStartup bool           `json:"connect_on_startup"`
+	Serial           SerialSettings `json:"serial"`
+	IP               IPSettings     `json:"ip"`
 }
 
 type SerialSettings struct {
@@ -67,10 +67,10 @@ func DefaultSettings() *Settings {
 			},
 		},
 		Reconnect: ReconnectSettings{
-			InitialMillis: 1000,   // 1 second
-			MaxMillis:     60000,  // 60 seconds
+			InitialMillis: 1000,  // 1 second
+			MaxMillis:     60000, // 60 seconds
 			Multiplier:    1.6,
-			Jitter:        0.2,    // ±20%
+			Jitter:        0.2, // ±20%
 		},
 		Notifications: NotificationSettings{
 			Enabled: true,

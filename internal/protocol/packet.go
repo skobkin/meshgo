@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	
+
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
@@ -55,19 +55,19 @@ type MeshPacket struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	From      uint32    `protobuf:"fixed32,1,opt,name=from,proto3" json:"from,omitempty"`
-	To        uint32    `protobuf:"fixed32,2,opt,name=to,proto3" json:"to,omitempty"`
-	Channel   uint32    `protobuf:"varint,3,opt,name=channel,proto3" json:"channel,omitempty"`
-	Id        uint32    `protobuf:"fixed32,6,opt,name=id,proto3" json:"id,omitempty"`
-	RxTime    uint32    `protobuf:"fixed32,7,opt,name=rx_time,json=rxTime,proto3" json:"rx_time,omitempty"`
-	RxSnr     float32   `protobuf:"fixed32,8,opt,name=rx_snr,json=rxSnr,proto3" json:"rx_snr,omitempty"`
-	HopLimit  uint32    `protobuf:"varint,9,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"`
-	WantAck   bool      `protobuf:"varint,10,opt,name=want_ack,json=wantAck,proto3" json:"want_ack,omitempty"`
-	Priority  Priority  `protobuf:"varint,11,opt,name=priority,proto3,enum=Priority" json:"priority,omitempty"`
-	RxRssi    int32     `protobuf:"varint,12,opt,name=rx_rssi,json=rxRssi,proto3" json:"rx_rssi,omitempty"`
-	
+	From     uint32   `protobuf:"fixed32,1,opt,name=from,proto3" json:"from,omitempty"`
+	To       uint32   `protobuf:"fixed32,2,opt,name=to,proto3" json:"to,omitempty"`
+	Channel  uint32   `protobuf:"varint,3,opt,name=channel,proto3" json:"channel,omitempty"`
+	Id       uint32   `protobuf:"fixed32,6,opt,name=id,proto3" json:"id,omitempty"`
+	RxTime   uint32   `protobuf:"fixed32,7,opt,name=rx_time,json=rxTime,proto3" json:"rx_time,omitempty"`
+	RxSnr    float32  `protobuf:"fixed32,8,opt,name=rx_snr,json=rxSnr,proto3" json:"rx_snr,omitempty"`
+	HopLimit uint32   `protobuf:"varint,9,opt,name=hop_limit,json=hopLimit,proto3" json:"hop_limit,omitempty"`
+	WantAck  bool     `protobuf:"varint,10,opt,name=want_ack,json=wantAck,proto3" json:"want_ack,omitempty"`
+	Priority Priority `protobuf:"varint,11,opt,name=priority,proto3,enum=Priority" json:"priority,omitempty"`
+	RxRssi   int32    `protobuf:"varint,12,opt,name=rx_rssi,json=rxRssi,proto3" json:"rx_rssi,omitempty"`
+
 	// PayloadVariant is one of:
-	//  - Decoded: unencrypted Data message 
+	//  - Decoded: unencrypted Data message
 	//  - Encrypted: encrypted bytes
 	//
 	// Types that are assignable to PayloadVariant:
@@ -566,7 +566,7 @@ type ToRadio struct {
 
 	// PayloadVariant is one of:
 	//  - Packet: MeshPacket to send
-	//  - WantConfigId: request configuration 
+	//  - WantConfigId: request configuration
 	//
 	// Types that are assignable to PayloadVariant:
 	//	*ToRadio_Packet
@@ -763,21 +763,21 @@ type MyNodeInfo struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	MyNodeNum            uint32  `protobuf:"varint,1,opt,name=my_node_num,json=myNodeNum,proto3" json:"my_node_num,omitempty"`
-	HasGps               bool    `protobuf:"varint,2,opt,name=has_gps,json=hasGps,proto3" json:"has_gps,omitempty"`
-	NumChannels          int32   `protobuf:"varint,3,opt,name=num_channels,json=numChannels,proto3" json:"num_channels,omitempty"`
-	Region               int32   `protobuf:"varint,4,opt,name=region,proto3" json:"region,omitempty"`
-	HwModel              string  `protobuf:"bytes,5,opt,name=hw_model,json=hwModel,proto3" json:"hw_model,omitempty"`
-	FirmwareVersion      string  `protobuf:"bytes,6,opt,name=firmware_version,json=firmwareVersion,proto3" json:"firmware_version,omitempty"`
-	ErrorCode            int32   `protobuf:"varint,7,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorAddress         uint32  `protobuf:"varint,8,opt,name=error_address,json=errorAddress,proto3" json:"error_address,omitempty"`
-	ErrorCount           uint32  `protobuf:"varint,9,opt,name=error_count,json=errorCount,proto3" json:"error_count,omitempty"`
-	PacketIdBits         uint32  `protobuf:"varint,11,opt,name=packet_id_bits,json=packetIdBits,proto3" json:"packet_id_bits,omitempty"`
-	CurrentPacketId      uint32  `protobuf:"varint,12,opt,name=current_packet_id,json=currentPacketId,proto3" json:"current_packet_id,omitempty"`
-	NodeNumBits          uint32  `protobuf:"varint,13,opt,name=node_num_bits,json=nodeNumBits,proto3" json:"node_num_bits,omitempty"`
-	MessageTimeoutMsec   uint32  `protobuf:"varint,14,opt,name=message_timeout_msec,json=messageTimeoutMsec,proto3" json:"message_timeout_msec,omitempty"`
-	MinAppVersion        uint32  `protobuf:"varint,15,opt,name=min_app_version,json=minAppVersion,proto3" json:"min_app_version,omitempty"`
-	MaxChannels          uint32  `protobuf:"varint,16,opt,name=max_channels,json=maxChannels,proto3" json:"max_channels,omitempty"`
+	MyNodeNum          uint32 `protobuf:"varint,1,opt,name=my_node_num,json=myNodeNum,proto3" json:"my_node_num,omitempty"`
+	HasGps             bool   `protobuf:"varint,2,opt,name=has_gps,json=hasGps,proto3" json:"has_gps,omitempty"`
+	NumChannels        int32  `protobuf:"varint,3,opt,name=num_channels,json=numChannels,proto3" json:"num_channels,omitempty"`
+	Region             int32  `protobuf:"varint,4,opt,name=region,proto3" json:"region,omitempty"`
+	HwModel            string `protobuf:"bytes,5,opt,name=hw_model,json=hwModel,proto3" json:"hw_model,omitempty"`
+	FirmwareVersion    string `protobuf:"bytes,6,opt,name=firmware_version,json=firmwareVersion,proto3" json:"firmware_version,omitempty"`
+	ErrorCode          int32  `protobuf:"varint,7,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorAddress       uint32 `protobuf:"varint,8,opt,name=error_address,json=errorAddress,proto3" json:"error_address,omitempty"`
+	ErrorCount         uint32 `protobuf:"varint,9,opt,name=error_count,json=errorCount,proto3" json:"error_count,omitempty"`
+	PacketIdBits       uint32 `protobuf:"varint,11,opt,name=packet_id_bits,json=packetIdBits,proto3" json:"packet_id_bits,omitempty"`
+	CurrentPacketId    uint32 `protobuf:"varint,12,opt,name=current_packet_id,json=currentPacketId,proto3" json:"current_packet_id,omitempty"`
+	NodeNumBits        uint32 `protobuf:"varint,13,opt,name=node_num_bits,json=nodeNumBits,proto3" json:"node_num_bits,omitempty"`
+	MessageTimeoutMsec uint32 `protobuf:"varint,14,opt,name=message_timeout_msec,json=messageTimeoutMsec,proto3" json:"message_timeout_msec,omitempty"`
+	MinAppVersion      uint32 `protobuf:"varint,15,opt,name=min_app_version,json=minAppVersion,proto3" json:"min_app_version,omitempty"`
+	MaxChannels        uint32 `protobuf:"varint,16,opt,name=max_channels,json=maxChannels,proto3" json:"max_channels,omitempty"`
 }
 
 func (x *MyNodeInfo) Reset() {
@@ -837,9 +837,9 @@ type TextMessage struct {
 
 // Routing represents routing/traceroute messages
 type Routing struct {
-	ErrorReason   int32           `json:"error_reason,omitempty"`
-	RouteRequest  *RouteDiscovery `json:"route_request,omitempty"`
-	RouteReply    *RouteDiscovery `json:"route_reply,omitempty"`
+	ErrorReason  int32           `json:"error_reason,omitempty"`
+	RouteRequest *RouteDiscovery `json:"route_request,omitempty"`
+	RouteReply   *RouteDiscovery `json:"route_reply,omitempty"`
 }
 
 type RouteDiscovery struct {
@@ -879,27 +879,27 @@ func DecodePayload(data *Data) (interface{}, error) {
 	case PortTextMessageApp:
 		// Text messages are typically just UTF-8 strings
 		return &TextMessage{Text: string(data.Payload)}, nil
-		
+
 	case PortNodeInfoApp:
 		nodeInfo := &NodeInfo{}
 		if err := proto.Unmarshal(data.Payload, nodeInfo); err != nil {
 			return nil, fmt.Errorf("failed to decode NodeInfo: %w", err)
 		}
 		return nodeInfo, nil
-		
+
 	case PortPositionApp:
 		position := &Position{}
 		if err := proto.Unmarshal(data.Payload, position); err != nil {
 			return nil, fmt.Errorf("failed to decode Position: %w", err)
 		}
 		return position, nil
-		
+
 	case PortRoutingApp:
 		// Simplified routing decode - in practice this has sub-messages
 		routing := &Routing{}
 		// For now, just return a placeholder as routing has complex sub-message types
 		return routing, nil
-		
+
 	default:
 		// Unknown port number - return raw payload
 		return data.Payload, nil
@@ -958,13 +958,13 @@ func DecodeFromRadio(data []byte) (*FromRadio, error) {
 	if len(data) == 0 {
 		return nil, errors.New("empty data")
 	}
-	
+
 	msg := &FromRadio{}
 	err := proto.Unmarshal(data, msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal FromRadio: %w", err)
 	}
-	
+
 	return msg, nil
 }
 

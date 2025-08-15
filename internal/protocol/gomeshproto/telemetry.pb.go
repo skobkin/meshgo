@@ -20,7 +20,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-//
 // Supported I2C Sensors for telemetry in Meshtastic
 type TelemetrySensorType int32
 
@@ -142,7 +141,6 @@ func (TelemetrySensorType) EnumDescriptor() ([]byte, []int) {
 	return file_meshtastic_telemetry_proto_rawDescGZIP(), []int{0}
 }
 
-//
 // Key native device metrics such as battery level
 type DeviceMetrics struct {
 	state         protoimpl.MessageState
@@ -223,7 +221,6 @@ func (x *DeviceMetrics) GetAirUtilTx() float32 {
 	return 0
 }
 
-//
 // Weather station or other environmental metrics
 type EnvironmentMetrics struct {
 	state         protoimpl.MessageState
@@ -324,7 +321,6 @@ func (x *EnvironmentMetrics) GetCurrent() float32 {
 	return 0
 }
 
-//
 // Power Metrics (voltage / current / etc)
 type PowerMetrics struct {
 	state         protoimpl.MessageState
@@ -425,7 +421,6 @@ func (x *PowerMetrics) GetCh3Current() float32 {
 	return 0
 }
 
-//
 // Air quality metrics
 type AirQualityMetrics struct {
 	state         protoimpl.MessageState
@@ -586,7 +581,6 @@ func (x *AirQualityMetrics) GetParticles_100Um() uint32 {
 	return 0
 }
 
-//
 // Types of Measurements the telemetry module is equipped to handle
 type Telemetry struct {
 	state         protoimpl.MessageState

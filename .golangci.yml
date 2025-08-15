@@ -1,0 +1,107 @@
+run:
+  timeout: 10m
+  tests: true
+  build-tags:
+    - !no_fyne
+    - !no_systray
+
+linters:
+  enable:
+    # Enabled by default
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    
+    # Additional useful linters
+    - gofmt
+    - goimports
+    - gocritic
+    - revive
+    - gosec
+    - bodyclose
+    - unconvert
+    - misspell
+    - prealloc
+    - exportloopref
+    - whitespace
+    - gocyclo
+    - dupl
+    - goconst
+    - unparam
+    - nakedret
+    - dogsled
+    - gocognit
+    
+  disable:
+    - typecheck  # Often gives false positives with CGO
+
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: meshgo
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  revive:
+    min-confidence: 0.8
+  gosec:
+    excludes:
+      - G304  # File path provided as taint input (common in CLI apps)
+      - G204  # Subprocess launched with function call as argument (common in CLI apps)
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  unparam:
+    check-exported: false
+  nakedret:
+    max-func-lines: 10
+  dogsled:
+    max-blank-identifiers: 2
+  gocognit:
+    min-complexity: 20
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+    
+    # Exclude known false positives
+    - text: "weak cryptographic primitive"
+      linters:
+        - gosec
+    
+    # Allow long lines in generated files
+    - path: ".*\\.pb\\.go"
+      linters:
+        - lll
+        
+    # GUI applications often have long functions for UI setup
+    - path: internal/ui/
+      linters:
+        - gocyclo
+        - gocognit
+    
+    # System integration code may need elevated permissions
+    - path: internal/system/
+      linters:
+        - gosec

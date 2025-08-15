@@ -6,22 +6,22 @@ import (
 )
 
 type Node struct {
-	ID             string    `json:"id"`
-	ShortName      string    `json:"short_name"`
-	LongName       string    `json:"long_name"`
-	Favorite       bool      `json:"favorite"`
-	Ignored        bool      `json:"ignored"`
-	Unencrypted    bool      `json:"unencrypted"`
-	EncDefaultKey  bool      `json:"enc_default_key"`
-	EncCustomKey   bool      `json:"enc_custom_key"`
-	RSSI           int       `json:"rssi"`
-	SNR            float32   `json:"snr"`
-	SignalQuality  int       `json:"signal_quality"`
-	BatteryLevel   *int      `json:"battery_level"`
-	IsCharging     *bool     `json:"is_charging"`
-	LastHeard      time.Time `json:"last_heard"`
-	Position       *Position `json:"position,omitempty"`
-	DeviceMetrics  *DeviceMetrics `json:"device_metrics,omitempty"`
+	ID            string         `json:"id"`
+	ShortName     string         `json:"short_name"`
+	LongName      string         `json:"long_name"`
+	Favorite      bool           `json:"favorite"`
+	Ignored       bool           `json:"ignored"`
+	Unencrypted   bool           `json:"unencrypted"`
+	EncDefaultKey bool           `json:"enc_default_key"`
+	EncCustomKey  bool           `json:"enc_custom_key"`
+	RSSI          int            `json:"rssi"`
+	SNR           float32        `json:"snr"`
+	SignalQuality int            `json:"signal_quality"`
+	BatteryLevel  *int           `json:"battery_level"`
+	IsCharging    *bool          `json:"is_charging"`
+	LastHeard     time.Time      `json:"last_heard"`
+	Position      *Position      `json:"position,omitempty"`
+	DeviceMetrics *DeviceMetrics `json:"device_metrics,omitempty"`
 }
 
 type Position struct {
@@ -52,12 +52,12 @@ func (dm *DeviceMetrics) IsCharging() bool {
 }
 
 type User struct {
-	ID        string `json:"id"`
-	LongName  string `json:"long_name"`
-	ShortName string `json:"short_name"`
-	MacAddr   []byte `json:"mac_addr"`
-	HWModel   int    `json:"hw_model"`
-	IsLicensed bool  `json:"is_licensed"`
+	ID         string `json:"id"`
+	LongName   string `json:"long_name"`
+	ShortName  string `json:"short_name"`
+	MacAddr    []byte `json:"mac_addr"`
+	HWModel    int    `json:"hw_model"`
+	IsLicensed bool   `json:"is_licensed"`
 }
 
 type Chat struct {
@@ -70,15 +70,15 @@ type Chat struct {
 }
 
 type Message struct {
-	ID       int64     `json:"id"`
-	ChatID   string    `json:"chat_id"`
-	SenderID string    `json:"sender_id"`
-	PortNum  int       `json:"portnum"`
-	Text     string    `json:"text"`
-	RXSNR    *float32  `json:"rx_snr"`
-	RXRSSI   *int      `json:"rx_rssi"`
+	ID        int64     `json:"id"`
+	ChatID    string    `json:"chat_id"`
+	SenderID  string    `json:"sender_id"`
+	PortNum   int       `json:"portnum"`
+	Text      string    `json:"text"`
+	RXSNR     *float32  `json:"rx_snr"`
+	RXRSSI    *int      `json:"rx_rssi"`
 	Timestamp time.Time `json:"timestamp"`
-	IsUnread bool      `json:"is_unread"`
+	IsUnread  bool      `json:"is_unread"`
 }
 
 type Channel struct {
@@ -112,17 +112,17 @@ func CalculateSignalQuality(rssi int, snr float32) SignalQuality {
 	if rssi == 0 && snr == 0 {
 		return SignalBad // Offline/no signal
 	}
-	
+
 	// Good signal: Close range nodes (-30 to -70 dBm) or strong SNR
 	if rssi >= -70 || snr >= 0 {
 		return SignalGood
 	}
-	
+
 	// Fair signal: Moderate range (-70 to -100 dBm) with decent SNR
 	if rssi >= -100 && snr >= -10 {
 		return SignalFair
 	}
-	
+
 	return SignalBad
 }
 

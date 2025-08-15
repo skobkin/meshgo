@@ -120,7 +120,7 @@ func TestConnectionState_String(t *testing.T) {
 
 func TestPosition_LatitudeLongitude(t *testing.T) {
 	pos := &Position{
-		LatitudeI:  375594120,  // 37.5594120 degrees
+		LatitudeI:  375594120,   // 37.5594120 degrees
 		LongitudeI: -1213894470, // -121.3894470 degrees
 	}
 

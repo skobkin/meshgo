@@ -13,9 +13,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"google.golang.org/protobuf/proto"
 	"meshgo/internal/core"
 	"meshgo/internal/protocol/gomeshproto"
-	"google.golang.org/protobuf/proto"
 )
 
 type RadioClient struct {
@@ -23,7 +23,7 @@ type RadioClient struct {
 	events      chan core.Event
 	nodeDB      map[string]*core.Node
 	nodeDBMu    sync.RWMutex
-	channelDB   map[int32]*gomeshproto.Channel  // Channel storage by index
+	channelDB   map[int32]*gomeshproto.Channel // Channel storage by index
 	channelDBMu sync.RWMutex
 	running     bool
 	runningMu   sync.RWMutex
@@ -64,29 +64,29 @@ func (rc *RadioClient) Start(ctx context.Context, transport core.Transport) erro
 func (rc *RadioClient) initializeConnection(ctx context.Context) {
 	// Wait for connection to be established
 	time.Sleep(500 * time.Millisecond)
-	
+
 	rc.logger.Info("Sending startConfig request...")
-	
+
 	// Send a startConfig request using proper gomeshproto
 	toRadio := &gomeshproto.ToRadio{
 		PayloadVariant: &gomeshproto.ToRadio_WantConfigId{
 			WantConfigId: 42,
 		},
 	}
-	
+
 	startConfigBytes, err := proto.Marshal(toRadio)
 	if err != nil {
 		rc.logger.Error("Failed to marshal startConfig", "error", err)
 		return
 	}
-	
+
 	if err := rc.transport.WritePacket(ctx, startConfigBytes); err != nil {
 		rc.logger.Error("Failed to send startConfig", "error", err)
 		return
 	}
 
 	rc.logger.Info("Sent startConfig with want_config_id=42")
-	
+
 	// Request channels after a delay to allow config to be received
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -126,12 +126,12 @@ func (rc *RadioClient) SendText(ctx context.Context, chatID string, toNode uint3
 
 	// Create the MeshPacket with decoded payload using gomeshproto
 	packet := &gomeshproto.MeshPacket{
-		From:      rc.ownNodeID,
-		To:        toNode,
-		Channel:   0, // Default channel
-		Id:        rc.generatePacketID(),
-		WantAck:   true,
-		Priority:  gomeshproto.MeshPacket_DEFAULT,
+		From:     rc.ownNodeID,
+		To:       toNode,
+		Channel:  0, // Default channel
+		Id:       rc.generatePacketID(),
+		WantAck:  true,
+		Priority: gomeshproto.MeshPacket_DEFAULT,
 		PayloadVariant: &gomeshproto.MeshPacket_Decoded{
 			Decoded: data,
 		},
@@ -169,9 +169,9 @@ func (rc *RadioClient) SendText(ctx context.Context, chatID string, toNode uint3
 		Data: msg,
 	}
 
-	rc.logger.Debug("Text message sent", 
-		"to", toNode, 
-		"chat", chatID, 
+	rc.logger.Debug("Text message sent",
+		"to", toNode,
+		"chat", chatID,
 		"length", len(text))
 
 	return nil
@@ -189,12 +189,12 @@ func (rc *RadioClient) SendExchangeUserInfo(ctx context.Context, node uint32) er
 	}
 
 	packet := &MeshPacket{
-		From:      rc.ownNodeID,
-		To:        node,
-		Channel:   0,
-		Id:        rc.generatePacketID(),
-		WantAck:   true,
-		Priority:  PriorityDefault,
+		From:     rc.ownNodeID,
+		To:       node,
+		Channel:  0,
+		Id:       rc.generatePacketID(),
+		WantAck:  true,
+		Priority: PriorityDefault,
 		PayloadVariant: &MeshPacket_Decoded{
 			Decoded: data,
 		},
@@ -226,12 +226,12 @@ func (rc *RadioClient) SendTraceroute(ctx context.Context, node uint32) error {
 	}
 
 	packet := &MeshPacket{
-		From:      rc.ownNodeID,
-		To:        node,
-		Channel:   0,
-		Id:        rc.generatePacketID(),
-		WantAck:   false, // Traceroute doesn't need ack
-		Priority:  PriorityDefault,
+		From:     rc.ownNodeID,
+		To:       node,
+		Channel:  0,
+		Id:       rc.generatePacketID(),
+		WantAck:  false, // Traceroute doesn't need ack
+		Priority: PriorityDefault,
 		PayloadVariant: &MeshPacket_Decoded{
 			Decoded: data,
 		},
@@ -252,7 +252,7 @@ func (rc *RadioClient) SendTraceroute(ctx context.Context, node uint32) error {
 
 func (rc *RadioClient) readLoop(ctx context.Context) {
 	rc.logger.Info("Starting packet read loop")
-	
+
 	for rc.isRunning() {
 		select {
 		case <-ctx.Done():
@@ -270,7 +270,7 @@ func (rc *RadioClient) readLoop(ctx context.Context) {
 		if time.Now().Unix()%10 == 0 {
 			rc.logger.Debug("Waiting for Meshtastic packets...")
 		}
-		
+
 		// Use longer timeout for Meshtastic devices - they don't send packets frequently
 		// Meshtastic devices may only send data every 30+ seconds depending on configuration
 		readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -299,37 +299,35 @@ func (rc *RadioClient) readLoop(ctx context.Context) {
 	rc.logger.Info("Read loop stopped")
 }
 
-
-
 func (rc *RadioClient) cleanNodeName(name string) string {
 	if len(name) == 0 {
 		return ""
 	}
-	
+
 	cleaned := name
-	
+
 	// Remove trailing garbage chars (quotes, backslashes, control chars, high ASCII)
 	for len(cleaned) > 0 {
 		lastChar := cleaned[len(cleaned)-1]
-		if lastChar == '"' || lastChar == '\'' || lastChar == '\\' || 
-		   lastChar < 32 || lastChar > 126 || lastChar == 0 {
+		if lastChar == '"' || lastChar == '\'' || lastChar == '\\' ||
+			lastChar < 32 || lastChar > 126 || lastChar == 0 {
 			cleaned = cleaned[:len(cleaned)-1]
 		} else {
 			break
 		}
 	}
-	
+
 	// Remove leading garbage chars
 	for len(cleaned) > 0 {
 		firstChar := cleaned[0]
-		if firstChar == '"' || firstChar == '\'' || firstChar == '\\' || 
-		   firstChar < 32 || firstChar > 126 || firstChar == 0 {
+		if firstChar == '"' || firstChar == '\'' || firstChar == '\\' ||
+			firstChar < 32 || firstChar > 126 || firstChar == 0 {
 			cleaned = cleaned[1:]
 		} else {
 			break
 		}
 	}
-	
+
 	// Remove any embedded null bytes or other binary garbage
 	result := make([]byte, 0, len(cleaned))
 	for i := 0; i < len(cleaned); i++ {
@@ -338,7 +336,7 @@ func (rc *RadioClient) cleanNodeName(name string) string {
 			result = append(result, char)
 		}
 	}
-	
+
 	return string(result)
 }
 
@@ -347,7 +345,7 @@ func (rc *RadioClient) isValidNodeName(name string) bool {
 	if len(name) < 4 || len(name) > 25 {
 		return false
 	}
-	
+
 	// Skip names that look like garbage (too many non-alphanumeric chars)
 	alphanumCount := 0
 	for _, r := range name {
@@ -355,17 +353,15 @@ func (rc *RadioClient) isValidNodeName(name string) bool {
 			alphanumCount++
 		}
 	}
-	
+
 	// Must be at least 50% reasonable characters
 	return float64(alphanumCount)/float64(len(name)) >= 0.5
 }
 
-
-
 func (rc *RadioClient) handlePacket(data []byte) {
-	// Log the raw packet data  
+	// Log the raw packet data
 	rc.logger.Debug("Received packet from device", "length", len(data))
-	
+
 	// Try proper protobuf decoding first with null pointer protection
 	// Based on lmatte7/meshtastic-go approach - use official protobuf parsing but safely
 	if err := rc.handleFromRadioSafely(data); err != nil {
@@ -381,21 +377,21 @@ func (rc *RadioClient) handleFromRadioSafely(data []byte) error {
 	if len(data) == 0 {
 		return fmt.Errorf("empty packet data")
 	}
-	
+
 	rc.logger.Debug("Parsing FromRadio packet", "data_length", len(data))
-	
+
 	// Decode using proper gomeshproto definitions
 	fromRadio := &gomeshproto.FromRadio{}
 	err := proto.Unmarshal(data, fromRadio)
 	if err != nil {
 		return fmt.Errorf("failed to decode FromRadio with gomeshproto: %w", err)
 	}
-	
+
 	// Null pointer safety check
 	if fromRadio == nil {
 		return fmt.Errorf("decoded FromRadio is nil")
 	}
-	
+
 	// Process the FromRadio message safely
 	rc.handleFromRadioWithGomeshproto(fromRadio)
 	return nil
@@ -407,7 +403,7 @@ func (rc *RadioClient) handleFromRadioWithGomeshproto(msg *gomeshproto.FromRadio
 		rc.logger.Debug("FromRadio message is nil")
 		return
 	}
-	
+
 	rc.logger.Debug("Received FromRadio message", "id", msg.Id)
 
 	// Handle different FromRadio payload types with null checks
@@ -432,20 +428,20 @@ func (rc *RadioClient) parsePacketManually(data []byte) {
 	if len(data) < 2 {
 		return
 	}
-	
+
 	// Enhanced protobuf field parsing with better packet type detection
 	// Based on official Meshtastic protobuf definitions research
-	rc.logger.Debug("Manual packet parsing", "first_bytes", fmt.Sprintf("%02x %02x %02x %02x", 
+	rc.logger.Debug("Manual packet parsing", "first_bytes", fmt.Sprintf("%02x %02x %02x %02x",
 		data[0], getByteAt(data, 1), getByteAt(data, 2), getByteAt(data, 3)))
-	
+
 	if len(data) >= 4 {
 		// FromRadio message field analysis:
 		// Field 1 (id): 0x08 = varint
-		// Field 2 (packet): 0x12 = length-delimited  
+		// Field 2 (packet): 0x12 = length-delimited
 		// Field 3 (my_info): 0x1a = length-delimited
 		// Field 4 (node_info): 0x22 = length-delimited
 		// Field 100 (config_complete_id): 0xa0, 0x06 = varint
-		
+
 		switch data[0] {
 		case 0x08:
 			// Field 1: FromRadio.id (varint)
@@ -456,7 +452,7 @@ func (rc *RadioClient) parsePacketManually(data []byte) {
 			rc.logger.Debug("Detected MyNodeInfo packet", "size", len(data))
 			rc.parseMyNodeInfoManually(data[1:])
 		case 0x22:
-			// Field 4: NodeInfo in FromRadio  
+			// Field 4: NodeInfo in FromRadio
 			rc.logger.Debug("Detected NodeInfo packet", "size", len(data))
 			rc.extractNodeInfoSafely(data[1:])
 		case 0x12:
@@ -488,17 +484,17 @@ func (rc *RadioClient) parseFromRadioManually(data []byte) {
 		if i >= len(data) {
 			break
 		}
-		
+
 		tag := data[i]
 		i++
-		
+
 		switch tag {
 		case 0x1a: // my_info field
 			if i < len(data) {
 				length := int(data[i])
 				i++
 				if i+length <= len(data) {
-					rc.parseMyNodeInfoManually(data[i:i+length])
+					rc.parseMyNodeInfoManually(data[i : i+length])
 					i += length
 				}
 			}
@@ -507,13 +503,13 @@ func (rc *RadioClient) parseFromRadioManually(data []byte) {
 				length := int(data[i])
 				i++
 				if i+length <= len(data) {
-					rc.extractNodeInfoSafely(data[i:i+length])
+					rc.extractNodeInfoSafely(data[i : i+length])
 					i += length
 				}
 			}
 		default:
 			// Skip unknown fields
-			if i < len(data) && (tag & 0x7) == 2 { // length-delimited
+			if i < len(data) && (tag&0x7) == 2 { // length-delimited
 				length := int(data[i])
 				i += 1 + length
 			} else {
@@ -526,7 +522,7 @@ func (rc *RadioClient) parseFromRadioManually(data []byte) {
 func (rc *RadioClient) parseMyNodeInfoManually(data []byte) {
 	// Extract basic MyNodeInfo data manually
 	rc.logger.Debug("Parsing MyNodeInfo manually", "size", len(data))
-	
+
 	// Look for node number field (field 1, tag 0x08)
 	for i := 0; i < len(data)-4; i++ {
 		if data[i] == 0x08 { // varint field 1
@@ -545,7 +541,7 @@ func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
 	// Extract node names but don't generate fake text messages
 	var nodeNames []string
 	var current []byte
-	
+
 	for _, b := range data {
 		if b >= 32 && b <= 126 { // printable ASCII
 			current = append(current, b)
@@ -567,14 +563,14 @@ func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
 			nodeNames = append(nodeNames, cleanName)
 		}
 	}
-	
+
 	if len(nodeNames) > 0 {
 		rc.logger.Debug("Extracted node names", "names", nodeNames)
-		
+
 		// Find hex ID and best name
 		var nodeID string
 		var bestName string
-		
+
 		for _, name := range nodeNames {
 			if len(name) > 0 && name[0] == '!' && len(name) == 9 {
 				nodeID = name[1:] // Remove the !
@@ -584,19 +580,19 @@ func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
 				}
 			}
 		}
-		
+
 		// Create node record - use hex ID if available
 		var finalNodeID string
 		var displayName string
-		
+
 		if nodeID != "" {
 			finalNodeID = nodeID
 			displayName = bestName
 		} else if bestName != "" {
-			finalNodeID = fmt.Sprintf("name_%s", bestName)  
+			finalNodeID = fmt.Sprintf("name_%s", bestName)
 			displayName = bestName
 		}
-		
+
 		if finalNodeID != "" && displayName != "" {
 			node := rc.getOrCreateNode(finalNodeID)
 			node.ShortName = displayName
@@ -604,9 +600,9 @@ func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
 				node.LongName = displayName
 				node.ShortName = displayName[:10]
 			}
-			
+
 			rc.logger.Debug("Node created/updated", "id", finalNodeID, "name", displayName)
-			
+
 			// Emit node updated event
 			rc.events <- core.Event{
 				Type: core.EventNodeUpdated,
@@ -616,7 +612,6 @@ func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
 	}
 }
 
-
 // New gomeshproto-based handlers using proper protobuf definitions
 
 func (rc *RadioClient) handleMeshPacketGomeshproto(packet *gomeshproto.MeshPacket) {
@@ -625,7 +620,7 @@ func (rc *RadioClient) handleMeshPacketGomeshproto(packet *gomeshproto.MeshPacke
 		rc.logger.Debug("Received nil MeshPacket")
 		return
 	}
-	
+
 	// Update receive metadata
 	if packet.RxTime == 0 {
 		packet.RxTime = uint32(time.Now().Unix())
@@ -636,8 +631,8 @@ func (rc *RadioClient) handleMeshPacketGomeshproto(packet *gomeshproto.MeshPacke
 	if decodedData == nil {
 		// Handle encrypted packets - log and skip for now
 		if packet.GetEncrypted() != nil {
-			rc.logger.Debug("Received encrypted packet - skipping", 
-				"from", packet.From, 
+			rc.logger.Debug("Received encrypted packet - skipping",
+				"from", packet.From,
 				"to", packet.To,
 				"size", len(packet.GetEncrypted()))
 		} else {
@@ -670,12 +665,12 @@ func (rc *RadioClient) handleMyNodeInfoGomeshproto(myInfo *gomeshproto.MyNodeInf
 		rc.logger.Debug("Received nil MyNodeInfo")
 		return
 	}
-	
-	rc.logger.Info("Received MyNodeInfo via gomeshproto", 
+
+	rc.logger.Info("Received MyNodeInfo via gomeshproto",
 		"node_num", myInfo.MyNodeNum,
 		"reboot_count", myInfo.RebootCount,
 		"min_app_version", myInfo.MinAppVersion)
-	
+
 	// Store our own node ID
 	rc.ownNodeID = myInfo.MyNodeNum
 }
@@ -685,9 +680,9 @@ func (rc *RadioClient) handleNodeInfoFromRadioGomeshproto(nodeInfo *gomeshproto.
 		rc.logger.Debug("Received nil NodeInfo")
 		return
 	}
-	
+
 	rc.logger.Info("Received NodeInfo from config via gomeshproto", "node_num", nodeInfo.Num)
-	
+
 	// Convert to our internal node format
 	node := rc.convertGomeshprotoNodeInfo(nodeInfo)
 	if node != nil {
@@ -704,13 +699,13 @@ func (rc *RadioClient) handleTextMessageGomeshproto(packet *gomeshproto.MeshPack
 		rc.logger.Debug("Received nil packet or data in text message")
 		return
 	}
-	
+
 	// Only process messages from TEXT_MESSAGE_APP port
 	if data.Portnum != gomeshproto.PortNum_TEXT_MESSAGE_APP {
 		rc.logger.Debug("Skipping non-text message", "portnum", data.Portnum)
 		return
 	}
-	
+
 	if len(data.Payload) == 0 {
 		rc.logger.Debug("Empty text message payload")
 		return
@@ -723,34 +718,34 @@ func (rc *RadioClient) handleTextMessageGomeshproto(packet *gomeshproto.MeshPack
 	}
 
 	text := string(data.Payload)
-	
+
 	// Additional validation for reasonable text messages
 	if len(text) == 0 || len(text) > 200 {
 		rc.logger.Debug("Text message length out of bounds", "length", len(text))
 		return
 	}
-	
+
 	// Note: Removed unreliable text content filtering - rely on proper Meshtastic protocol port numbers instead
-	
+
 	// Determine chat ID
 	chatID := rc.getChatIDFromGomeshproto(packet)
 	if chatID == "" {
 		rc.logger.Debug("Skipping message with invalid chat ID")
 		return
 	}
-	
+
 	// Update node encryption status and signal metrics based on the message
 	nodeID := fmt.Sprintf("%d", packet.From)
 	node := rc.getOrCreateNode(nodeID)
 	rc.updateNodeEncryptionFromMessage(node, packet)
 	rc.updateNodeMetricsFromGomeshproto(node, packet)
-	
+
 	// Emit node updated event after signal metrics update
 	rc.events <- core.Event{
 		Type: core.EventNodeUpdated,
 		Data: node,
 	}
-	
+
 	rxrssi := int(packet.RxRssi)
 	msg := &core.Message{
 		ChatID:    chatID,
@@ -780,13 +775,13 @@ func (rc *RadioClient) handleNodeInfoGomeshproto(packet *gomeshproto.MeshPacket,
 		rc.logger.Debug("Received nil packet in nodeinfo")
 		return
 	}
-	
+
 	if len(data.Payload) == 0 {
 		// Empty payload might be a request - just update node from packet metadata
 		nodeID := fmt.Sprintf("%d", packet.From)
 		node := rc.getOrCreateNode(nodeID)
 		rc.updateNodeMetricsFromGomeshproto(node, packet)
-		
+
 		// Emit node updated event
 		rc.events <- core.Event{
 			Type: core.EventNodeUpdated,
@@ -805,7 +800,7 @@ func (rc *RadioClient) handleNodeInfoGomeshproto(packet *gomeshproto.MeshPacket,
 	node := rc.convertGomeshprotoNodeInfo(nodeInfo)
 	if node != nil {
 		rc.updateNodeMetricsFromGomeshproto(node, packet)
-		
+
 		// Emit node updated event
 		rc.events <- core.Event{
 			Type: core.EventNodeUpdated,
@@ -864,7 +859,7 @@ func (rc *RadioClient) convertGomeshprotoNodeInfo(nodeInfo *gomeshproto.NodeInfo
 	if nodeInfo == nil {
 		return nil
 	}
-	
+
 	nodeID := fmt.Sprintf("%d", nodeInfo.Num)
 	node := rc.getOrCreateNode(nodeID)
 
@@ -876,10 +871,10 @@ func (rc *RadioClient) convertGomeshprotoNodeInfo(nodeInfo *gomeshproto.NodeInfo
 
 	if nodeInfo.Position != nil {
 		node.Position = &core.Position{
-			LatitudeI:      nodeInfo.Position.LatitudeI,
-			LongitudeI:     nodeInfo.Position.LongitudeI,
-			Altitude:       nodeInfo.Position.Altitude,
-			Time:           nodeInfo.Position.Time,
+			LatitudeI:  nodeInfo.Position.LatitudeI,
+			LongitudeI: nodeInfo.Position.LongitudeI,
+			Altitude:   nodeInfo.Position.Altitude,
+			Time:       nodeInfo.Position.Time,
 		}
 	}
 
@@ -888,7 +883,7 @@ func (rc *RadioClient) convertGomeshprotoNodeInfo(nodeInfo *gomeshproto.NodeInfo
 			BatteryLevel: nodeInfo.DeviceMetrics.BatteryLevel,
 			Voltage:      nodeInfo.DeviceMetrics.Voltage,
 		}
-		
+
 		// Update battery info
 		if nodeInfo.DeviceMetrics.BatteryLevel <= 100 {
 			level := int(nodeInfo.DeviceMetrics.BatteryLevel)
@@ -904,21 +899,21 @@ func (rc *RadioClient) updateNodeMetricsFromGomeshproto(node *core.Node, packet 
 		rc.logger.Debug("updateNodeMetricsFromGomeshproto called with nil node or packet")
 		return
 	}
-	
+
 	rc.logger.Debug("Updating node signal metrics", "node", node.ID)
-	
+
 	// Update signal metrics
 	node.RSSI = int(packet.RxRssi)
 	node.SNR = packet.RxSnr
 	signalQuality := core.CalculateSignalQuality(node.RSSI, node.SNR)
 	node.SignalQuality = int(signalQuality)
 	node.LastHeard = time.Unix(int64(packet.RxTime), 0)
-	
+
 	// Log signal quality updates for important events
 	if node.RSSI != 0 || node.SNR != 0 {
 		rc.logger.Debug("Node signal updated", "node", node.ID, "rssi", node.RSSI, "snr", node.SNR, "quality", signalQuality.String())
 	}
-	
+
 	// Store in node database
 	rc.nodeDBMu.Lock()
 	rc.nodeDB[node.ID] = node
@@ -930,13 +925,13 @@ func (rc *RadioClient) getChatIDFromGomeshproto(packet *gomeshproto.MeshPacket) 
 		rc.logger.Warn("Attempted to get chat ID from nil packet")
 		return "" // Return empty string instead of "unknown" to prevent fake chats
 	}
-	
+
 	// Additional validation - ensure packet has valid addressing
 	if packet.From == 0 {
 		rc.logger.Debug("Packet has invalid From address (0)")
 		return ""
 	}
-	
+
 	if packet.To == 0xFFFFFFFF {
 		return fmt.Sprintf("channel_%d", packet.Channel)
 	}
@@ -951,7 +946,7 @@ func (rc *RadioClient) handleMeshPacket(packet *MeshPacket) {
 		rc.logger.Debug("Received nil MeshPacket")
 		return
 	}
-	
+
 	// Update receive metadata
 	if packet.RxTime == 0 {
 		packet.RxTime = uint32(time.Now().Unix())
@@ -962,8 +957,8 @@ func (rc *RadioClient) handleMeshPacket(packet *MeshPacket) {
 	if decodedData == nil {
 		// Handle encrypted packets - for now, just log and skip
 		if packet.GetEncrypted() != nil {
-			rc.logger.Debug("Received encrypted packet - skipping", 
-				"from", packet.From, 
+			rc.logger.Debug("Received encrypted packet - skipping",
+				"from", packet.From,
 				"to", packet.To,
 				"size", len(packet.GetEncrypted()))
 		} else {
@@ -995,26 +990,26 @@ func (rc *RadioClient) handleMeshPacket(packet *MeshPacket) {
 }
 
 func (rc *RadioClient) handleMyNodeInfo(myInfo *MyNodeInfo) {
-	rc.logger.Info("Received MyNodeInfo", 
+	rc.logger.Info("Received MyNodeInfo",
 		"node_num", myInfo.MyNodeNum,
 		"firmware", myInfo.FirmwareVersion,
 		"hw_model", myInfo.HwModel)
-	
+
 	// Store our own node ID
 	rc.ownNodeID = myInfo.MyNodeNum
 }
 
 func (rc *RadioClient) handleNodeInfoFromRadio(nodeInfo *NodeInfo) {
 	rc.logger.Info("Received NodeInfo from config", "node_num", nodeInfo.Num)
-	
+
 	// Create a fake packet to reuse existing logic
 	packet := &MeshPacket{
 		From:   nodeInfo.Num,
 		RxTime: uint32(time.Now().Unix()),
 	}
-	
+
 	node := rc.updateNodeFromPacket(packet, nodeInfo)
-	
+
 	// Emit node updated event
 	rc.events <- core.Event{
 		Type: core.EventNodeUpdated,
@@ -1028,7 +1023,7 @@ func (rc *RadioClient) handleTextMessage(packet *MeshPacket, data *Data) {
 		rc.logger.Debug("Skipping non-text message", "portnum", data.Portnum)
 		return
 	}
-	
+
 	if len(data.Payload) == 0 {
 		rc.logger.Debug("Empty text message payload")
 		return
@@ -1041,20 +1036,20 @@ func (rc *RadioClient) handleTextMessage(packet *MeshPacket, data *Data) {
 	}
 
 	text := string(data.Payload)
-	
+
 	// Additional validation for reasonable text messages
 	if len(text) == 0 || len(text) > 200 {
 		rc.logger.Debug("Text message length out of bounds", "length", len(text))
 		return
 	}
-	
+
 	// Determine chat ID
 	chatID := rc.getChatID(packet)
 	if chatID == "" {
 		rc.logger.Debug("Skipping message with invalid chat ID (manual parsing)")
 		return
 	}
-	
+
 	rxrssi := int(packet.RxRssi)
 	msg := &core.Message{
 		ChatID:    chatID,
@@ -1085,7 +1080,7 @@ func (rc *RadioClient) handleNodeInfo(packet *MeshPacket, data *Data) {
 		nodeID := fmt.Sprintf("%d", packet.From)
 		node := rc.getOrCreateNode(nodeID)
 		rc.updateNodeMetrics(node, packet)
-		
+
 		// Emit node updated event
 		rc.events <- core.Event{
 			Type: core.EventNodeUpdated,
@@ -1110,7 +1105,7 @@ func (rc *RadioClient) handleNodeInfo(packet *MeshPacket, data *Data) {
 	}
 
 	node := rc.updateNodeFromPacket(packet, nodeInfo)
-	
+
 	// Emit node updated event
 	rc.events <- core.Event{
 		Type: core.EventNodeUpdated,
@@ -1141,7 +1136,7 @@ func (rc *RadioClient) handlePosition(packet *MeshPacket, data *Data) {
 
 	nodeID := fmt.Sprintf("%d", packet.From)
 	node := rc.getOrCreateNode(nodeID)
-	
+
 	// Update position
 	node.Position = &core.Position{
 		LatitudeI:      position.LatitudeI,
@@ -1152,16 +1147,16 @@ func (rc *RadioClient) handlePosition(packet *MeshPacket, data *Data) {
 		AltitudeSource: int(position.AltitudeSource),
 		GPSAccuracy:    position.GpsAccuracy,
 	}
-	
+
 	rc.updateNodeMetrics(node, packet)
-	
+
 	// Emit node updated event
 	rc.events <- core.Event{
 		Type: core.EventNodeUpdated,
 		Data: node,
 	}
 
-	rc.logger.Debug("Position received", "node", nodeID, 
+	rc.logger.Debug("Position received", "node", nodeID,
 		"lat", position.Latitude(), "lon", position.Longitude())
 }
 
@@ -1197,7 +1192,7 @@ func (rc *RadioClient) updateNodeFromPacket(packet *MeshPacket, nodeInfo *NodeIn
 			BatteryLevel: nodeInfo.DeviceMetrics.BatteryLevel,
 			Voltage:      nodeInfo.DeviceMetrics.Voltage,
 		}
-		
+
 		// Update battery info
 		if nodeInfo.DeviceMetrics.BatteryLevel <= 100 {
 			level := int(nodeInfo.DeviceMetrics.BatteryLevel)
@@ -1218,15 +1213,15 @@ func (rc *RadioClient) updateNodeMetrics(node *core.Node, packet *MeshPacket) {
 	signalQuality := core.CalculateSignalQuality(node.RSSI, node.SNR)
 	node.SignalQuality = int(signalQuality)
 	node.LastHeard = time.Unix(int64(packet.RxTime), 0)
-	
+
 	// Debug logging for signal quality
-	rc.logger.Debug("Signal quality calculated", 
+	rc.logger.Debug("Signal quality calculated",
 		"node", node.ID,
-		"rssi", node.RSSI, 
+		"rssi", node.RSSI,
 		"snr", node.SNR,
 		"quality", signalQuality.String(),
 		"quality_int", node.SignalQuality)
-	
+
 	// Store in node database
 	rc.nodeDBMu.Lock()
 	rc.nodeDB[node.ID] = node
@@ -1251,7 +1246,7 @@ func (rc *RadioClient) getOrCreateNode(nodeID string) *core.Node {
 	rc.nodeDBMu.Lock()
 	rc.nodeDB[nodeID] = node
 	rc.nodeDBMu.Unlock()
-	
+
 	rc.logger.Debug("Created new node", "node_id", nodeID)
 	return node
 }
@@ -1277,7 +1272,7 @@ func (rc *RadioClient) isRunning() bool {
 func (rc *RadioClient) GetNodes() []*core.Node {
 	rc.nodeDBMu.Lock()
 	defer rc.nodeDBMu.Unlock()
-	
+
 	// Clean up old nodes that haven't been heard from in the last 10 minutes
 	cutoff := time.Now().Add(-10 * time.Minute)
 	for id, node := range rc.nodeDB {
@@ -1286,7 +1281,7 @@ func (rc *RadioClient) GetNodes() []*core.Node {
 			delete(rc.nodeDB, id)
 		}
 	}
-	
+
 	nodes := make([]*core.Node, 0, len(rc.nodeDB))
 	for _, node := range rc.nodeDB {
 		nodes = append(nodes, node)
@@ -1296,18 +1291,18 @@ func (rc *RadioClient) GetNodes() []*core.Node {
 
 func (rc *RadioClient) requestAllChannels(ctx context.Context) {
 	rc.logger.Info("Requesting all channels...")
-	
+
 	// Request channels 0-7 (typical Meshtastic supports up to 8 channels)
 	for i := uint32(0); i < 8; i++ {
 		rc.logger.Debug("Requesting channel", "index", i)
-		
+
 		// Create AdminMessage to request channel
 		adminMsg := &gomeshproto.AdminMessage{
 			PayloadVariant: &gomeshproto.AdminMessage_GetChannelRequest{
 				GetChannelRequest: i,
 			},
 		}
-		
+
 		// Wrap in Data payload
 		data := &gomeshproto.Data{
 			Portnum: gomeshproto.PortNum_ADMIN_APP,
@@ -1316,37 +1311,37 @@ func (rc *RadioClient) requestAllChannels(ctx context.Context) {
 				return bytes
 			}(),
 		}
-		
+
 		// Create MeshPacket
 		packet := &gomeshproto.MeshPacket{
-			From:      rc.ownNodeID,
-			To:        rc.ownNodeID, // Send to ourselves (the radio)
-			Channel:   0,
-			Id:        rc.generatePacketID(),
-			WantAck:   false,
-			Priority:  gomeshproto.MeshPacket_DEFAULT,
+			From:     rc.ownNodeID,
+			To:       rc.ownNodeID, // Send to ourselves (the radio)
+			Channel:  0,
+			Id:       rc.generatePacketID(),
+			WantAck:  false,
+			Priority: gomeshproto.MeshPacket_DEFAULT,
 			PayloadVariant: &gomeshproto.MeshPacket_Decoded{
 				Decoded: data,
 			},
 		}
-		
+
 		// Wrap in ToRadio
 		toRadio := &gomeshproto.ToRadio{
 			PayloadVariant: &gomeshproto.ToRadio_Packet{
 				Packet: packet,
 			},
 		}
-		
+
 		packetBytes, err := proto.Marshal(toRadio)
 		if err != nil {
 			rc.logger.Error("Failed to marshal channel request", "error", err, "channel", i)
 			continue
 		}
-		
+
 		if err := rc.transport.WritePacket(ctx, packetBytes); err != nil {
 			rc.logger.Error("Failed to send channel request", "error", err, "channel", i)
 		}
-		
+
 		// Small delay between requests
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -1366,44 +1361,44 @@ func min(a, b int) int {
 func (rc *RadioClient) tryExtractSignalMetrics(node *core.Node, data []byte) {
 	// This is a heuristic approach to extract RSSI/SNR from raw protobuf data
 	// In proper protobuf parsing, these would be in specific fields, but we're doing manual extraction
-	
+
 	// Look for patterns that might indicate signal metrics
 	// RSSI is typically negative (-30 to -120 dBm range)
 	// SNR is typically -20 to +20 dB range
-	
+
 	for i := 0; i < len(data)-4; i++ {
 		// Look for signed byte patterns that could be RSSI (negative values)
 		if i+1 < len(data) {
 			rssiCandidate := int8(data[i])
 			snrCandidate := float32(int8(data[i+1]))
-			
+
 			// Check if this looks like valid RSSI/SNR values
 			if rssiCandidate >= -120 && rssiCandidate <= -30 && // Valid RSSI range
-			   snrCandidate >= -20 && snrCandidate <= 20 { // Valid SNR range
-				
+				snrCandidate >= -20 && snrCandidate <= 20 { // Valid SNR range
+
 				// Found potential signal metrics
 				node.RSSI = int(rssiCandidate)
 				node.SNR = snrCandidate
 				signalQuality := core.CalculateSignalQuality(node.RSSI, node.SNR)
 				node.SignalQuality = int(signalQuality)
-				
-				rc.logger.Debug("Extracted signal metrics", 
+
+				rc.logger.Debug("Extracted signal metrics",
 					"node", node.ID,
-					"rssi", node.RSSI, 
+					"rssi", node.RSSI,
 					"snr", node.SNR,
 					"quality", signalQuality.String())
 				return
 			}
 		}
 	}
-	
+
 	// If no valid signal data found, don't set defaults - leave as 0 to indicate offline
 	if node.RSSI == 0 && node.SNR == 0 {
 		// Node is offline or we haven't received signal data
 		signalQuality := core.CalculateSignalQuality(0, 0)
 		node.SignalQuality = int(signalQuality)
-		
-		rc.logger.Debug("No signal data - node offline or not heard", 
+
+		rc.logger.Debug("No signal data - node offline or not heard",
 			"node", node.ID,
 			"quality", signalQuality.String())
 	}
@@ -1414,23 +1409,23 @@ func (rc *RadioClient) handleChannelGomeshproto(channel *gomeshproto.Channel) {
 		rc.logger.Debug("Received nil Channel")
 		return
 	}
-	
+
 	channelName := rc.getChannelName(channel)
-	rc.logger.Info("Received Channel configuration", 
-		"index", channel.Index, 
+	rc.logger.Info("Received Channel configuration",
+		"index", channel.Index,
 		"name", channelName)
-	
+
 	// Store channel configuration
 	rc.channelDBMu.Lock()
 	rc.channelDB[channel.Index] = channel
 	rc.channelDBMu.Unlock()
-	
+
 	// Create a chat for this channel if it has a valid name and settings
 	if channel.Settings != nil && channelName != "" && channel.Settings.Name != "" {
 		// Create a fake message to trigger chat creation
 		// This simulates receiving a channel configuration as a "system message"
 		chatID := fmt.Sprintf("channel_%d", channel.Index)
-		
+
 		// Determine encryption level from channel settings
 		encryption := 0 // Default: unencrypted
 		if channel.Settings.Psk != nil {
@@ -1441,9 +1436,9 @@ func (rc *RadioClient) handleChannelGomeshproto(channel *gomeshproto.Channel) {
 				encryption = 2 // Custom key encryption
 			}
 		}
-		
-		rc.logger.Info("Creating chat for discovered channel", 
-			"chat_id", chatID, 
+
+		rc.logger.Info("Creating chat for discovered channel",
+			"chat_id", chatID,
 			"channel_name", channelName,
 			"channel_index", channel.Index,
 			"encryption", encryption)
@@ -1467,11 +1462,10 @@ func (rc *RadioClient) getChannelName(channel *gomeshproto.Channel) string {
 	return channel.Settings.Name
 }
 
-
 func (rc *RadioClient) GetChannelName(channelIndex int32) string {
 	rc.channelDBMu.RLock()
 	defer rc.channelDBMu.RUnlock()
-	
+
 	if channel, exists := rc.channelDB[channelIndex]; exists {
 		return rc.getChannelName(channel)
 	}
@@ -1482,17 +1476,17 @@ func (rc *RadioClient) updateNodeEncryptionFromMessage(node *core.Node, packet *
 	if node == nil || packet == nil {
 		return
 	}
-	
+
 	// Check if this was an encrypted or unencrypted message
 	if packet.GetEncrypted() != nil && len(packet.GetEncrypted()) > 0 {
 		// Message was encrypted, but we were able to decrypt it
 		// This means we have the same encryption key as the sender
-		
+
 		// Check the channel to determine encryption type
 		rc.channelDBMu.RLock()
 		channel, hasChannel := rc.channelDB[int32(packet.Channel)]
 		rc.channelDBMu.RUnlock()
-		
+
 		if hasChannel && channel.Settings != nil {
 			// Determine encryption type based on channel settings
 			psk := channel.Settings.Psk
@@ -1523,20 +1517,20 @@ func (rc *RadioClient) updateNodeEncryptionFromMessage(node *core.Node, packet *
 			node.Unencrypted = false
 			node.EncCustomKey = false
 		}
-		
+
 		rc.logger.Debug("Updated node encryption from encrypted message",
 			"node", node.ID,
 			"channel", packet.Channel,
 			"enc_default", node.EncDefaultKey,
 			"enc_custom", node.EncCustomKey,
 			"unencrypted", node.Unencrypted)
-			
+
 	} else if packet.GetDecoded() != nil {
 		// Message was unencrypted (we got decoded data directly)
 		node.Unencrypted = true
 		node.EncDefaultKey = false
 		node.EncCustomKey = false
-		
+
 		rc.logger.Debug("Updated node encryption from unencrypted message",
 			"node", node.ID,
 			"channel", packet.Channel,

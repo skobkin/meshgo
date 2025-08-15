@@ -141,10 +141,10 @@ func (s *SQLiteStore) SaveMessage(ctx context.Context, msg *core.Message) error 
 INSERT INTO messages (chat_id, sender_id, portnum, text, rx_snr, rx_rssi, timestamp, is_unread)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
-	_, err := s.db.ExecContext(ctx, query, 
+	_, err := s.db.ExecContext(ctx, query,
 		msg.ChatID, msg.SenderID, msg.PortNum, msg.Text,
 		msg.RXSNR, msg.RXRSSI, msg.Timestamp.Unix(), msg.IsUnread)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to save message: %w", err)
 	}
@@ -171,13 +171,13 @@ LIMIT ? OFFSET ?
 	for rows.Next() {
 		msg := &core.Message{}
 		var timestamp int64
-		
+
 		err := rows.Scan(&msg.ID, &msg.ChatID, &msg.SenderID, &msg.PortNum,
 			&msg.Text, &msg.RXSNR, &msg.RXRSSI, &timestamp, &msg.IsUnread)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan message: %w", err)
 		}
-		
+
 		msg.Timestamp = time.Unix(timestamp, 0)
 		messages = append(messages, msg)
 	}
@@ -187,19 +187,19 @@ LIMIT ? OFFSET ?
 
 func (s *SQLiteStore) GetUnreadCount(ctx context.Context, chatID string) (int, error) {
 	query := `SELECT COUNT(*) FROM messages WHERE chat_id = ? AND is_unread = 1`
-	
+
 	var count int
 	err := s.db.QueryRowContext(ctx, query, chatID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get unread count: %w", err)
 	}
-	
+
 	return count, nil
 }
 
 func (s *SQLiteStore) MarkAsRead(ctx context.Context, chatID string) error {
 	query := `UPDATE messages SET is_unread = 0 WHERE chat_id = ? AND is_unread = 1`
-	
+
 	_, err := s.db.ExecContext(ctx, query, chatID)
 	if err != nil {
 		return fmt.Errorf("failed to mark messages as read: %w", err)
@@ -208,19 +208,19 @@ func (s *SQLiteStore) MarkAsRead(ctx context.Context, chatID string) error {
 	// Update chat unread count
 	updateQuery := `UPDATE chats SET unread_count = 0 WHERE id = ?`
 	_, err = s.db.ExecContext(ctx, updateQuery, chatID)
-	
+
 	return err
 }
 
 func (s *SQLiteStore) GetTotalUnreadCount(ctx context.Context) (int, error) {
 	query := `SELECT COUNT(*) FROM messages WHERE is_unread = 1`
-	
+
 	var count int
 	err := s.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total unread count: %w", err)
 	}
-	
+
 	return count, nil
 }
 
@@ -234,7 +234,7 @@ ON CONFLICT(id) DO UPDATE SET
     unread_count = unread_count + CASE WHEN excluded.unread_count > 0 THEN 1 ELSE 0 END
 `
 	isChannel := msg.ChatID != msg.SenderID // Simple heuristic
-	
+
 	// Generate human-readable chat title
 	// Note: This will use a placeholder title since we don't have access to RadioClient here
 	// The real channel name will be set when we have proper channel configuration
@@ -248,10 +248,10 @@ ON CONFLICT(id) DO UPDATE SET
 		// TODO: Could be improved by looking up node name
 		chatTitle = msg.ChatID
 	}
-	
-	_, err := s.db.ExecContext(ctx, query, msg.ChatID, chatTitle, 
+
+	_, err := s.db.ExecContext(ctx, query, msg.ChatID, chatTitle,
 		msg.Timestamp.Unix(), isChannel)
-	
+
 	return err
 }
 
@@ -313,37 +313,37 @@ SELECT id, short_name, long_name, favorite, ignored, unencrypted,
 FROM nodes WHERE id = ?
 `
 	row := s.db.QueryRowContext(ctx, query, id)
-	
+
 	node := &core.Node{}
 	var lastHeard int64
 	var positionData, metricsData []byte
-	
+
 	err := row.Scan(&node.ID, &node.ShortName, &node.LongName, &node.Favorite,
 		&node.Ignored, &node.Unencrypted, &node.EncDefaultKey, &node.EncCustomKey,
 		&node.RSSI, &node.SNR, &node.SignalQuality, &node.BatteryLevel,
 		&node.IsCharging, &lastHeard, &positionData, &metricsData)
-		
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get node: %w", err)
 	}
-	
+
 	node.LastHeard = time.Unix(lastHeard, 0)
-	
+
 	if len(positionData) > 0 {
 		if err := json.Unmarshal(positionData, &node.Position); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal position data: %w", err)
 		}
 	}
-	
+
 	if len(metricsData) > 0 {
 		if err := json.Unmarshal(metricsData, &node.DeviceMetrics); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal device metrics: %w", err)
 		}
 	}
-	
+
 	return node, nil
 }
 
@@ -366,7 +366,7 @@ ORDER BY last_heard DESC
 		node := &core.Node{}
 		var lastHeard int64
 		var positionData, metricsData []byte
-		
+
 		err := rows.Scan(&node.ID, &node.ShortName, &node.LongName, &node.Favorite,
 			&node.Ignored, &node.Unencrypted, &node.EncDefaultKey, &node.EncCustomKey,
 			&node.RSSI, &node.SNR, &node.SignalQuality, &node.BatteryLevel,
@@ -374,17 +374,17 @@ ORDER BY last_heard DESC
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan node: %w", err)
 		}
-		
+
 		node.LastHeard = time.Unix(lastHeard, 0)
-		
+
 		if len(positionData) > 0 {
 			json.Unmarshal(positionData, &node.Position)
 		}
-		
+
 		if len(metricsData) > 0 {
 			json.Unmarshal(metricsData, &node.DeviceMetrics)
 		}
-		
+
 		nodes = append(nodes, node)
 	}
 
@@ -432,12 +432,12 @@ func (s *SQLiteStore) GetBool(key string, defaultVal bool) bool {
 	if err != nil || value == "" {
 		return defaultVal
 	}
-	
+
 	result, err := strconv.ParseBool(value)
 	if err != nil {
 		return defaultVal
 	}
-	
+
 	return result
 }
 
@@ -450,12 +450,12 @@ func (s *SQLiteStore) GetInt(key string, defaultVal int) int {
 	if err != nil || value == "" {
 		return defaultVal
 	}
-	
+
 	result, err := strconv.Atoi(value)
 	if err != nil {
 		return defaultVal
 	}
-	
+
 	return result
 }
 
@@ -487,13 +487,13 @@ func (s *SQLiteStore) ClearAllChats(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to clear messages: %w", err)
 	}
-	
+
 	// Then clear chats
 	_, err = s.db.ExecContext(ctx, `DELETE FROM chats`)
 	if err != nil {
 		return fmt.Errorf("failed to clear chats: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -521,7 +521,7 @@ ORDER BY last_message_ts DESC
 	for rows.Next() {
 		chat := &core.Chat{}
 		var lastMessageTs int64
-		err := rows.Scan(&chat.ID, &chat.Title, &chat.Encryption, 
+		err := rows.Scan(&chat.ID, &chat.Title, &chat.Encryption,
 			&lastMessageTs, &chat.UnreadCount, &chat.IsChannel)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan chat row: %w", err)

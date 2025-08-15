@@ -10,33 +10,33 @@ import (
 )
 
 type FyneSystemTray struct {
-	logger              *slog.Logger
-	app                 fyne.App
-	hasUnread           bool
+	logger               *slog.Logger
+	app                  fyne.App
+	hasUnread            bool
 	notificationsEnabled bool
-	windowVisible       bool
-	onShowHide          func()
-	onToggleNotifs      func(bool)
-	onExit              func()
-	shuttingDown        bool
-	
+	windowVisible        bool
+	onShowHide           func()
+	onToggleNotifs       func(bool)
+	onExit               func()
+	shuttingDown         bool
+
 	// Desktop integration
-	desk    desktop.App
+	desk desktop.App
 }
 
 func NewFyneSystemTray(logger *slog.Logger, app fyne.App) *FyneSystemTray {
 	tray := &FyneSystemTray{
-		logger:              logger,
-		app:                 app,
+		logger:               logger,
+		app:                  app,
 		notificationsEnabled: true,
-		windowVisible:       true, // Window starts visible
+		windowVisible:        true, // Window starts visible
 	}
-	
+
 	// Icon is already set by the main app
-	
+
 	// Note: We don't use lifecycle hooks as they can cause circular shutdown calls
 	// The system tray quit will be handled by the application's main quit sequence
-	
+
 	// Try to get desktop app interface
 	if desk, ok := app.(desktop.App); ok {
 		tray.desk = desk
@@ -44,7 +44,7 @@ func NewFyneSystemTray(logger *slog.Logger, app fyne.App) *FyneSystemTray {
 	} else {
 		logger.Warn("Desktop integration not available - system tray disabled")
 	}
-	
+
 	return tray
 }
 
@@ -52,10 +52,10 @@ func (st *FyneSystemTray) setupSystemTray() {
 	if st.desk == nil {
 		return
 	}
-	
+
 	// Create a proper system tray icon
 	st.logger.Debug("Setting up system tray with icon...")
-	
+
 	// Create MeshGo icon with "M" letter in a circle
 	iconResource := fyne.NewStaticResource("meshgo_tray", []byte{
 		// 16x16 PNG icon with "M" letter
@@ -121,17 +121,17 @@ func (st *FyneSystemTray) setupSystemTray() {
 		0x2e, 0x6f, 0x72, 0x67, 0x9b, 0xee, 0x3c, 0x1a, 0x00, 0x00, 0x00, 0x00,
 		0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 	})
-	
+
 	// Try to set the system tray icon
 	if iconSetter, ok := st.desk.(interface{ SetSystemTrayIcon(fyne.Resource) }); ok {
 		st.logger.Debug("System tray supports icon setting")
 		iconSetter.SetSystemTrayIcon(iconResource)
 		st.logger.Debug("System tray icon set")
 	}
-	
+
 	// Create initial menu
 	st.updateMenu()
-	
+
 	st.logger.Info("Fyne system tray initialized")
 }
 
@@ -139,7 +139,7 @@ func (st *FyneSystemTray) updateMenu() {
 	if st.desk == nil {
 		return
 	}
-	
+
 	// Create menu items manually to avoid any automatic additions
 	showHideItem := fyne.NewMenuItem(st.getShowHideMenuText(), func() {
 		st.logger.Info("Tray Show/Hide menu item clicked (from updateMenu)")
@@ -149,7 +149,7 @@ func (st *FyneSystemTray) updateMenu() {
 			st.logger.Warn("No onShowHide callback set (from updateMenu)")
 		}
 	})
-	
+
 	notifItem := fyne.NewMenuItem(st.getNotificationMenuText(), func() {
 		st.notificationsEnabled = !st.notificationsEnabled
 		if st.onToggleNotifs != nil {
@@ -157,7 +157,7 @@ func (st *FyneSystemTray) updateMenu() {
 		}
 		st.updateMenu()
 	})
-	
+
 	// Create quit menu item that properly handles shutdown
 	exitItem := fyne.NewMenuItem("Quit", func() {
 		st.logger.Info("Exit menu item clicked")
@@ -167,7 +167,7 @@ func (st *FyneSystemTray) updateMenu() {
 			go st.onExit()
 		}
 	})
-	
+
 	// Create menu with our custom quit item
 	menu := fyne.NewMenu("",
 		showHideItem,
@@ -176,7 +176,7 @@ func (st *FyneSystemTray) updateMenu() {
 		fyne.NewMenuItemSeparator(),
 		exitItem,
 	)
-	
+
 	st.desk.SetSystemTrayMenu(menu)
 }
 
@@ -198,10 +198,10 @@ func (st *FyneSystemTray) SetUnread(hasUnread bool) {
 	if st.hasUnread == hasUnread {
 		return
 	}
-	
+
 	st.hasUnread = hasUnread
 	st.logger.Debug("Tray unread status", "hasUnread", hasUnread)
-	
+
 	// Update system tray icon or appearance if possible
 	// Note: Fyne's system tray API is more limited than standalone libraries
 }

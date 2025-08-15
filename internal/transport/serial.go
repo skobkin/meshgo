@@ -129,7 +129,7 @@ func (s *SerialTransport) Endpoint() string {
 func (s *SerialTransport) readFramedPacket(conn serial.Port) ([]byte, error) {
 	const maxPacketSize = 1024
 	buffer := make([]byte, maxPacketSize)
-	
+
 	// Set read timeout
 	if err := conn.SetReadTimeout(5 * time.Second); err != nil {
 		return nil, fmt.Errorf("failed to set read timeout: %w", err)
@@ -152,8 +152,8 @@ func (s *SerialTransport) framePacket(data []byte) []byte {
 	// Simple implementation - in real app would need proper Meshtastic framing
 	// Meshtastic uses packet delimiters and size headers
 	framed := make([]byte, len(data)+4)
-	framed[0] = 0x94 // Start delimiter
-	framed[1] = 0xC3 // Start delimiter
+	framed[0] = 0x94                   // Start delimiter
+	framed[1] = 0xC3                   // Start delimiter
 	framed[2] = byte(len(data) >> 8)   // Size high byte
 	framed[3] = byte(len(data) & 0xFF) // Size low byte
 	copy(framed[4:], data)
@@ -188,10 +188,10 @@ func isLikelyMeshtasticPort(port string) bool {
 	commonPatterns := []string{
 		"ttyUSB", "ttyACM", "COM", "cu.usbserial", "cu.wchusbserial",
 	}
-	
+
 	for _, pattern := range commonPatterns {
-		if len(port) >= len(pattern) && 
-		   port[len(port)-len(pattern):] == pattern {
+		if len(port) >= len(pattern) &&
+			port[len(port)-len(pattern):] == pattern {
 			return true
 		}
 	}

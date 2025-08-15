@@ -56,7 +56,7 @@ func TestEncodeDecode_MeshPacket(t *testing.T) {
 func TestEncodeTextMessage(t *testing.T) {
 	text := "Hello, Mesh!"
 	encoded := EncodeTextMessage(text)
-	
+
 	if string(encoded) != text {
 		t.Errorf("EncodeTextMessage() = %s, want %s", string(encoded), text)
 	}
@@ -65,17 +65,17 @@ func TestEncodeTextMessage(t *testing.T) {
 func TestDecodeTextMessage(t *testing.T) {
 	text := "Test message"
 	payload := []byte(text)
-	
+
 	decoded, err := decodePayload(PortTextMessageApp, payload)
 	if err != nil {
 		t.Fatalf("decodePayload() error = %v", err)
 	}
-	
+
 	textMsg, ok := decoded.(*TextMessage)
 	if !ok {
 		t.Fatalf("Expected *TextMessage, got %T", decoded)
 	}
-	
+
 	if textMsg.Text != text {
 		t.Errorf("Text: got %s, want %s", textMsg.Text, text)
 	}
@@ -104,21 +104,21 @@ func TestDecodePosition(t *testing.T) {
 	payload[13] = 0x6C
 	payload[14] = 0xF7
 	payload[15] = 0x5F
-	
+
 	decoded, err := decodePayload(PortPositionApp, payload)
 	if err != nil {
 		t.Fatalf("decodePayload() error = %v", err)
 	}
-	
+
 	position, ok := decoded.(*Position)
 	if !ok {
 		t.Fatalf("Expected *Position, got %T", decoded)
 	}
-	
+
 	if position.LatitudeI != 375594120 {
 		t.Errorf("LatitudeI: got %d, want %d", position.LatitudeI, 375594120)
 	}
-	
+
 	expectedLat := 37.5594120
 	actualLat := position.Latitude()
 	if abs(actualLat-expectedLat) > 0.0000001 {
@@ -136,7 +136,7 @@ func TestIsChannelMessage(t *testing.T) {
 		{"Direct message", &MeshPacket{To: 12345}, false},
 		{"Zero destination", &MeshPacket{To: 0}, false},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsChannelMessage(tt.packet)
@@ -157,7 +157,7 @@ func TestIsDMMessage(t *testing.T) {
 		{"Channel broadcast", &MeshPacket{To: 0xFFFFFFFF}, false},
 		{"Zero destination", &MeshPacket{To: 0}, true},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsDMMessage(tt.packet)
@@ -177,7 +177,7 @@ func TestDecodeMeshPacket_InvalidData(t *testing.T) {
 		{"Empty", []byte{}},
 		{"Header only", make([]byte, 20)},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := DecodeMeshPacket(tt.data)
