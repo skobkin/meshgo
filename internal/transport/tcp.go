@@ -158,20 +158,17 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 	
 	// Check magic bytes in the header we just read
 	if buffer[0] != 0x94 || buffer[1] != 0xC3 {
-		// Log the bad header and return error to trigger retry
-		fmt.Printf("TCP: Invalid frame header: %02x %02x %02x %02x\n", 
-			buffer[0], buffer[1], buffer[2], buffer[3])
+		// Return error to trigger retry - header logging removed to reduce noise
 		return nil, fmt.Errorf("invalid frame header - out of sync")
 	}
 
 	// Extract packet size from header bytes 2-3 (big-endian)
 	packetSize := int(buffer[2])<<8 | int(buffer[3])
 	
-	// Debug logging
-	fmt.Printf("TCP: Valid header - magic:94C3 size:%d\n", packetSize)
+	// Debug logging removed to reduce verbosity
 	
 	if packetSize <= 0 || packetSize > maxPacketSize {
-		fmt.Printf("TCP: Invalid packet size %d\n", packetSize)
+		// Packet size validation - error logging removed to reduce verbosity
 		return nil, fmt.Errorf("invalid packet size: %d", packetSize)
 	}
 
@@ -189,8 +186,7 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 	payload := make([]byte, packetSize)
 	copy(payload, buffer[4:4+packetSize])
 	
-	// Debug logging
-	fmt.Printf("TCP: Read %d bytes of packet data: %02x...\n", len(payload), payload[:min(16, len(payload))])
+	// Debug logging removed to reduce verbosity
 
 	return payload, nil
 }
