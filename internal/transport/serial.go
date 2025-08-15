@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -190,8 +191,7 @@ func isLikelyMeshtasticPort(port string) bool {
 	}
 
 	for _, pattern := range commonPatterns {
-		if len(port) >= len(pattern) &&
-			port[len(port)-len(pattern):] == pattern {
+		if strings.Contains(port, pattern) {
 			return true
 		}
 	}

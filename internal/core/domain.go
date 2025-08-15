@@ -113,16 +113,17 @@ func CalculateSignalQuality(rssi int, snr float32) SignalQuality {
 		return SignalBad // Offline/no signal
 	}
 
-	// Good signal: Close range nodes (-30 to -70 dBm) or strong SNR
-	if rssi >= -70 || snr >= 0 {
+	// Good signal: Strong RSSI AND good SNR
+	if rssi >= -95 && snr >= 8 {
 		return SignalGood
 	}
 
-	// Fair signal: Moderate range (-70 to -100 dBm) with decent SNR
-	if rssi >= -100 && snr >= -10 {
+	// Fair signal: Moderate RSSI and SNR (not both poor)
+	if rssi >= -110 && snr >= 2 && !(rssi <= -120 || snr <= 1) {
 		return SignalFair
 	}
 
+	// Bad signal: Poor RSSI or poor SNR
 	return SignalBad
 }
 

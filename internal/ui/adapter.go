@@ -149,6 +149,13 @@ func ChatToViewModel(chat *core.Chat, messages []*core.Message, participants []*
 }
 
 func NodeToViewModel(node *core.Node) *NodeViewModel {
+	if node == nil {
+		return &NodeViewModel{
+			Node:       nil,
+			StatusText: "Unknown",
+		}
+	}
+
 	vm := &NodeViewModel{
 		Node: node,
 	}
@@ -184,8 +191,8 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 	}
 
 	// Battery percentage
-	if node.BatteryLevel != nil {
-		vm.BatteryPercent = *node.BatteryLevel
+	if node.DeviceMetrics != nil && node.DeviceMetrics.BatteryLevel > 0 {
+		vm.BatteryPercent = int(node.DeviceMetrics.BatteryLevel)
 		if vm.BatteryPercent > 100 {
 			vm.BatteryPercent = 100 // Cap at 100% for display
 		}

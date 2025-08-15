@@ -111,11 +111,18 @@ func NewConfigManager() (*ConfigManager, error) {
 		settings:   DefaultSettings(),
 	}
 
-	// Load existing config if it exists
+	// Load existing config if it exists, or create default config
 	if err := cm.Load(); err != nil {
 		// If load fails, use defaults and save them
 		if err := cm.Save(); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
+		}
+	} else {
+		// Check if config file exists, create it if not
+		if _, err := os.Stat(cm.configFile); os.IsNotExist(err) {
+			if err := cm.Save(); err != nil {
+				return nil, fmt.Errorf("failed to save default config: %w", err)
+			}
 		}
 	}
 
