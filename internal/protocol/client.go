@@ -289,6 +289,7 @@ func (rc *RadioClient) parsePacketManually(data []byte) {
 		} else if data[0] == 0x12 {
 			// field 2 (MeshPacket) = 0x12
 			rc.logger.Info("Detected MeshPacket", "size", len(data))
+			rc.extractMeshPacketData(data[1:])
 		} else {
 			rc.logger.Debug("Unknown packet type", "first_byte", fmt.Sprintf("0x%02x", data[0]))
 		}
@@ -400,6 +401,79 @@ func (rc *RadioClient) isValidNodeName(name string) bool {
 	
 	// Must be at least 50% reasonable characters
 	return float64(alphanumCount)/float64(len(name)) >= 0.5
+}
+
+func (rc *RadioClient) extractMeshPacketData(data []byte) {
+	// Look for text messages in MeshPacket data
+	// Text messages typically have PortNum=1 and readable payload
+	
+	// Simple approach: look for readable text strings that could be messages
+	var messages []string
+	var current []byte
+	
+	for _, b := range data {
+		if b >= 32 && b <= 126 { // printable ASCII
+			current = append(current, b)
+		} else {
+			if len(current) > 10 { // Messages are typically longer
+				text := string(current)
+				if rc.isValidMessage(text) {
+					messages = append(messages, text)
+				}
+			}
+			current = nil
+		}
+	}
+	if len(current) > 10 {
+		text := string(current)
+		if rc.isValidMessage(text) {
+			messages = append(messages, text)
+		}
+	}
+	
+	for _, msgText := range messages {
+		rc.logger.Info("Detected potential text message", "text", msgText)
+		
+		// Create a message record - we don't have full sender info yet
+		// but this shows that message detection is working
+		msg := &core.Message{
+			ChatID:    "unknown",
+			SenderID:  "unknown",
+			PortNum:   1, // TEXT_MESSAGE_APP
+			Text:      msgText,
+			Timestamp: time.Now(),
+			IsUnread:  true,
+		}
+		
+		// Emit message received event
+		rc.events <- core.Event{
+			Type: core.EventMessageReceived,
+			Data: msg,
+		}
+	}
+}
+
+func (rc *RadioClient) isValidMessage(text string) bool {
+	// Filter for reasonable message content
+	if len(text) < 3 || len(text) > 200 {
+		return false
+	}
+	
+	// Check if it looks like a real message (has spaces and reasonable chars)
+	hasSpace := false
+	alphaCount := 0
+	
+	for _, r := range text {
+		if r == ' ' {
+			hasSpace = true
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			alphaCount++
+		}
+	}
+	
+	// Must have some alpha characters and ideally spaces (real messages)
+	return alphaCount > 2 && (hasSpace || len(text) < 20)
 }
 
 func (rc *RadioClient) handlePacket(data []byte) {
