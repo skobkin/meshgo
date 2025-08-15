@@ -19,7 +19,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - goimports
     - bodyclose
     - unconvert
     - misspell
