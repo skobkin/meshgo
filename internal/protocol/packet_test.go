@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"meshgo/internal/protocol/gomeshproto"
 	"google.golang.org/protobuf/proto"
+	"meshgo/internal/protocol/gomeshproto"
 )
 
 func TestEncodeDecode_MeshPacket(t *testing.T) {
