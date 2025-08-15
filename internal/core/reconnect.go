@@ -55,7 +55,9 @@ func (rm *ReconnectManager) Stop() {
 	rm.setState(StateDisconnected)
 
 	if rm.transport.IsConnected() {
-		rm.transport.Close()
+		if err := rm.transport.Close(); err != nil {
+			rm.logger.Warn("Failed to close transport during stop", "error", err)
+		}
 	}
 }
 

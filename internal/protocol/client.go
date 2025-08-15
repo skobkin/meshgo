@@ -710,7 +710,7 @@ func (rc *RadioClient) handleTextMessageGomeshproto(packet *gomeshproto.MeshPack
 
 	// Validate that payload is valid UTF-8 text
 	if !utf8.Valid(data.Payload) {
-		rc.logger.Debug("Invalid UTF-8 in text message payload", "payload_hex", fmt.Sprintf("%x", data.Payload[:min(20, len(data.Payload))]))
+		rc.logger.Debug("Invalid UTF-8 in text message payload", "payload_hex", fmt.Sprintf("%x", data.Payload[:minInt(20, len(data.Payload))]))
 		return
 	}
 
@@ -1351,7 +1351,7 @@ func (rc *RadioClient) GetOwnNodeID() uint32 {
 	return rc.ownNodeID
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

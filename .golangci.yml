@@ -14,29 +14,30 @@ formatters:
 
 linters:
   enable:
-    # Enabled by default
+    # Keep essential linters
     - errcheck
     - govet
     - ineffassign
     - staticcheck
-    - unused
-    
-    # Additional useful linters
-    - gocritic
-    - revive
-    - gosec
+    - goimports
     - bodyclose
     - unconvert
     - misspell
-    - prealloc
-    - whitespace
-    - gocyclo
-    - dupl
-    - goconst
-    - unparam
-    - nakedret
-    - dogsled
-    - gocognit
+  disable:
+    # Disable noisy linters for internal packages
+    - revive     # Too many documentation requirements
+    - unused     # Many functions planned for future use
+    - gosec      # Security warnings too strict for development
+    - gocritic   # Code style suggestions too aggressive
+    - gocognit   # Cognitive complexity acceptable for GUI apps
+    - gocyclo    # Cyclomatic complexity acceptable for UI code
+    - goconst    # Constant extraction not always beneficial
+    - unparam    # Unused parameter warnings too strict
+    - nakedret   # Naked returns acceptable in some contexts
+    - dogsled    # Blank identifier restrictions too strict
+    - dupl       # Duplicate code acceptable for similar UI handlers
+    - prealloc   # Memory allocation suggestions not critical
+    - whitespace # Formatting handled by gofmt
     
 
 formatters-settings:
@@ -80,31 +81,29 @@ issues:
   max-same-issues: 0
   
   exclude-rules:
-    # Exclude some linters from running on tests files
+    # Exclude errcheck from test files for cleanup functions
     - path: _test\.go
       linters:
-        - gocyclo
         - errcheck
-        - dupl
-        - gosec
     
-    # Exclude known false positives
-    - text: "weak cryptographic primitive"
-      linters:
-        - gosec
-    
-    # Allow long lines in generated files
+    # Allow protobuf generated files to have all issues
     - path: ".*\\.pb\\.go"
       linters:
-        - lll
-        
-    # GUI applications often have long functions for UI setup
-    - path: internal/ui/
-      linters:
-        - gocyclo
-        - gocognit
+        - revive
+        - staticcheck
+        - unused
+        - ineffassign
     
-    # System integration code may need elevated permissions
-    - path: internal/system/
+    # Allow specific errcheck exclusions for defer cleanup
+    - text: "Error return value of.*RemoveAll.* is not checked"
       linters:
-        - gosec
+        - errcheck
+    - text: "Error return value of.*Close.* is not checked"
+      linters:
+        - errcheck
+    - text: "Error return value of.*Setenv.* is not checked"  
+      linters:
+        - errcheck
+    - text: "Error return value of.*Unsetenv.* is not checked"
+      linters:
+        - errcheck

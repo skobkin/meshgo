@@ -38,7 +38,9 @@ func NewSQLiteStore(configDir string) (*SQLiteStore, error) {
 	}
 
 	if err := store.migrate(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to migrate database: %w (also failed to close: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 

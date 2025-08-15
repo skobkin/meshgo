@@ -540,7 +540,9 @@ func (app *App) setupTrayCallbacks() {
 
 	app.tray.OnToggleNotifications(func(enabled bool) {
 		app.notifier.SetEnabled(enabled)
-		app.configMgr.UpdateNotifications(enabled)
+		if err := app.configMgr.UpdateNotifications(enabled); err != nil {
+			app.logger.Warn("Failed to save notification settings", "error", err)
+		}
 	})
 
 	app.tray.OnExit(app.handleExit)
