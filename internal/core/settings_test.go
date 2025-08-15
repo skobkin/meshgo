@@ -389,7 +389,7 @@ func TestConfigManager_EnsureLogDir(t *testing.T) {
 
 func TestSettingsJSONSerialization(t *testing.T) {
 	settings := DefaultSettings()
-	
+
 	// Modify some values
 	settings.Connection.Type = "ip"
 	settings.Connection.IP.Host = "test.example.com"

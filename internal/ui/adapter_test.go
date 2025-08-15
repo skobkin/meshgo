@@ -58,9 +58,9 @@ func TestNodeToViewModel(t *testing.T) {
 
 func TestNodeToViewModel_NilPosition(t *testing.T) {
 	node := &core.Node{
-		ID:            "node_123",
-		ShortName:     "TestNode",
-		Position:      nil, // Test nil position
+		ID:        "node_123",
+		ShortName: "TestNode",
+		Position:  nil, // Test nil position
 	}
 
 	viewModel := NodeToViewModel(node)
@@ -278,7 +278,7 @@ func TestNodeToViewModel_DisplayName(t *testing.T) {
 			if expectedName == "" {
 				expectedName = "Unknown"
 			}
-			
+
 			actualName := viewModel.ShortName
 			if actualName == "" {
 				actualName = viewModel.LongName
@@ -286,7 +286,7 @@ func TestNodeToViewModel_DisplayName(t *testing.T) {
 			if actualName == "" {
 				actualName = "Unknown"
 			}
-			
+
 			if actualName != expectedName {
 				t.Errorf("Name logic mismatch: got %s, want %s", actualName, expectedName)
 			}
@@ -319,7 +319,7 @@ func TestNodeToViewModel_SignalQualityString(t *testing.T) {
 
 			// Check StatusText which should correspond to signal quality
 			if viewModel.StatusText != tt.expected {
-				t.Errorf("StatusText mismatch: got %s, want %s", 
+				t.Errorf("StatusText mismatch: got %s, want %s",
 					viewModel.StatusText, tt.expected)
 			}
 		})
@@ -335,7 +335,7 @@ func TestNodeToViewModel_NilInput(t *testing.T) {
 	}()
 
 	viewModel := NodeToViewModel(nil)
-	
+
 	// Should handle nil gracefully
 	if viewModel == nil {
 		t.Error("NodeToViewModel returned nil for nil input")

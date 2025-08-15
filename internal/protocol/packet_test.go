@@ -159,7 +159,6 @@ func TestDecodePosition(t *testing.T) {
 	}
 }
 
-
 func TestDecodeMeshPacket_InvalidData(t *testing.T) {
 	tests := []struct {
 		name string

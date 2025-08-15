@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-	"fmt"
 
 	"meshgo/internal/core"
 )
@@ -104,7 +104,7 @@ func TestSQLiteStore_UnreadCount(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save multiple messages
 	messages := []*core.Message{
 		{ChatID: "chat1", SenderID: "node1", Text: "Message 1", IsUnread: true, Timestamp: time.Now()},
@@ -143,7 +143,7 @@ func TestSQLiteStore_MarkAsRead(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save unread messages
 	messages := []*core.Message{
 		{ChatID: "chat1", SenderID: "node1", Text: "Message 1", IsUnread: true, Timestamp: time.Now()},
@@ -243,7 +243,7 @@ func TestSQLiteStore_GetAllNodes(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save multiple nodes
 	nodes := []*core.Node{
 		{ID: "node1", ShortName: "Node1", LastHeard: time.Now()},
@@ -286,10 +286,10 @@ func TestSQLiteStore_UpdateNodeFavorite(t *testing.T) {
 
 	ctx := context.Background()
 	node := &core.Node{
-		ID:         "node_123",
-		ShortName:  "TestNode",
-		Favorite: false,
-		LastHeard:  time.Now(),
+		ID:        "node_123",
+		ShortName: "TestNode",
+		Favorite:  false,
+		LastHeard: time.Now(),
 	}
 
 	// Save node
@@ -417,7 +417,7 @@ func TestSQLiteStore_GetAllChats(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save messages to create chats
 	messages := []*core.Message{
 		{ChatID: "chat1", SenderID: "node1", Text: "Message 1", IsUnread: true, Timestamp: time.Now()},
@@ -464,7 +464,7 @@ func TestSQLiteStore_ClearAllChats(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save messages
 	msg := &core.Message{
 		ChatID:    "test_chat",
@@ -500,7 +500,7 @@ func TestSQLiteStore_ClearAllNodes(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save node
 	node := &core.Node{
 		ID:        "node_123",
@@ -535,7 +535,7 @@ func TestSQLiteStore_Pagination(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	
+
 	// Save multiple messages with timestamps
 	baseTime := time.Now().UTC().Truncate(time.Second)
 	for i := 0; i < 10; i++ {

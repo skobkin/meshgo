@@ -12,12 +12,12 @@ import (
 
 // Mock transport for testing
 type mockTransport struct {
-	connected    bool
-	readData     []byte
-	readError    error
-	writeError   error
-	writtenData  []byte
-	endpoint     string
+	connected   bool
+	readData    []byte
+	readError   error
+	writeError  error
+	writtenData []byte
+	endpoint    string
 }
 
 func newMockTransport(endpoint string) *mockTransport {
@@ -177,7 +177,7 @@ func TestRadioClient_SendText_NotRunning(t *testing.T) {
 
 	ctx := context.Background()
 	err := client.SendText(ctx, "test_chat", 12345, "Hello")
-	
+
 	if err == nil {
 		t.Error("SendText should fail when client is not running")
 	}
