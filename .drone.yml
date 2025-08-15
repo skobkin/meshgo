@@ -151,7 +151,8 @@ steps:
   - name: create-release
     image: plugins/gitea-release
     settings:
-      base_url: ${FORGEJO_URL}
+      base_url:
+        from_secret: forgejo_base_url
       api_key:
         from_secret: forgejo_token
       title: "MeshGo ${DRONE_TAG}"

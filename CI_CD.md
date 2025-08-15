@@ -49,15 +49,17 @@ Comprehensive linting configuration with:
 
 ## Setup Requirements
 
-### 1. Forgejo/Gitea Setup
-```bash
-# Set the following environment variables in your Drone secrets:
-FORGEJO_URL=https://your-forgejo-instance.com
-```
+### 1. Secret Configuration
+Create the following secrets in your Drone instance:
+- `forgejo_token`: API token for Forgejo release creation (with repository write permissions)
+- `forgejo_base_url`: Base URL of your Forgejo/Gitea instance (e.g., `https://git.example.com`)
 
-### 2. Secret Configuration
-Create the following secret in your Drone instance:
-- `forgejo_token`: API token for Forgejo release creation
+### 2. Automatic Configuration
+The pipeline automatically uses these Drone-provided environment variables:
+- `DRONE_TAG`: Git tag for release builds
+- `DRONE_REPO_LINK`: Repository URL for linking in release notes
+
+The base URL could theoretically be extracted from `DRONE_REPO_LINK`, but using a secret is more reliable and explicit.
 
 ### 3. Repository Settings
 Ensure your repository has:
@@ -165,9 +167,10 @@ git push origin v1.2.3
    - Race conditions should be fixed, not ignored
 
 4. **Release Failures**
-   - Verify `forgejo_token` secret is configured
-   - Check repository permissions
+   - Verify both `forgejo_token` and `forgejo_base_url` secrets are configured
+   - Check that the API token has proper repository write permissions
    - Ensure tag follows semantic versioning
+   - Verify the base URL is correct and accessible from Drone
 
 ### Debug Commands
 ```bash
