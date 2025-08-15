@@ -18,49 +18,25 @@ A modern desktop GUI application for Meshtastic mesh networks, built in Go with 
 - Go 1.24+
 - Linux/Windows/macOS with graphics support
 
-### Installation
+### Installation & Usage
 
 ```bash
+# Build from source
 git clone <repository-url>
 cd meshgo
-go build -o meshgo ./cmd/meshgo
-./meshgo
-```
+make build
+./build/meshgo
 
-Or download pre-built binaries from the [releases page](../../releases).
-
-### Usage
-
-**GUI Mode** (default):
-```bash
-./meshgo
+# Or download from releases
+# https://github.com/your-repo/meshgo/releases
 ```
 
 **Console Mode** (debugging):
 ```bash
-./meshgo --console
+./build/meshgo --console
 ```
 
 Console commands: `connect serial <port>`, `connect ip <host:port>`, `send <chat> <message>`, `nodes`, `chats`, `exit`
-
-## Architecture
-
-```
-cmd/meshgo/           # Main application
-internal/
-├── core/            # Business logic and interfaces
-├── transport/       # Serial/TCP connectivity
-├── protocol/        # Meshtastic protocol handling
-├── storage/         # SQLite persistence
-├── system/          # Notifications and system tray
-└── ui/              # Fyne GUI implementation
-```
-
-The application uses clean architecture with:
-- **Transport abstraction**: Pluggable connectivity (serial, TCP, future Bluetooth)
-- **Event-driven design**: Reactive UI updates via events
-- **Protocol layer**: Proper Meshtastic protobuf handling with gomeshproto
-- **Persistent storage**: SQLite with automatic migrations
 
 ## Configuration
 
@@ -78,19 +54,12 @@ Config stored at `~/.config/meshgo/config.json`:
 }
 ```
 
-## Building
+## Development
 
 ```bash
-# Development
-make build
-make test
-make fmt
-
-# All platforms
-make build-all
-
-# With CI/CD
-# Drone CI automatically builds and releases on git tags
+make test      # Run tests
+make fmt       # Format code
+make build-all # Build for all platforms
 ```
 
 ## Signal Quality
