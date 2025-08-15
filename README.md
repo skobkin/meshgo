@@ -41,9 +41,43 @@ A cross-platform desktop GUI application for managing Meshtastic mesh networks, 
 git clone https://github.com/your-username/meshgo.git
 cd meshgo
 
-# Build and run
+# Build and run (without system tray)
 make build
 ./build/meshgo
+```
+
+#### System Tray Support (Optional)
+
+By default, MeshGo builds without system tray to avoid system dependencies. To enable system tray:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libayatana-appindicator3-dev
+make build-with-tray
+```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install libayatana-appindicator-devel
+make build-with-tray
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S libayatana-appindicator
+make build-with-tray
+```
+
+**macOS:**
+```bash
+# No additional dependencies needed
+make build-with-tray
+```
+
+**Windows:**
+```bash
+# No additional dependencies needed
+make build-with-tray
 ```
 
 ### Usage

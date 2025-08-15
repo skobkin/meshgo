@@ -328,12 +328,12 @@ func (app *App) setupTrayCallbacks() {
 func (app *App) handleConnect(connType, endpoint string) error {
 	app.logger.Info("Connection requested", "type", connType, "endpoint", endpoint)
 
-	var transport core.Transport
+	var t core.Transport
 
 	switch strings.ToLower(connType) {
 	case "serial":
 		settings := app.configMgr.Settings()
-		transport = transport.NewSerialTransport(endpoint, settings.Connection.Serial.Baud)
+		t = transport.NewSerialTransport(endpoint, settings.Connection.Serial.Baud)
 
 	case "ip", "tcp":
 		parts := strings.Split(endpoint, ":")
@@ -346,7 +346,7 @@ func (app *App) handleConnect(connType, endpoint string) error {
 			return fmt.Errorf("invalid port number: %w", err)
 		}
 		
-		transport = transport.NewTCPTransport(parts[0], port)
+		t = transport.NewTCPTransport(parts[0], port)
 
 	default:
 		return fmt.Errorf("unsupported connection type: %s", connType)
@@ -358,13 +358,13 @@ func (app *App) handleConnect(connType, endpoint string) error {
 	}
 
 	// Start radio client with new transport
-	if err := app.radioClient.Start(app.ctx, transport); err != nil {
+	if err := app.radioClient.Start(app.ctx, t); err != nil {
 		return fmt.Errorf("failed to start radio client: %w", err)
 	}
 
 	// Setup reconnection manager
 	settings := app.configMgr.Settings()
-	app.reconnectMgr = core.NewReconnectManager(&settings.Reconnect, transport, app.logger)
+	app.reconnectMgr = core.NewReconnectManager(&settings.Reconnect, t, app.logger)
 	app.reconnectMgr.Start(app.ctx)
 
 	return nil
