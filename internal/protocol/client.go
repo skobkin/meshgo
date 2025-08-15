@@ -291,7 +291,9 @@ func (rc *RadioClient) parsePacketManually(data []byte) {
 			rc.logger.Info("Detected MeshPacket", "size", len(data))
 			rc.extractMeshPacketData(data[1:])
 		} else {
-			rc.logger.Debug("Unknown packet type", "first_byte", fmt.Sprintf("0x%02x", data[0]))
+			rc.logger.Info("Unknown packet type - analyzing for message content", "first_byte", fmt.Sprintf("0x%02x", data[0]), "hex", fmt.Sprintf("%x", data[:min(32, len(data))]))
+			// Try to extract any readable text from unknown packets too
+			rc.extractMeshPacketData(data)
 		}
 	}
 }
@@ -350,21 +352,23 @@ func (rc *RadioClient) extractNodeInfo(data []byte) {
 			}
 		}
 		
-		// Create node record if we found a good name
-		if bestName != "" || shortName != "" {
-			// Use the hex ID if available as the primary node ID
-			var nodeID string
-			for _, name := range nodeNames {
-				if name[0] == '!' && len(name) == 9 {
-					nodeID = name[1:] // Remove the !
-					break
-				}
+		// Always try to find a hex ID first, then use names as backup
+		var nodeID string
+		for _, name := range nodeNames {
+			if name[0] == '!' && len(name) == 9 {
+				nodeID = name[1:] // Remove the ! 
+				break
 			}
-			
+		}
+		
+		// Create node record - even if we only have a hex ID
+		if nodeID != "" || bestName != "" || shortName != "" {
 			if nodeID == "" {
-				nodeID = fmt.Sprintf("node_%s", shortName)
+				// Fallback to name-based ID if no hex ID
 				if bestName != "" {
 					nodeID = fmt.Sprintf("node_%s", bestName)
+				} else {
+					nodeID = fmt.Sprintf("node_%s", shortName)
 				}
 			}
 			
@@ -375,6 +379,12 @@ func (rc *RadioClient) extractNodeInfo(data []byte) {
 			if bestName != "" {
 				node.LongName = bestName
 			}
+			// If we only have hex ID, use that as display name too
+			if node.ShortName == "" && node.LongName == "" && nodeID != "" {
+				node.ShortName = nodeID[:8] // First 8 chars of hex ID
+			}
+			
+			rc.logger.Debug("Node updated", "id", nodeID, "short", node.ShortName, "long", node.LongName)
 			
 			// Emit node updated event
 			rc.events <- core.Event{
@@ -407,6 +417,8 @@ func (rc *RadioClient) extractMeshPacketData(data []byte) {
 	// Look for text messages in MeshPacket data
 	// Text messages typically have PortNum=1 and readable payload
 	
+	rc.logger.Debug("Analyzing packet for message content", "size", len(data), "hex", fmt.Sprintf("%x", data[:min(64, len(data))]))
+	
 	// Simple approach: look for readable text strings that could be messages
 	var messages []string
 	var current []byte
@@ -415,7 +427,7 @@ func (rc *RadioClient) extractMeshPacketData(data []byte) {
 		if b >= 32 && b <= 126 { // printable ASCII
 			current = append(current, b)
 		} else {
-			if len(current) > 10 { // Messages are typically longer
+			if len(current) >= 3 { // Lower threshold for short messages like "test message"
 				text := string(current)
 				if rc.isValidMessage(text) {
 					messages = append(messages, text)
@@ -424,11 +436,15 @@ func (rc *RadioClient) extractMeshPacketData(data []byte) {
 			current = nil
 		}
 	}
-	if len(current) > 10 {
+	if len(current) >= 3 {
 		text := string(current)
 		if rc.isValidMessage(text) {
 			messages = append(messages, text)
 		}
+	}
+	
+	if len(messages) > 0 {
+		rc.logger.Info("Found potential text messages", "count", len(messages), "messages", messages)
 	}
 	
 	for _, msgText := range messages {
@@ -462,6 +478,7 @@ func (rc *RadioClient) isValidMessage(text string) bool {
 	// Check if it looks like a real message (has spaces and reasonable chars)
 	hasSpace := false
 	alphaCount := 0
+	digitCount := 0
 	
 	for _, r := range text {
 		if r == ' ' {
@@ -470,10 +487,14 @@ func (rc *RadioClient) isValidMessage(text string) bool {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
 			alphaCount++
 		}
+		if r >= '0' && r <= '9' {
+			digitCount++
+		}
 	}
 	
 	// Must have some alpha characters and ideally spaces (real messages)
-	return alphaCount > 2 && (hasSpace || len(text) < 20)
+	// Accept "test message", "hello", etc.
+	return alphaCount >= 2 && (hasSpace || len(text) < 20 || digitCount > 0)
 }
 
 func (rc *RadioClient) handlePacket(data []byte) {
