@@ -26,42 +26,42 @@ run: build  ## Run the application
 	./$(BUILD_DIR)/$(BINARY_NAME)
 
 ## Building
-build: deps  ## Build for current platform (without system tray)
+build: deps  ## Build for current platform with Fyne GUI
 	@echo "Building $(BINARY_NAME) $(VERSION) for $(GOOS)/$(GOARCH)..."
 	@mkdir -p $(BUILD_DIR)
-	go build -tags no_systray $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/meshgo
-
-build-with-tray: deps  ## Build for current platform with system tray support
-	@echo "Building $(BINARY_NAME) $(VERSION) for $(GOOS)/$(GOARCH) with system tray..."
-	@mkdir -p $(BUILD_DIR)
 	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/meshgo
+
+build-no-gui: deps  ## Build for current platform without GUI (console only)
+	@echo "Building $(BINARY_NAME) $(VERSION) for $(GOOS)/$(GOARCH) without GUI..."
+	@mkdir -p $(BUILD_DIR)
+	go build -tags no_fyne $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/meshgo
 
 build-linux: deps  ## Build for Linux x64
 	@echo "Building $(BINARY_NAME) for Linux x64..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 go build -tags no_systray $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/meshgo
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/meshgo
 
 build-windows: deps  ## Build for Windows x64
 	@echo "Building $(BINARY_NAME) for Windows x64..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 go build -tags no_systray $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/meshgo
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/meshgo
 
 build-macos: deps  ## Build for macOS x64
 	@echo "Building $(BINARY_NAME) for macOS x64..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 go build -tags no_systray $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/meshgo
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/meshgo
 
 build-macos-arm64: deps  ## Build for macOS ARM64
 	@echo "Building $(BINARY_NAME) for macOS ARM64..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 go build -tags no_systray $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/meshgo
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/meshgo
 
 build-all: build-linux build-windows build-macos build-macos-arm64  ## Build for all platforms
 
 ## Testing
 test: deps  ## Run tests
 	@echo "Running tests..."
-	go test -tags no_systray -v -race -coverprofile=coverage.out ./...
+	go test -v -race -coverprofile=coverage.out ./...
 
 test-coverage: test  ## Run tests with coverage report
 	go tool cover -html=coverage.out -o coverage.html
@@ -122,11 +122,11 @@ package: build-all  ## Create distribution packages
 ## Installation
 install: build  ## Install binary to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME) to $$(go env GOPATH)/bin..."
-	go install -tags no_systray $(LDFLAGS) ./cmd/meshgo
-
-install-with-tray:  ## Install binary with system tray support
-	@echo "Installing $(BINARY_NAME) with system tray to $$(go env GOPATH)/bin..."
 	go install $(LDFLAGS) ./cmd/meshgo
+
+install-no-gui:  ## Install binary without GUI
+	@echo "Installing $(BINARY_NAME) without GUI to $$(go env GOPATH)/bin..."
+	go install -tags no_fyne $(LDFLAGS) ./cmd/meshgo
 
 install-tools:  ## Install development tools
 	@echo "Installing development tools..."

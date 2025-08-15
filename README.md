@@ -41,62 +41,52 @@ A cross-platform desktop GUI application for managing Meshtastic mesh networks, 
 git clone https://github.com/your-username/meshgo.git
 cd meshgo
 
-# Build and run (without system tray)
+# Build and run
 make build
 ./build/meshgo
 ```
 
-#### System Tray Support (Optional)
-
-By default, MeshGo builds without system tray to avoid system dependencies. To enable system tray:
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install libayatana-appindicator3-dev
-make build-with-tray
-```
-
-**Fedora/RHEL:**
-```bash
-sudo dnf install libayatana-appindicator-devel
-make build-with-tray
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S libayatana-appindicator
-make build-with-tray
-```
-
-**macOS:**
-```bash
-# No additional dependencies needed
-make build-with-tray
-```
-
-**Windows:**
-```bash
-# No additional dependencies needed
-make build-with-tray
-```
+The application now uses Fyne for both GUI and system tray integration, requiring no additional system dependencies.
 
 ### Usage
 
-The application currently uses a console interface. Available commands:
+The application is a cross-platform GUI application with integrated system tray support:
 
-```
-help                    - Show help
-connect serial <port>   - Connect via serial (e.g., connect serial /dev/ttyUSB0)
-connect ip <host:port>  - Connect via TCP/IP (e.g., connect ip 192.168.1.100:4403)
-disconnect              - Disconnect
-status                  - Show connection status
-nodes                   - List discovered nodes
-chats                   - List chats
-send <chat> <message>   - Send message
-trace <nodeID>          - Traceroute to node
-favorite <nodeID>       - Toggle node favorite
-exit                    - Exit application
-```
+- **GUI Mode** (default): `make build && ./build/meshgo`
+  - Full Fyne GUI window with connection controls, node lists, and messaging
+  - Integrated system tray with right-click menu
+  - Cross-platform notifications
+  - Clean shutdown via window close or system tray
+  
+- **Headless Mode** (`make build-no-gui`): For servers or systems without GUI
+  - No GUI dependencies
+  - Background daemon mode
+  - Use Ctrl+C or system signals to exit
+  
+- **Console Mode** (debugging): Add `--console` flag to use interactive console
+  ```bash
+  ./build/meshgo --console
+  ```
+  Available console commands:
+  ```
+  help                    - Show help
+  connect serial <port>   - Connect via serial (e.g., connect serial /dev/ttyUSB0)
+  connect ip <host:port>  - Connect via TCP/IP (e.g., connect ip 192.168.1.100:4403)
+  disconnect              - Disconnect
+  status                  - Show connection status
+  nodes                   - List discovered nodes
+  chats                   - List chats
+  send <chat> <message>   - Send message
+  trace <nodeID>          - Traceroute to node
+  favorite <nodeID>       - Toggle node favorite
+  exit                    - Exit application
+  ```
+
+The application currently uses an event-driven architecture with the following capabilities:
+- Automatic device discovery and connection
+- Background message processing and notifications
+- Persistent storage of messages and node information
+- System tray integration with unread message indicators
 
 ## Architecture
 

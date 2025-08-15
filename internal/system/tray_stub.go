@@ -46,8 +46,9 @@ func (st *SystemTray) OnExit(fn func()) {
 }
 
 func (st *SystemTray) Run() {
-	st.logger.Info("System tray stub - no GUI tray available")
-	// Do nothing - tray functionality is disabled
+	st.logger.Info("System tray not available - application will run without tray")
+	// Block forever to keep app running (signals will trigger shutdown)
+	select {}
 }
 
 func (st *SystemTray) Quit() {

@@ -2,6 +2,7 @@ package console
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,13 +20,18 @@ type ConsoleUI struct {
 	connected bool
 	endpoint  string
 	running   bool
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func NewConsoleUI(logger *slog.Logger) *ConsoleUI {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ConsoleUI{
 		logger: logger,
 		chats:  make(map[string]*ui.ChatViewModel),
 		nodes:  make(map[string]*ui.NodeViewModel),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -37,19 +43,43 @@ func (c *ConsoleUI) Run() error {
 	fmt.Println("Type 'help' for available commands")
 	
 	scanner := bufio.NewScanner(os.Stdin)
+	inputChan := make(chan string)
+	
+	// Read input in separate goroutine
+	go func() {
+		defer close(inputChan)
+		for c.running {
+			if !scanner.Scan() {
+				return // EOF or error
+			}
+			select {
+			case inputChan <- scanner.Text():
+			case <-c.ctx.Done():
+				return
+			}
+		}
+	}()
 	
 	for c.running {
 		fmt.Print("> ")
-		if !scanner.Scan() {
-			break
-		}
 		
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+		select {
+		case <-c.ctx.Done():
+			fmt.Println("\nShutting down console UI...")
+			return nil
+			
+		case line, ok := <-inputChan:
+			if !ok {
+				return scanner.Err()
+			}
+			
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			
+			c.handleCommand(line)
 		}
-		
-		c.handleCommand(line)
 	}
 	
 	return scanner.Err()
@@ -57,6 +87,7 @@ func (c *ConsoleUI) Run() error {
 
 func (c *ConsoleUI) Shutdown() error {
 	c.running = false
+	c.cancel()
 	c.logger.Info("Console UI shutdown")
 	return nil
 }

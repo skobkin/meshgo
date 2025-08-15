@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,16 +20,26 @@ import (
 	"meshgo/internal/transport"
 	"meshgo/internal/ui"
 	"meshgo/internal/ui/console"
+	"meshgo/internal/ui/fyne"
 )
 
 const Version = "1.0.0"
+
+type SystemTrayInterface interface {
+	SetUnread(bool)
+	OnShowHide(func())
+	OnToggleNotifications(func(bool))
+	OnExit(func())
+	Run()
+	Quit()
+}
 
 type App struct {
 	logger       *slog.Logger
 	configMgr    *core.ConfigManager
 	storage      *storage.SQLiteStore
 	notifier     *system.Notifier
-	tray         *system.SystemTray
+	tray         SystemTrayInterface
 	ui           ui.Adapter
 	radioClient  *protocol.RadioClient
 	reconnectMgr *core.ReconnectManager
@@ -36,10 +47,15 @@ type App struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup
+	
+	consoleMode  bool
 }
 
 func main() {
-	app, err := NewApp()
+	var consoleMode = flag.Bool("console", false, "Run in console mode for debugging")
+	flag.Parse()
+
+	app, err := NewApp(*consoleMode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize app: %v\n", err)
 		os.Exit(1)
@@ -51,7 +67,7 @@ func main() {
 	}
 }
 
-func NewApp() (*App, error) {
+func NewApp(consoleMode bool) (*App, error) {
 	// Setup logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -71,10 +87,22 @@ func NewApp() (*App, error) {
 
 	// Initialize system components
 	notifier := system.NewNotifier(logger)
-	tray := system.NewSystemTray(logger)
 	
-	// Initialize UI (console for now)
-	ui := console.NewConsoleUI(logger)
+	// Initialize UI - Fyne GUI by default, console only in debug mode
+	var ui ui.Adapter
+	if consoleMode {
+		ui = console.NewConsoleUI(logger)
+	} else {
+		ui = fyne.NewFyneUI(logger)
+	}
+	
+	// Initialize system tray with Fyne integration
+	var tray SystemTrayInterface
+	if fyneUI, ok := ui.(*fyne.FyneUI); ok && !consoleMode {
+		tray = system.NewFyneSystemTray(logger, fyneUI.GetApp())
+	} else {
+		tray = system.NewSystemTray(logger)
+	}
 	
 	// Initialize radio client
 	radioClient := protocol.NewRadioClient(logger)
@@ -86,11 +114,12 @@ func NewApp() (*App, error) {
 		configMgr:   configMgr,
 		storage:     store,
 		notifier:    notifier,
-		tray:        tray,
 		ui:          ui,
 		radioClient: radioClient,
 		ctx:         ctx,
 		cancel:      cancel,
+		consoleMode: consoleMode,
+		tray:        tray,
 	}
 
 	// Set up UI callbacks
@@ -118,9 +147,26 @@ func (app *App) Run() error {
 		app.Shutdown()
 	}()
 
-	// Start UI
-	if err := app.ui.Run(); err != nil {
-		return fmt.Errorf("UI error: %w", err)
+	// Choose UI mode based on flags
+	if app.consoleMode {
+		app.logger.Info("Starting in console mode")
+		// Run console UI in a goroutine so signals can interrupt
+		app.wg.Add(1)
+		go func() {
+			defer app.wg.Done()
+			if err := app.ui.Run(); err != nil {
+				app.logger.Error("Console UI error", "error", err)
+			}
+		}()
+		
+		// Wait for shutdown signal
+		<-app.ctx.Done()
+	} else {
+		app.logger.Info("Starting GUI mode with Fyne")
+		// Start GUI (this blocks until window is closed)
+		if err := app.ui.Run(); err != nil {
+			return fmt.Errorf("GUI error: %w", err)
+		}
 	}
 
 	// Wait for shutdown

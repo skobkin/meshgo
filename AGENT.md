@@ -6,7 +6,7 @@ MeshGo is a cross-platform desktop GUI application for managing Meshtastic mesh 
 ## Key Architecture Principles
 
 ### Clean Architecture Layers
-1. **UI Layer**: Framework-agnostic view models and presentation (Qt preferred, Wails/Fyne alternatives)
+1. **UI Layer**: Framework-agnostic view models and presentation (Fyne)
 2. **App/Core**: Business logic, use cases, domain models, event bus
 3. **Protocols/Transports**: Transport interface with Serial/TCP implementations
 4. **Persistence**: SQLite-based storage for messages, nodes, settings
@@ -159,3 +159,7 @@ bus.Emit(Event{Type: ConnectionStateChanged, Data: state})
 - Maintain UI framework abstraction for future swapping
 - Test on all target platforms regularly
 - Document public APIs and complex algorithms
+
+## Original specification
+If you're unsure of what app should be able to do, then check the original PRD document in the root directory.
+If you can't find it, request it from the user.
