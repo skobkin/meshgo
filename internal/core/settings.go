@@ -16,9 +16,10 @@ type Settings struct {
 }
 
 type ConnectionSettings struct {
-	Type   string         `json:"type"` // "serial" or "ip"
-	Serial SerialSettings `json:"serial"`
-	IP     IPSettings     `json:"ip"`
+	Type            string         `json:"type"` // "serial" or "ip"
+	ConnectOnStartup bool          `json:"connect_on_startup"`
+	Serial          SerialSettings `json:"serial"`
+	IP              IPSettings     `json:"ip"`
 }
 
 type SerialSettings struct {
@@ -163,6 +164,11 @@ func (cm *ConfigManager) UpdateConnection(connType string, serialPort string, se
 	cm.settings.Connection.Serial.Baud = serialBaud
 	cm.settings.Connection.IP.Host = ipHost
 	cm.settings.Connection.IP.Port = ipPort
+	return cm.Save()
+}
+
+func (cm *ConfigManager) UpdateConnectOnStartup(enabled bool) error {
+	cm.settings.Connection.ConnectOnStartup = enabled
 	return cm.Save()
 }
 

@@ -37,6 +37,8 @@ type FyneUI struct {
 	connectionButton *widget.Button
 	connectTypeSelect *widget.Select
 	connectEntry     *widget.Entry
+	connectOnStartup *widget.Check
+	logLevelSelect   *widget.Select
 	
 	// Content areas
 	nodesList   *widget.List
@@ -212,6 +214,9 @@ func (f *FyneUI) createNodesTab() fyne.CanvasObject {
 					widget.NewLabel(""), // Battery status
 					widget.NewLabel("🔒"), // Encryption status placeholder
 				),
+				container.NewHBox(
+					widget.NewLabel(""), // RSSI/SNR details
+				),
 			)
 		},
 		f.updateNodeItem,
@@ -262,8 +267,17 @@ func (f *FyneUI) createSettingsTab() fyne.CanvasObject {
 	
 	f.connectionButton = widget.NewButton("Connect", f.handleConnectButton)
 	
+	// Connect on startup checkbox
+	f.connectOnStartup = widget.NewCheck("Connect on startup", func(checked bool) {
+		if f.callbacks != nil && f.callbacks.OnUpdateConnectOnStartup != nil {
+			if err := f.callbacks.OnUpdateConnectOnStartup(checked); err != nil {
+				f.logger.Error("Failed to update connect on startup setting", "error", err)
+			}
+		}
+	})
+	
 	connectionForm := container.NewVBox(
-		container.NewHBox(widget.NewLabel("Type:"), f.connectTypeSelect),
+		container.NewHBox(widget.NewLabel("Type:"), f.connectTypeSelect, f.connectOnStartup),
 		container.NewVBox(
 			widget.NewLabel("Endpoint:"),
 			f.connectEntry,
@@ -288,8 +302,21 @@ func (f *FyneUI) createSettingsTab() fyne.CanvasObject {
 		// TODO: Implement logging toggle
 	})
 	
+	// Log level selection
+	f.logLevelSelect = widget.NewSelect([]string{"DEBUG", "INFO", "WARN", "ERROR"}, func(level string) {
+		if f.callbacks != nil && f.callbacks.OnUpdateLogLevel != nil {
+			if err := f.callbacks.OnUpdateLogLevel(level); err != nil {
+				f.logger.Error("Failed to update log level", "error", err)
+			}
+		}
+	})
+	f.logLevelSelect.SetSelected("INFO") // Default log level
+	
 	loggingCard := widget.NewCard("Logging", "", 
-		container.NewVBox(loggingEnabled))
+		container.NewVBox(
+			loggingEnabled,
+			container.NewHBox(widget.NewLabel("Log level:"), f.logLevelSelect),
+		))
 	
 	// About section
 	aboutContent := widget.NewRichText()
@@ -336,8 +363,8 @@ func (f *FyneUI) createSettingsTab() fyne.CanvasObject {
 			connectionCard,
 			notificationsCard,
 			loggingCard,
-			aboutCard,
 			diagnosticsCard,
+			aboutCard, // Moved to the end
 		),
 	)
 	
@@ -354,7 +381,7 @@ func (f *FyneUI) updateDiagnostics() {
 		status += " to " + f.endpoint
 	}
 	
-	diagnosticsText := fmt.Sprintf("Connection status: %s\nLast error: None", status)
+	diagnosticsText := fmt.Sprintf("Connection status: %s", status)
 	f.diagnosticsLabel.SetText(diagnosticsText)
 }
 
@@ -475,6 +502,23 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 				}
 			}
 			statusRow.Objects[3].(*widget.Label).SetText(encryptionIcon)
+		}
+		
+		// Third row: RSSI/SNR details
+		if len(vbox.Objects) >= 3 {
+			signalRow := vbox.Objects[2].(*fyne.Container)
+			if len(signalRow.Objects) >= 1 {
+				var signalDetails string
+				if node.IsOnline && node.Node != nil && (node.Node.RSSI != 0 || node.Node.SNR != 0) {
+					// Format: "SNR: 9.50dB RSSI: -49dBm" (remove redundant quality text)
+					signalDetails = fmt.Sprintf("SNR: %.2fdB RSSI: %ddBm", 
+						node.Node.SNR, node.Node.RSSI)
+				} else {
+					// For nodes without real signal readings (Unknown) or offline nodes, show nothing
+					signalDetails = ""
+				}
+				signalRow.Objects[0].(*widget.Label).SetText(signalDetails)
+			}
 		}
 	}
 }
@@ -697,6 +741,16 @@ func (f *FyneUI) UpdateSettings(settings *core.Settings) {
 				endpoint = fmt.Sprintf("%s:%d", settings.Connection.IP.Host, settings.Connection.IP.Port)
 			}
 			f.connectEntry.SetText(endpoint)
+		}
+		
+		if f.connectOnStartup != nil {
+			f.connectOnStartup.SetChecked(settings.Connection.ConnectOnStartup)
+		}
+		
+		if f.logLevelSelect != nil {
+			// Convert level to uppercase to match our dropdown options
+			level := strings.ToUpper(settings.Logging.Level)
+			f.logLevelSelect.SetSelected(level)
 		}
 	})
 }

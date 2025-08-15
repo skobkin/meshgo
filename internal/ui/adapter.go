@@ -58,7 +58,9 @@ type EventCallbacks struct {
 	OnUpdateConnection    func(connType, serialPort string, serialBaud int, ipHost string, ipPort int) error
 	OnUpdateNotifications func(enabled bool) error
 	OnToggleNotifications func(enabled bool) error
+	OnUpdateConnectOnStartup func(enabled bool) error
 	OnUpdateLogging       func(enabled, level string) error
+	OnUpdateLogLevel      func(level string) error
 	OnUpdateUI            func(startMinimized bool, theme string) error
 	
 	// Application events
@@ -156,17 +158,24 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 	
 	// Calculate signal quality for all nodes
 	if vm.IsOnline {
-		// Node is online - calculate signal quality from RSSI/SNR values
-		switch core.CalculateSignalQuality(node.RSSI, node.SNR) {
-		case core.SignalGood:
-			vm.SignalBars = 3
-			vm.StatusText = "Good"
-		case core.SignalFair:
-			vm.SignalBars = 2
-			vm.StatusText = "Fair" 
-		case core.SignalBad:
-			vm.SignalBars = 1
-			vm.StatusText = "Poor"
+		// Check if we have actual signal data
+		if node.RSSI != 0 || node.SNR != 0 {
+			// Node is online with real signal data - calculate quality from RSSI/SNR values
+			switch core.CalculateSignalQuality(node.RSSI, node.SNR) {
+			case core.SignalGood:
+				vm.SignalBars = 3
+				vm.StatusText = "Good"
+			case core.SignalFair:
+				vm.SignalBars = 2
+				vm.StatusText = "Fair" 
+			case core.SignalBad:
+				vm.SignalBars = 1
+				vm.StatusText = "Poor"
+			}
+		} else {
+			// Node is online but no signal readings yet
+			vm.SignalBars = 0
+			vm.StatusText = "Unknown"
 		}
 	} else {
 		// Node not heard recently

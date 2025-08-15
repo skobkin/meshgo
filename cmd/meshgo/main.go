@@ -37,6 +37,7 @@ type SystemTrayInterface interface {
 
 type App struct {
 	logger       *slog.Logger
+	logLevel     *slog.LevelVar
 	configMgr    *core.ConfigManager
 	storage      *storage.SQLiteStore
 	notifier     *system.Notifier
@@ -69,16 +70,34 @@ func main() {
 }
 
 func NewApp(consoleMode bool) (*App, error) {
-	// Setup logger with debug level
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
-	// Initialize config manager
+	// Initialize config manager first to get log level
 	configMgr, err := core.NewConfigManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config manager: %w", err)
 	}
+	
+	// Create programmable level for dynamic log level changes
+	logLevel := &slog.LevelVar{}
+	
+	// Set initial log level from config
+	levelStr := strings.ToLower(configMgr.Settings().Logging.Level)
+	switch levelStr {
+	case "debug":
+		logLevel.Set(slog.LevelDebug)
+	case "info":
+		logLevel.Set(slog.LevelInfo)
+	case "warn":
+		logLevel.Set(slog.LevelWarn)
+	case "error":
+		logLevel.Set(slog.LevelError)
+	default:
+		logLevel.Set(slog.LevelInfo) // Default fallback
+	}
+	
+	// Setup logger with programmable level
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
 
 	// Initialize storage
 	store, err := storage.NewSQLiteStore(configMgr.ConfigDir())
@@ -112,6 +131,7 @@ func NewApp(consoleMode bool) (*App, error) {
 
 	app := &App{
 		logger:      logger,
+		logLevel:    logLevel,
 		configMgr:   configMgr,
 		storage:     store,
 		notifier:    notifier,
@@ -218,6 +238,29 @@ func (app *App) startServices() {
 
 	// Load initial data
 	app.loadInitialData()
+	
+	// Auto-connect if enabled
+	if settings.Connection.ConnectOnStartup {
+		app.logger.Info("Auto-connecting on startup")
+		go func() {
+			// Small delay to ensure UI is ready
+			time.Sleep(1 * time.Second)
+			if err := app.handleConnect(settings.Connection.Type, app.getEndpointFromSettings(settings)); err != nil {
+				app.logger.Warn("Auto-connect failed", "error", err)
+			}
+		}()
+	}
+}
+
+func (app *App) getEndpointFromSettings(settings *core.Settings) string {
+	switch settings.Connection.Type {
+	case "serial":
+		return settings.Connection.Serial.Port
+	case "ip":
+		return fmt.Sprintf("%s:%d", settings.Connection.IP.Host, settings.Connection.IP.Port)
+	default:
+		return ""
+	}
 }
 
 func (app *App) processEvents() {
@@ -467,6 +510,8 @@ func (app *App) setupUICallbacks() {
 		OnToggleNodeFavorite: app.handleToggleNodeFavorite,
 		OnTraceroute: app.handleTraceroute,
 		OnUpdateNotifications: app.handleUpdateNotifications,
+		OnUpdateConnectOnStartup: app.handleUpdateConnectOnStartup,
+		OnUpdateLogLevel: app.handleUpdateLogLevel,
 		OnExit: app.handleExit,
 		OnWindowVisibilityChanged: func(visible bool) {
 			app.tray.SetWindowVisible(visible)
@@ -714,6 +759,37 @@ func (app *App) handleTraceroute(nodeID string) error {
 func (app *App) handleUpdateNotifications(enabled bool) error {
 	app.notifier.SetEnabled(enabled)
 	return app.configMgr.UpdateNotifications(enabled)
+}
+
+func (app *App) handleUpdateConnectOnStartup(enabled bool) error {
+	app.logger.Debug("Connect on startup setting changed", "enabled", enabled)
+	return app.configMgr.UpdateConnectOnStartup(enabled)
+}
+
+func (app *App) handleUpdateLogLevel(level string) error {
+	app.logger.Info("Log level changed", "level", level)
+	
+	// Update the current logger level immediately
+	levelStr := strings.ToLower(level)
+	
+	// Set the new log level
+	switch levelStr {
+	case "debug":
+		app.logLevel.Set(slog.LevelDebug)
+	case "info":
+		app.logLevel.Set(slog.LevelInfo)
+	case "warn":
+		app.logLevel.Set(slog.LevelWarn)
+	case "error":
+		app.logLevel.Set(slog.LevelError)
+	default:
+		app.logLevel.Set(slog.LevelInfo) // Default fallback
+	}
+	
+	app.logger.Debug("Log level updated", "level", levelStr)
+	
+	// Save to config
+	return app.configMgr.UpdateLogging(app.configMgr.Settings().Logging.Enabled, levelStr)
 }
 
 func (app *App) handleClearChats() error {
