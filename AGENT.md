@@ -163,3 +163,7 @@ bus.Emit(Event{Type: ConnectionStateChanged, Data: state})
 ## Original specification
 If you're unsure of what app should be able to do, then check the original PRD document in the root directory.
 If you can't find it, request it from the user.
+
+## Progress tracking
+
+Keep writing short description of what you've done into `PROGRESS.md` file's progress log section.
