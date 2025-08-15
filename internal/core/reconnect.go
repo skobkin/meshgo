@@ -2,9 +2,7 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"math"
 	"math/rand"
 	"sync"
 	"time"

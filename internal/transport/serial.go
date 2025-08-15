@@ -42,7 +42,7 @@ func (s *SerialTransport) Connect(ctx context.Context) error {
 		StopBits: serial.OneStopBit,
 	}
 
-	conn, err := serial.OpenPort(s.port, mode)
+	conn, err := serial.Open(s.port, mode)
 	if err != nil {
 		return fmt.Errorf("failed to open serial port %s: %w", s.port, err)
 	}

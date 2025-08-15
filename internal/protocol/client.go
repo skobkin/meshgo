@@ -261,13 +261,14 @@ func (rc *RadioClient) handleTextMessage(packet *MeshPacket) {
 	// Determine chat ID
 	chatID := rc.getChatID(packet)
 	
+	rxrssi := int(packet.RxRSSI)
 	msg := &core.Message{
 		ChatID:    chatID,
 		SenderID:  fmt.Sprintf("%d", packet.From),
 		PortNum:   int(packet.PortNum),
 		Text:      textMsg.Text,
 		RXSNR:     &packet.RxSNR,
-		RXRSSI:    &packet.RxRSSI,
+		RXRSSI:    &rxrssi,
 		Timestamp: time.Unix(int64(packet.RxTime), 0),
 		IsUnread:  true,
 	}
