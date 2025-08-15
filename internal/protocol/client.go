@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -731,11 +730,7 @@ func (rc *RadioClient) handleTextMessageGomeshproto(packet *gomeshproto.MeshPack
 		return
 	}
 	
-	// Skip messages that look like configuration data (contains non-printable or binary-like patterns)
-	if rc.looksLikeConfigData(text) {
-		rc.logger.Debug("Skipping message that appears to be configuration data", "text_preview", text[:min(50, len(text))])
-		return
-	}
+	// Note: Removed unreliable text content filtering - rely on proper Meshtastic protocol port numbers instead
 	
 	// Determine chat ID
 	chatID := rc.getChatIDFromGomeshproto(packet)
@@ -1447,35 +1442,19 @@ func (rc *RadioClient) handleChannelGomeshproto(channel *gomeshproto.Channel) {
 			}
 		}
 		
-		// Create a system message indicating channel discovery
-		msg := &core.Message{
-			ChatID:    chatID,
-			SenderID:  "system", // Use system as sender for channel discovery
-			PortNum:   int(gomeshproto.PortNum_ADMIN_APP),
-			Text:      fmt.Sprintf("Channel '%s' discovered (encryption: %s)", channelName, getEncryptionStatusText(encryption)),
-			Timestamp: time.Now(),
-			IsUnread:  false, // Channel discovery messages are not marked as unread
-		}
-
 		rc.logger.Info("Creating chat for discovered channel", 
 			"chat_id", chatID, 
 			"channel_name", channelName,
 			"channel_index", channel.Index,
 			"encryption", encryption)
 
-		// Emit message received event to trigger chat creation
-		rc.events <- core.Event{
-			Type: core.EventMessageReceived,
-			Data: msg,
-		}
-		
-		// Also emit a chat encryption update event 
+		// Emit chat updated event directly instead of creating a fake message
 		rc.events <- core.Event{
 			Type: core.EventChatUpdated,
 			Data: map[string]interface{}{
-				"chat_id": chatID,
+				"chat_id":    chatID,
+				"title":      channelName,
 				"encryption": encryption,
-				"title": channelName,
 			},
 		}
 	}
@@ -1488,35 +1467,6 @@ func (rc *RadioClient) getChannelName(channel *gomeshproto.Channel) string {
 	return channel.Settings.Name
 }
 
-func (rc *RadioClient) looksLikeConfigData(text string) bool {
-	// Check for patterns that indicate configuration data rather than user messages
-	configIndicators := []string{
-		"wifi_password", "timezone", "channel_num", "psk", "encryption",
-		"frequency", "bandwidth", "spread_factor", "coding_rate",
-		"power", "region", "mesh", "bluetooth", "serial", "api",
-	}
-	
-	textLower := strings.ToLower(text)
-	for _, indicator := range configIndicators {
-		if strings.Contains(textLower, indicator) {
-			return true
-		}
-	}
-	
-	// Check for excessive non-printable characters (more than 10%)
-	nonPrintableCount := 0
-	for _, r := range text {
-		if r < 32 || r > 126 {
-			nonPrintableCount++
-		}
-	}
-	
-	if len(text) > 0 && float64(nonPrintableCount)/float64(len(text)) > 0.1 {
-		return true
-	}
-	
-	return false
-}
 
 func (rc *RadioClient) GetChannelName(channelIndex int32) string {
 	rc.channelDBMu.RLock()
@@ -1526,19 +1476,6 @@ func (rc *RadioClient) GetChannelName(channelIndex int32) string {
 		return rc.getChannelName(channel)
 	}
 	return ""
-}
-
-func getEncryptionStatusText(encryption int) string {
-	switch encryption {
-	case 0:
-		return "none"
-	case 1:
-		return "default"
-	case 2:
-		return "custom"
-	default:
-		return "unknown"
-	}
 }
 
 func (rc *RadioClient) updateNodeEncryptionFromMessage(node *core.Node, packet *gomeshproto.MeshPacket) {

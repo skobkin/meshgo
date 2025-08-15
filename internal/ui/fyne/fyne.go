@@ -110,14 +110,10 @@ func (f *FyneUI) setupUI() {
 	mainContent := container.NewBorder(nil, statusLabel, nil, nil, tabs)
 	f.window.SetContent(mainContent)
 	
-	// Handle window close - properly exit application
+	// Handle window close - hide to tray instead of exiting application
 	f.window.SetCloseIntercept(func() {
-		f.logger.Info("Window close requested - shutting down application")
-		if f.callbacks != nil && f.callbacks.OnExit != nil {
-			f.callbacks.OnExit()
-		} else {
-			f.app.Quit()
-		}
+		f.logger.Info("Window close requested - hiding to tray")
+		f.HideMain()
 	})
 }
 
