@@ -3,6 +3,8 @@ package fyne
 import (
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -28,6 +30,7 @@ type FyneUI struct {
 	connectionState core.ConnectionState
 	endpoint  string
 	windowVisible bool
+	selectedChatID string
 	
 	// Data bindings
 	statusBinding    binding.String
@@ -117,16 +120,15 @@ func (f *FyneUI) setupUI() {
 }
 
 func (f *FyneUI) createChatsTab() fyne.CanvasObject {
-	// Chats list on the left
+	// Chats list on the left with compact items
 	f.chatsList = widget.NewList(
 		func() int { return len(f.chats) },
 		func() fyne.CanvasObject {
-			return container.NewVBox(
-				container.NewHBox(
-					widget.NewLabel(""), // Chat title
-					widget.NewLabel("🔒"), // Encryption icon placeholder
-				),
-				widget.NewLabel(""), // Last message snippet
+			// Use a more compact layout - single row with title and icon
+			return container.NewBorder(
+				nil, nil, nil,
+				widget.NewLabel("🔒"), // Encryption icon on right
+				widget.NewLabel(""), // Chat title takes center space
 			)
 		},
 		f.updateChatItem,
@@ -134,17 +136,21 @@ func (f *FyneUI) createChatsTab() fyne.CanvasObject {
 	
 	// Chat selection handler
 	f.chatsList.OnSelected = func(id widget.ListItemID) {
-		// Convert chats map to slice for indexing
-		chats := make([]*ui.ChatViewModel, 0, len(f.chats))
-		for _, chat := range f.chats {
-			chats = append(chats, chat)
+		// Convert chats map to slice for indexing with consistent order
+		chatIDs := make([]string, 0, len(f.chats))
+		for chatID := range f.chats {
+			chatIDs = append(chatIDs, chatID)
 		}
+		// Sort to ensure consistent ordering (matches updateChatItem)
+		sort.Strings(chatIDs)
 		
-		if id < len(chats) {
-			chat := chats[id]
-			f.logger.Info("Chat selected", "chatID", chat.ID, "title", chat.Title)
-			// TODO: Load messages for this chat
-			f.messageArea.ParseMarkdown(fmt.Sprintf("**Selected chat:** %s\n\nMessages will be loaded here...", chat.Title))
+		if id < len(chatIDs) {
+			chatID := chatIDs[id]
+			if chat, exists := f.chats[chatID]; exists {
+				f.selectedChatID = chat.ID
+				f.logger.Info("Chat selected", "chatID", chat.ID, "title", chat.Title)
+				f.loadAndDisplayMessages(chat.ID, chat.Title)
+			}
 		}
 	}
 	
@@ -155,10 +161,16 @@ func (f *FyneUI) createChatsTab() fyne.CanvasObject {
 	messageEntry := widget.NewMultiLineEntry()
 	messageEntry.SetPlaceHolder("Type your message here...")
 	sendButton := widget.NewButton("Send", func() {
-		if f.callbacks != nil && f.callbacks.OnSendMessage != nil && messageEntry.Text != "" {
-			// For now, send to broadcast channel
-			f.callbacks.OnSendMessage("channel_0", messageEntry.Text)
-			messageEntry.SetText("")
+		if f.callbacks != nil && f.callbacks.OnSendMessage != nil && messageEntry.Text != "" && f.selectedChatID != "" {
+			if err := f.callbacks.OnSendMessage(f.selectedChatID, messageEntry.Text); err != nil {
+				f.logger.Error("Failed to send message", "error", err)
+			} else {
+				messageEntry.SetText("")
+				// Refresh the message display after sending
+				if chat, exists := f.chats[f.selectedChatID]; exists {
+					f.loadAndDisplayMessages(f.selectedChatID, chat.Title)
+				}
+			}
 		}
 	})
 	
@@ -166,14 +178,14 @@ func (f *FyneUI) createChatsTab() fyne.CanvasObject {
 	messagePane := container.NewBorder(nil, messageInput, nil, nil, 
 		container.NewScroll(f.messageArea))
 	
-	// Split layout: chat list on left, message pane on right
-	chatContent := container.NewHSplit(
-		container.NewVBox(
-			widget.NewLabel("Chats"),
-			f.chatsList,
-		),
-		messagePane,
+	// Split layout: use Border container for better space allocation
+	chatListSection := container.NewBorder(
+		widget.NewLabel("Chats"), // Fixed header
+		nil, nil, nil,
+		f.chatsList, // List takes remaining space
 	)
+	
+	chatContent := container.NewHSplit(chatListSection, messagePane)
 	chatContent.SetOffset(0.3) // 30% chat list, 70% messages
 	
 	return chatContent
@@ -207,16 +219,20 @@ func (f *FyneUI) createNodesTab() fyne.CanvasObject {
 	
 	// Double-click handler for opening DMs
 	f.nodesList.OnSelected = func(id widget.ListItemID) {
-		// Convert nodes map to slice for indexing
-		nodes := make([]*ui.NodeViewModel, 0, len(f.nodes))
-		for _, node := range f.nodes {
-			nodes = append(nodes, node)
+		// Convert nodes map to slice for indexing with consistent order
+		nodeIDs := make([]string, 0, len(f.nodes))
+		for nodeID := range f.nodes {
+			nodeIDs = append(nodeIDs, nodeID)
 		}
+		// Sort to ensure consistent ordering
+		sort.Strings(nodeIDs)
 		
-		if id < len(nodes) {
-			node := nodes[id]
-			if f.callbacks != nil && f.callbacks.OnOpenDirectMessage != nil {
-				f.callbacks.OnOpenDirectMessage(node.ID)
+		if id < len(nodeIDs) {
+			nodeID := nodeIDs[id]
+			if node, exists := f.nodes[nodeID]; exists {
+				if f.callbacks != nil && f.callbacks.OnOpenDirectMessage != nil {
+					f.callbacks.OnOpenDirectMessage(node.ID)
+				}
 			}
 		}
 	}
@@ -284,7 +300,36 @@ func (f *FyneUI) createSettingsTab() fyne.CanvasObject {
 	// Diagnostics section
 	f.diagnosticsLabel = widget.NewLabel("Connection status: Disconnected\nLast error: None")
 	f.updateDiagnostics()
-	diagnosticsCard := widget.NewCard("Diagnostics", "", f.diagnosticsLabel)
+	
+	// Clear data buttons
+	clearChatsButton := widget.NewButton("Clear chats", func() {
+		if f.callbacks != nil && f.callbacks.OnClearChats != nil {
+			if err := f.callbacks.OnClearChats(); err != nil {
+				dialog.ShowError(err, f.window)
+			} else {
+				dialog.ShowInformation("Success", "All chats and messages have been cleared", f.window)
+			}
+		}
+	})
+	
+	clearNodesButton := widget.NewButton("Clear nodes", func() {
+		if f.callbacks != nil && f.callbacks.OnClearNodes != nil {
+			if err := f.callbacks.OnClearNodes(); err != nil {
+				dialog.ShowError(err, f.window)
+			} else {
+				dialog.ShowInformation("Success", "All nodes have been cleared", f.window)
+			}
+		}
+	})
+	
+	diagnosticsContent := container.NewVBox(
+		f.diagnosticsLabel,
+		widget.NewSeparator(),
+		widget.NewLabel("Data Management:"),
+		container.NewHBox(clearChatsButton, clearNodesButton),
+	)
+	
+	diagnosticsCard := widget.NewCard("Diagnostics", "", diagnosticsContent)
 	
 	settingsContent := container.NewScroll(
 		container.NewVBox(
@@ -343,17 +388,23 @@ func (f *FyneUI) handleConnectButton() {
 }
 
 func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
-	// Convert nodes map to slice for indexing
-	nodes := make([]*ui.NodeViewModel, 0, len(f.nodes))
-	for _, node := range f.nodes {
-		nodes = append(nodes, node)
+	// Convert nodes map to slice for indexing with consistent order
+	nodeIDs := make([]string, 0, len(f.nodes))
+	for nodeID := range f.nodes {
+		nodeIDs = append(nodeIDs, nodeID)
 	}
+	// Sort to ensure consistent ordering (matches OnSelected)
+	sort.Strings(nodeIDs)
 	
-	if i >= len(nodes) {
+	if i >= len(nodeIDs) {
 		return
 	}
 	
-	node := nodes[i]
+	nodeID := nodeIDs[i]
+	node, exists := f.nodes[nodeID]
+	if !exists {
+		return
+	}
 	vbox := obj.(*fyne.Container)
 	
 	if len(vbox.Objects) >= 2 {
@@ -429,51 +480,47 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 }
 
 func (f *FyneUI) updateChatItem(i widget.ListItemID, obj fyne.CanvasObject) {
-	// Convert chats map to slice for indexing
-	chats := make([]*ui.ChatViewModel, 0, len(f.chats))
-	for _, chat := range f.chats {
-		chats = append(chats, chat)
+	// Convert chats map to slice for indexing with consistent order
+	chatIDs := make([]string, 0, len(f.chats))
+	for chatID := range f.chats {
+		chatIDs = append(chatIDs, chatID)
 	}
+	// Sort to ensure consistent ordering (matches OnSelected)
+	sort.Strings(chatIDs)
 	
-	if i >= len(chats) {
+	if i >= len(chatIDs) {
 		return
 	}
 	
-	chat := chats[i]
-	vbox := obj.(*fyne.Container)
+	chatID := chatIDs[i]
+	chat, exists := f.chats[chatID]
+	if !exists {
+		return
+	}
+	borderContainer := obj.(*fyne.Container)
 	
-	if len(vbox.Objects) >= 2 {
-		// First row: title and encryption icon
-		titleRow := vbox.Objects[0].(*fyne.Container)
-		if len(titleRow.Objects) >= 2 {
-			titleRow.Objects[0].(*widget.Label).SetText(chat.Title)
-			// Set encryption icon based on chat encryption status
-			encryptionIcon := "🔓" // Default: unencrypted
-			if chat.Chat != nil {
-				switch chat.Chat.Encryption {
-				case 1: // Default key
-					encryptionIcon = "🔒"
-				case 2: // Custom key
-					encryptionIcon = "🔑"
-				default: // Unencrypted
-					encryptionIcon = "🔓"
-				}
-			}
-			titleRow.Objects[1].(*widget.Label).SetText(encryptionIcon)
-		}
-		
-		// Second row: last message snippet
-		lastMessageText := "No messages"
-		if chat.LastMessage != nil && chat.LastMessage.Text != "" {
-			lastMessageText = chat.LastMessage.Text
-			if len(lastMessageText) > 50 {
-				lastMessageText = lastMessageText[:47] + "..."
-			}
-		}
+	// The border container has center (title) and right (encryption icon) objects
+	if len(borderContainer.Objects) >= 2 {
+		// Center: chat title with unread indicator
+		titleText := chat.Title
 		if chat.UnreadCount > 0 {
-			lastMessageText += fmt.Sprintf(" (%d unread)", chat.UnreadCount)
+			titleText += fmt.Sprintf(" (%d)", chat.UnreadCount)
 		}
-		vbox.Objects[1].(*widget.Label).SetText(lastMessageText)
+		borderContainer.Objects[0].(*widget.Label).SetText(titleText)
+		
+		// Right: encryption icon
+		encryptionIcon := "🔓" // Default: unencrypted
+		if chat.Chat != nil {
+			switch chat.Chat.Encryption {
+			case 1: // Default key
+				encryptionIcon = "🔒"
+			case 2: // Custom key
+				encryptionIcon = "🔑"
+			default: // Unencrypted
+				encryptionIcon = "🔓"
+			}
+		}
+		borderContainer.Objects[1].(*widget.Label).SetText(encryptionIcon)
 	}
 }
 
@@ -559,16 +606,30 @@ func (f *FyneUI) ShowTrayNotification(title, body string) error {
 }
 
 func (f *FyneUI) UpdateChats(chats []*core.Chat) {
+	f.logger.Debug("Fyne UI: Updating chats", "count", len(chats))
+	
 	f.chats = make(map[string]*ui.ChatViewModel)
 	for _, chat := range chats {
+		f.logger.Debug("Fyne UI: Adding chat", "id", chat.ID, "title", chat.Title, "unread", chat.UnreadCount)
 		vm := ui.ChatToViewModel(chat, nil, nil)
 		f.chats[chat.ID] = vm
 	}
 	
 	if f.chatsList != nil {
+		f.logger.Debug("Fyne UI: Refreshing chat list")
 		fyne.Do(func() {
 			f.chatsList.Refresh()
 		})
+	} else {
+		f.logger.Debug("Fyne UI: Chat list widget is nil - not refreshing")
+	}
+	
+	// If a chat is currently selected, refresh its messages to show new ones
+	if f.selectedChatID != "" {
+		f.logger.Debug("Fyne UI: Refreshing currently selected chat", "chat_id", f.selectedChatID)
+		if chat, exists := f.chats[f.selectedChatID]; exists {
+			f.loadAndDisplayMessages(f.selectedChatID, chat.Title)
+		}
 	}
 }
 
@@ -659,6 +720,63 @@ func (f *FyneUI) ShowInfo(title, message string) {
 
 func (f *FyneUI) SetEventCallbacks(callbacks *ui.EventCallbacks) {
 	f.callbacks = callbacks
+}
+
+func (f *FyneUI) loadAndDisplayMessages(chatID, chatTitle string) {
+	if f.callbacks == nil || f.callbacks.OnLoadChatMessages == nil {
+		f.logger.Warn("No message loading callback available")
+		f.messageArea.ParseMarkdown(fmt.Sprintf("**%s**\n\nMessage loading not available", chatTitle))
+		return
+	}
+	
+	// Load messages from backend
+	messages, err := f.callbacks.OnLoadChatMessages(chatID)
+	if err != nil {
+		f.logger.Error("Failed to load messages", "error", err, "chat_id", chatID)
+		f.messageArea.ParseMarkdown(fmt.Sprintf("**%s**\n\nError loading messages: %v", chatTitle, err))
+		return
+	}
+	
+	// Display messages in markdown format
+	var messageText strings.Builder
+	messageText.WriteString(fmt.Sprintf("# %s\n\n", chatTitle))
+	
+	if len(messages) == 0 {
+		messageText.WriteString("*No messages yet*\n")
+	} else {
+		// Reverse messages to show oldest first (GetMessages returns newest first)
+		for i := len(messages) - 1; i >= 0; i-- {
+			msg := messages[i]
+			timestamp := msg.Timestamp.Format("15:04")
+			
+			// Get sender name from the message's sender ID
+			senderName := msg.SenderID
+			if f.callbacks != nil && f.callbacks.OnGetNodeName != nil {
+				// Look up the actual node name
+				nodeName := f.callbacks.OnGetNodeName(msg.SenderID)
+				if nodeName != "" && nodeName != msg.SenderID {
+					senderName = nodeName
+				}
+			}
+			
+			// If still using raw ID, truncate for display
+			if senderName == msg.SenderID && len(senderName) > 8 {
+				senderName = senderName[:8] // Truncate long IDs
+			}
+			
+			if strings.HasPrefix(chatID, "channel_") {
+				// For channel messages, show sender name
+				messageText.WriteString(fmt.Sprintf("**%s** %s: %s\n\n", senderName, timestamp, msg.Text))
+			} else {
+				// For direct messages, just show time and message
+				messageText.WriteString(fmt.Sprintf("**%s**: %s\n\n", timestamp, msg.Text))
+			}
+		}
+	}
+	
+	f.messageArea.ParseMarkdown(messageText.String())
+	
+	f.logger.Debug("Displayed messages", "chat_id", chatID, "count", len(messages))
 }
 
 func (f *FyneUI) GetApp() fyne.App {

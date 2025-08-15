@@ -6,6 +6,7 @@ require (
 	fyne.io/fyne/v2 v2.6.2
 	github.com/gen2brain/beeep v0.11.1
 	go.bug.st/serial v1.6.4
+	google.golang.org/protobuf v1.36.7
 	modernc.org/sqlite v1.38.2
 )
 
@@ -55,7 +56,6 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
-	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

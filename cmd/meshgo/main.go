@@ -262,6 +262,12 @@ func (app *App) handleRadioEvent(event core.Event) {
 		} else {
 			app.logger.Debug("Received EventNodeUpdated with invalid data", "data", event.Data)
 		}
+	case core.EventChatUpdated:
+		if chatData, ok := event.Data.(map[string]interface{}); ok {
+			app.handleChatUpdated(chatData)
+		} else {
+			app.logger.Debug("Received EventChatUpdated with invalid data", "data", event.Data)
+		}
 	}
 }
 
@@ -284,23 +290,64 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 		app.logger.Error("Failed to save message", "error", err)
 		return
 	}
+	app.logger.Debug("Message saved to database", "chat_id", msg.ChatID)
+	
+	// Update chat title with real channel name if it's a channel message
+	app.updateChatTitle(msg.ChatID)
 
 	// Update unread counts
 	app.updateUnreadCounts()
 
 	// Send notification
 	if msg.IsUnread {
-		chatTitle := msg.ChatID
+		var notificationTitle string
+		var senderName string
+		
+		// Get sender name for the message content
 		if node, _ := app.storage.GetNode(app.ctx, msg.SenderID); node != nil {
-			chatTitle = node.LongName
-			if chatTitle == "" {
-				chatTitle = node.ShortName
+			senderName = node.LongName
+			if senderName == "" {
+				senderName = node.ShortName
 			}
 		}
-
-		if err := app.notifier.NotifyNewMessage(msg.ChatID, chatTitle, msg.Text, msg.Timestamp); err != nil {
-			app.logger.Warn("Failed to send notification", "error", err)
+		if senderName == "" {
+			senderName = msg.SenderID // fallback to ID
 		}
+		
+		// Generate notification title based on chat type
+		if strings.HasPrefix(msg.ChatID, "channel_") {
+			// For channel messages, get real channel name from RadioClient
+			channelNum := strings.TrimPrefix(msg.ChatID, "channel_")
+			if channelIndex, err := strconv.ParseInt(channelNum, 10, 32); err == nil {
+				realChannelName := app.radioClient.GetChannelName(int32(channelIndex))
+				if realChannelName != "" {
+					notificationTitle = realChannelName
+				} else {
+					// Fallback to generic name if channel name not available yet
+					notificationTitle = fmt.Sprintf("Channel %s", channelNum)
+				}
+			} else {
+				notificationTitle = fmt.Sprintf("Channel %s", channelNum)
+			}
+		} else {
+			// For direct messages, show sender name as title
+			notificationTitle = senderName
+		}
+		
+		// For channel messages, prepend sender name to message text
+		notificationText := msg.Text
+		if strings.HasPrefix(msg.ChatID, "channel_") {
+			notificationText = fmt.Sprintf("%s: %s", senderName, msg.Text)
+		}
+
+		app.logger.Debug("Sending notification", "title", notificationTitle, "text", notificationText)
+		if err := app.notifier.NotifyNewMessage(msg.ChatID, notificationTitle, notificationText, msg.Timestamp); err != nil {
+			app.logger.Warn("Failed to send notification", "error", err)
+		} else {
+			app.logger.Debug("Notification sent successfully")
+		}
+	} else {
+		app.logger.Debug("Message is not marked as unread - skipping notification")
 	}
 
 	// Refresh chats UI
@@ -310,8 +357,11 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 func (app *App) handleNodeUpdated(node *core.Node) {
 	app.logger.Debug("Node updated", "id", node.ID, "name", node.LongName)
 
-	// Don't save nodes to database - keep them only in memory for live mesh data
-	// Only save to DB if needed for chat identity mapping
+	// Save nodes to database to support favorites and persistent node info
+	if err := app.storage.SaveNode(app.ctx, node); err != nil {
+		app.logger.Debug("Failed to save node to database", "error", err, "node_id", node.ID)
+		// Don't fail the whole operation if database save fails
+	}
 	
 	// Refresh nodes UI
 	app.refreshNodes()
@@ -325,6 +375,7 @@ func (app *App) updateUnreadCounts() {
 	}
 
 	hasUnread := totalUnread > 0
+	app.logger.Debug("Updated unread counts", "total_unread", totalUnread, "has_unread", hasUnread)
 	app.ui.SetTrayBadge(hasUnread)
 }
 
@@ -333,6 +384,11 @@ func (app *App) refreshChats() {
 	if err != nil {
 		app.logger.Error("Failed to load chats", "error", err)
 		return
+	}
+	
+	app.logger.Debug("Refreshing chats", "chat_count", len(chats))
+	for _, chat := range chats {
+		app.logger.Debug("Chat found", "id", chat.ID, "title", chat.Title, "unread", chat.UnreadCount)
 	}
 	
 	app.ui.UpdateChats(chats)
@@ -350,11 +406,64 @@ func (app *App) loadInitialData() {
 	app.updateUnreadCounts()
 }
 
+func (app *App) updateChatTitle(chatID string) {
+	if !strings.HasPrefix(chatID, "channel_") {
+		return // Only update channel chat titles
+	}
+	
+	channelNum := strings.TrimPrefix(chatID, "channel_")
+	if channelIndex, err := strconv.ParseInt(channelNum, 10, 32); err == nil {
+		realChannelName := app.radioClient.GetChannelName(int32(channelIndex))
+		if realChannelName != "" {
+			// Update the chat title in database
+			if err := app.storage.UpdateChatTitle(app.ctx, chatID, realChannelName); err != nil {
+				app.logger.Debug("Failed to update chat title", "error", err, "chat_id", chatID, "title", realChannelName)
+			} else {
+				app.logger.Debug("Updated chat title", "chat_id", chatID, "title", realChannelName)
+			}
+		}
+	}
+}
+
+func (app *App) handleChatUpdated(chatData map[string]interface{}) {
+	chatID, _ := chatData["chat_id"].(string)
+	encryption, _ := chatData["encryption"].(int)
+	title, _ := chatData["title"].(string)
+	
+	app.logger.Debug("Handling chat update", "chat_id", chatID, "encryption", encryption, "title", title)
+	
+	if chatID == "" {
+		app.logger.Debug("Chat update missing chat_id")
+		return
+	}
+	
+	// Update chat encryption in database
+	if err := app.storage.UpdateChatEncryption(app.ctx, chatID, encryption); err != nil {
+		app.logger.Error("Failed to update chat encryption", "error", err, "chat_id", chatID, "encryption", encryption)
+	} else {
+		app.logger.Debug("Updated chat encryption", "chat_id", chatID, "encryption", encryption)
+	}
+	
+	// Update chat title if provided
+	if title != "" {
+		if err := app.storage.UpdateChatTitle(app.ctx, chatID, title); err != nil {
+			app.logger.Error("Failed to update chat title", "error", err, "chat_id", chatID, "title", title)
+		} else {
+			app.logger.Debug("Updated chat title", "chat_id", chatID, "title", title)
+		}
+	}
+	
+	// Refresh chats UI to show updated encryption indicators
+	app.refreshChats()
+}
+
 func (app *App) setupUICallbacks() {
 	callbacks := &ui.EventCallbacks{
 		OnConnect:    app.handleConnect,
 		OnDisconnect: app.handleDisconnect,
 		OnSendMessage: app.handleSendMessage,
+		OnLoadChatMessages: app.handleLoadChatMessages,
+		OnGetNodeName: app.handleGetNodeName,
 		OnToggleNodeFavorite: app.handleToggleNodeFavorite,
 		OnTraceroute: app.handleTraceroute,
 		OnUpdateNotifications: app.handleUpdateNotifications,
@@ -362,6 +471,8 @@ func (app *App) setupUICallbacks() {
 		OnWindowVisibilityChanged: func(visible bool) {
 			app.tray.SetWindowVisible(visible)
 		},
+		OnClearChats: app.handleClearChats,
+		OnClearNodes: app.handleClearNodes,
 	}
 	
 	app.ui.SetEventCallbacks(callbacks)
@@ -491,20 +602,92 @@ func (app *App) handleSendMessage(chatID, text string) error {
 	return app.radioClient.SendText(sendCtx, chatID, nodeID, text)
 }
 
-func (app *App) handleToggleNodeFavorite(nodeID string) error {
-	node, err := app.storage.GetNode(app.ctx, nodeID)
+func (app *App) handleLoadChatMessages(chatID string) ([]*core.Message, error) {
+	// Load messages from database with reasonable limit
+	messages, err := app.storage.GetMessages(app.ctx, chatID, 50, 0)
 	if err != nil {
-		return fmt.Errorf("failed to get node: %w", err)
+		app.logger.Error("Failed to load chat messages", "error", err, "chat_id", chatID)
+		return nil, fmt.Errorf("failed to load messages: %w", err)
+	}
+	
+	app.logger.Debug("Loaded chat messages", "chat_id", chatID, "count", len(messages))
+	
+	// Mark messages as read when loading them
+	if err := app.storage.MarkAsRead(app.ctx, chatID); err != nil {
+		app.logger.Warn("Failed to mark messages as read", "error", err, "chat_id", chatID)
+	}
+	
+	// Update unread counts after marking as read
+	app.updateUnreadCounts()
+	
+	return messages, nil
+}
+
+func (app *App) handleGetNodeName(nodeID string) string {
+	// First try to get from radio client (live nodes)
+	nodes := app.radioClient.GetNodes()
+	for _, node := range nodes {
+		if node.ID == nodeID {
+			if node.LongName != "" {
+				return node.LongName
+			}
+			if node.ShortName != "" {
+				return node.ShortName
+			}
+		}
+	}
+	
+	// Fallback to database
+	if node, err := app.storage.GetNode(app.ctx, nodeID); err == nil && node != nil {
+		if node.LongName != "" {
+			return node.LongName
+		}
+		if node.ShortName != "" {
+			return node.ShortName
+		}
+	}
+	
+	// If it's our own node, check radio client's own node ID
+	if ownID := fmt.Sprintf("%d", app.radioClient.GetOwnNodeID()); ownID == nodeID {
+		return "You"
+	}
+	
+	// Fallback to nodeID if no name found
+	return nodeID
+}
+
+func (app *App) handleToggleNodeFavorite(nodeID string) error {
+	// First try to get from live nodes
+	nodes := app.radioClient.GetNodes()
+	var targetNode *core.Node
+	for _, node := range nodes {
+		if node.ID == nodeID {
+			targetNode = node
+			break
+		}
+	}
+	
+	// Fallback to database if not in live nodes
+	if targetNode == nil {
+		var err error
+		targetNode, err = app.storage.GetNode(app.ctx, nodeID)
+		if err != nil {
+			return fmt.Errorf("failed to get node: %w", err)
+		}
+		if targetNode == nil {
+			return fmt.Errorf("node not found: %s", nodeID)
+		}
 	}
 
-	if node == nil {
-		return fmt.Errorf("node not found: %s", nodeID)
-	}
-
-	newFavorite := !node.Favorite
+	newFavorite := !targetNode.Favorite
+	
+	// Update in database
 	if err := app.storage.UpdateNodeFavorite(app.ctx, nodeID, newFavorite); err != nil {
-		return fmt.Errorf("failed to update favorite: %w", err)
+		return fmt.Errorf("failed to update favorite in database: %w", err)
 	}
+	
+	// Also update the in-memory version
+	targetNode.Favorite = newFavorite
 
 	app.logger.Info("Node favorite toggled", "node", nodeID, "favorite", newFavorite)
 	app.refreshNodes()
@@ -531,6 +714,39 @@ func (app *App) handleTraceroute(nodeID string) error {
 func (app *App) handleUpdateNotifications(enabled bool) error {
 	app.notifier.SetEnabled(enabled)
 	return app.configMgr.UpdateNotifications(enabled)
+}
+
+func (app *App) handleClearChats() error {
+	app.logger.Info("Clear chats requested")
+	
+	if err := app.storage.ClearAllChats(app.ctx); err != nil {
+		app.logger.Error("Failed to clear chats", "error", err)
+		return fmt.Errorf("failed to clear chats: %w", err)
+	}
+	
+	app.logger.Info("All chats cleared successfully")
+	
+	// Refresh UI after clearing
+	app.refreshChats()
+	app.updateUnreadCounts()
+	
+	return nil
+}
+
+func (app *App) handleClearNodes() error {
+	app.logger.Info("Clear nodes requested")
+	
+	if err := app.storage.ClearAllNodes(app.ctx); err != nil {
+		app.logger.Error("Failed to clear nodes", "error", err)
+		return fmt.Errorf("failed to clear nodes: %w", err)
+	}
+	
+	app.logger.Info("All nodes cleared successfully")
+	
+	// Refresh UI after clearing
+	app.refreshNodes()
+	
+	return nil
 }
 
 func (app *App) handleExit() {

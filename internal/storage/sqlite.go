@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"meshgo/internal/core"
@@ -224,7 +225,7 @@ func (s *SQLiteStore) GetTotalUnreadCount(ctx context.Context) (int, error) {
 }
 
 func (s *SQLiteStore) updateChatAfterMessage(ctx context.Context, msg *core.Message) error {
-	// Insert or update chat record
+	// Insert or update chat record - encryption will be updated by UpdateChatEncryption later
 	query := `
 INSERT INTO chats (id, title, encryption, last_message_ts, unread_count, is_channel)
 VALUES (?, ?, 0, ?, 1, ?)
@@ -233,7 +234,22 @@ ON CONFLICT(id) DO UPDATE SET
     unread_count = unread_count + CASE WHEN excluded.unread_count > 0 THEN 1 ELSE 0 END
 `
 	isChannel := msg.ChatID != msg.SenderID // Simple heuristic
-	_, err := s.db.ExecContext(ctx, query, msg.ChatID, msg.ChatID, 
+	
+	// Generate human-readable chat title
+	// Note: This will use a placeholder title since we don't have access to RadioClient here
+	// The real channel name will be set when we have proper channel configuration
+	var chatTitle string
+	if strings.HasPrefix(msg.ChatID, "channel_") {
+		// Extract channel number - will be updated with real name later
+		channelNum := strings.TrimPrefix(msg.ChatID, "channel_")
+		chatTitle = fmt.Sprintf("Channel %s", channelNum)
+	} else {
+		// For direct messages, use the chat ID as title for now
+		// TODO: Could be improved by looking up node name
+		chatTitle = msg.ChatID
+	}
+	
+	_, err := s.db.ExecContext(ctx, query, msg.ChatID, chatTitle, 
 		msg.Timestamp.Unix(), isChannel)
 	
 	return err
@@ -445,6 +461,48 @@ func (s *SQLiteStore) GetInt(key string, defaultVal int) int {
 
 func (s *SQLiteStore) SetInt(key string, value int) error {
 	return s.Set(key, strconv.Itoa(value))
+}
+
+func (s *SQLiteStore) UpdateChatTitle(ctx context.Context, chatID, title string) error {
+	query := `UPDATE chats SET title = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, title, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to update chat title: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) UpdateChatEncryption(ctx context.Context, chatID string, encryption int) error {
+	query := `UPDATE chats SET encryption = ? WHERE id = ?`
+	_, err := s.db.ExecContext(ctx, query, encryption, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to update chat encryption: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteStore) ClearAllChats(ctx context.Context) error {
+	// Clear messages first due to foreign key constraints
+	_, err := s.db.ExecContext(ctx, `DELETE FROM messages`)
+	if err != nil {
+		return fmt.Errorf("failed to clear messages: %w", err)
+	}
+	
+	// Then clear chats
+	_, err = s.db.ExecContext(ctx, `DELETE FROM chats`)
+	if err != nil {
+		return fmt.Errorf("failed to clear chats: %w", err)
+	}
+	
+	return nil
+}
+
+func (s *SQLiteStore) ClearAllNodes(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM nodes`)
+	if err != nil {
+		return fmt.Errorf("failed to clear nodes: %w", err)
+	}
+	return nil
 }
 
 func (s *SQLiteStore) GetAllChats(ctx context.Context) ([]*core.Chat, error) {

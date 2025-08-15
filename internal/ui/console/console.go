@@ -113,15 +113,31 @@ func (c *ConsoleUI) SetTrayBadge(hasUnread bool) {
 }
 
 func (c *ConsoleUI) ShowTrayNotification(title, body string) error {
-	fmt.Printf("[NOTIFICATION] %s: %s\n", title, body)
+	fmt.Println("\n🔔 ============ NEW MESSAGE ============ 🔔")
+	fmt.Printf("From: %s\n", title)
+	fmt.Printf("Message: %s\n", body)
+	fmt.Println("======================================")
+	fmt.Print("> ") // Restore command prompt
 	return nil
 }
 
 func (c *ConsoleUI) UpdateChats(chats []*core.Chat) {
 	fmt.Printf("Updated %d chats\n", len(chats))
-	for _, chat := range chats {
-		vm := ui.ChatToViewModel(chat, nil, nil)
-		c.chats[chat.ID] = vm
+	
+	// Display chat summary with unread counts
+	if len(chats) > 0 {
+		fmt.Println("=== CHATS ===")
+		for _, chat := range chats {
+			unreadIndicator := ""
+			if chat.UnreadCount > 0 {
+				unreadIndicator = fmt.Sprintf(" [%d UNREAD]", chat.UnreadCount)
+			}
+			fmt.Printf("📱 %s%s\n", chat.Title, unreadIndicator)
+			
+			vm := ui.ChatToViewModel(chat, nil, nil)
+			c.chats[chat.ID] = vm
+		}
+		fmt.Println("===============")
 	}
 }
 

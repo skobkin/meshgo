@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"meshgo/internal/core"
 )
 
@@ -41,6 +43,8 @@ type EventCallbacks struct {
 	// Message events  
 	OnSendMessage func(chatID, text string) error
 	OnMarkChatRead func(chatID string) error
+	OnLoadChatMessages func(chatID string) ([]*core.Message, error)
+	OnGetNodeName func(nodeID string) string
 	
 	// Node events
 	OnToggleNodeFavorite  func(nodeID string) error
@@ -60,6 +64,10 @@ type EventCallbacks struct {
 	// Application events
 	OnExit func()
 	OnWindowVisibilityChanged func(visible bool)
+	
+	// Maintenance events
+	OnClearChats func() error
+	OnClearNodes func() error
 }
 
 // Chat represents a chat/conversation for the UI
@@ -143,28 +151,27 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 		Node: node,
 	}
 	
-	// Calculate signal bars (0-3)
-	switch core.CalculateSignalQuality(node.RSSI, node.SNR) {
-	case core.SignalGood:
-		vm.SignalBars = 3
-	case core.SignalFair:
-		vm.SignalBars = 2
-	case core.SignalBad:
-		vm.SignalBars = 1
-	default:
-		vm.SignalBars = 0
-	}
+	// Online status (node heard in last 5 minutes)
+	vm.IsOnline = node.LastHeard.After(time.Now().Add(-5 * time.Minute))
 	
-	// Status text
-	switch core.CalculateSignalQuality(node.RSSI, node.SNR) {
-	case core.SignalGood:
-		vm.StatusText = "Good"
-	case core.SignalFair:
-		vm.StatusText = "Fair" 
-	case core.SignalBad:
-		vm.StatusText = "Poor"
-	default:
-		vm.StatusText = "No signal"
+	// Calculate signal quality for all nodes
+	if vm.IsOnline {
+		// Node is online - calculate signal quality from RSSI/SNR values
+		switch core.CalculateSignalQuality(node.RSSI, node.SNR) {
+		case core.SignalGood:
+			vm.SignalBars = 3
+			vm.StatusText = "Good"
+		case core.SignalFair:
+			vm.SignalBars = 2
+			vm.StatusText = "Fair" 
+		case core.SignalBad:
+			vm.SignalBars = 1
+			vm.StatusText = "Poor"
+		}
+	} else {
+		// Node not heard recently
+		vm.SignalBars = 0
+		vm.StatusText = "Offline"
 	}
 	
 	// Battery percentage
@@ -174,9 +181,6 @@ func NodeToViewModel(node *core.Node) *NodeViewModel {
 			vm.BatteryPercent = 100 // Cap at 100% for display
 		}
 	}
-	
-	// Online status (node heard in last 5 minutes)
-	vm.IsOnline = node.LastHeard.After(node.LastHeard.Add(-5 * 60 * 1000 * 1000 * 1000)) // 5 minutes in nanoseconds
 	
 	return vm
 }
