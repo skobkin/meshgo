@@ -108,11 +108,21 @@ func (sq SignalQuality) String() string {
 }
 
 func CalculateSignalQuality(rssi int, snr float32) SignalQuality {
-	if snr >= 8.0 && rssi >= -95 {
+	// If we have no signal info, it means the node is offline/not heard recently
+	if rssi == 0 && snr == 0 {
+		return SignalBad // Offline/no signal
+	}
+	
+	// Good signal: Close range nodes (-30 to -70 dBm) or strong SNR
+	if rssi >= -70 || snr >= 0 {
 		return SignalGood
-	} else if snr >= 2.0 && rssi >= -110 {
+	}
+	
+	// Fair signal: Moderate range (-70 to -100 dBm) with decent SNR
+	if rssi >= -100 && snr >= -10 {
 		return SignalFair
 	}
+	
 	return SignalBad
 }
 

@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
 	"meshgo/internal/core"
@@ -44,7 +45,7 @@ type FyneUI struct {
 func NewFyneUI(logger *slog.Logger) *FyneUI {
 	fyneApp := app.NewWithID("com.meshgo.app")
 	
-	// Disable icon to avoid loading errors (no icon assets available)
+	// For now, disable icon to avoid corruption issues - system tray will handle it
 	fyneApp.SetIcon(nil)
 	
 	window := fyneApp.NewWindow("MeshGo - Meshtastic GUI")
@@ -60,6 +61,20 @@ func NewFyneUI(logger *slog.Logger) *FyneUI {
 		statusBinding: binding.NewString(),
 		windowVisible: true, // Window starts visible
 	}
+
+	// Add keyboard shortcut to quit when tray doesn't work (Ctrl+Q)
+	ctrlQ := &desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}
+	window.Canvas().AddShortcut(ctrlQ, func(shortcut fyne.Shortcut) {
+		// Use the exit callback to ensure proper shutdown sequence
+		logger.Info("Ctrl+Q pressed - initiating shutdown")
+		if ui.callbacks != nil && ui.callbacks.OnExit != nil {
+			ui.callbacks.OnExit()
+		} else {
+			// Fallback: force quit the app
+			logger.Info("No exit callback - force quitting")
+			fyneApp.Quit()
+		}
+	})
 	
 	ui.setupUI()
 	return ui
@@ -90,14 +105,13 @@ func (f *FyneUI) setupUI() {
 	mainContent := container.NewBorder(nil, statusLabel, nil, nil, tabs)
 	f.window.SetContent(mainContent)
 	
-	// Handle window close - minimize to tray instead of exit
+	// Handle window close - properly exit application
 	f.window.SetCloseIntercept(func() {
-		f.logger.Info("Window close requested - minimizing to tray")
-		f.window.Hide()
-		f.windowVisible = false
-		// Notify tray about visibility change via callback
-		if f.callbacks != nil && f.callbacks.OnWindowVisibilityChanged != nil {
-			f.callbacks.OnWindowVisibilityChanged(false)
+		f.logger.Info("Window close requested - shutting down application")
+		if f.callbacks != nil && f.callbacks.OnExit != nil {
+			f.callbacks.OnExit()
+		} else {
+			f.app.Quit()
 		}
 	})
 }
@@ -117,6 +131,22 @@ func (f *FyneUI) createChatsTab() fyne.CanvasObject {
 		},
 		f.updateChatItem,
 	)
+	
+	// Chat selection handler
+	f.chatsList.OnSelected = func(id widget.ListItemID) {
+		// Convert chats map to slice for indexing
+		chats := make([]*ui.ChatViewModel, 0, len(f.chats))
+		for _, chat := range f.chats {
+			chats = append(chats, chat)
+		}
+		
+		if id < len(chats) {
+			chat := chats[id]
+			f.logger.Info("Chat selected", "chatID", chat.ID, "title", chat.Title)
+			// TODO: Load messages for this chat
+			f.messageArea.ParseMarkdown(fmt.Sprintf("**Selected chat:** %s\n\nMessages will be loaded here...", chat.Title))
+		}
+	}
 	
 	// Message area and input on the right
 	f.messageArea = widget.NewRichText()
@@ -191,10 +221,16 @@ func (f *FyneUI) createNodesTab() fyne.CanvasObject {
 		}
 	}
 	
-	nodesContent := container.NewVBox(
-		widget.NewLabel("Nodes"),
-		filterEntry,
-		f.nodesList,
+	// Use BorderContainer to give the list most of the space
+	nodesContent := container.NewBorder(
+		container.NewVBox(
+			widget.NewLabel("Nodes"),
+			filterEntry,
+		), // top
+		nil, // bottom
+		nil, // left  
+		nil, // right
+		f.nodesList, // center (takes remaining space)
 	)
 	
 	return nodesContent

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"meshgo/internal/core"
 )
@@ -271,157 +272,47 @@ func (rc *RadioClient) readLoop(ctx context.Context) {
 	rc.logger.Info("Read loop stopped")
 }
 
-func (rc *RadioClient) parsePacketManually(data []byte) {
-	if len(data) < 2 {
-		return
-	}
-	
-	// Basic protobuf field parsing
-	// Check for common field patterns in the first few bytes
-	if len(data) >= 4 {
-		// Look for NodeInfo patterns (field 4 in FromRadio = 0x22)
-		if data[0] == 0x22 {
-			rc.logger.Info("Detected NodeInfo packet", "size", len(data))
-			rc.extractNodeInfo(data[1:])
-		} else if data[0] == 0x1a {
-			// field 3 (MyInfo) = 0x1a
-			rc.logger.Info("Detected MyNodeInfo packet", "size", len(data))
-		} else if data[0] == 0x12 {
-			// field 2 (MeshPacket) = 0x12
-			rc.logger.Info("Detected MeshPacket", "size", len(data))
-			rc.extractMeshPacketData(data[1:])
-		} else {
-			rc.logger.Info("Unknown packet type - analyzing for message content", "first_byte", fmt.Sprintf("0x%02x", data[0]), "hex", fmt.Sprintf("%x", data[:min(32, len(data))]))
-			// Try to extract any readable text from unknown packets too
-			rc.extractMeshPacketData(data)
-		}
-	}
-}
 
-func (rc *RadioClient) extractNodeInfo(data []byte) {
-	// Extract readable strings from NodeInfo data with better filtering
-	var nodeNames []string
-	var current []byte
-	
-	for _, b := range data {
-		if b >= 32 && b <= 126 { // printable ASCII
-			current = append(current, b)
-		} else {
-			if len(current) > 3 {
-				name := string(current)
-				// Clean and filter for reasonable node names
-				cleanName := rc.cleanNodeName(name)
-				if cleanName != "" && rc.isValidNodeName(cleanName) {
-					nodeNames = append(nodeNames, cleanName)
-				}
-			}
-			current = nil
-		}
-	}
-	if len(current) > 3 {
-		name := string(current)
-		cleanName := rc.cleanNodeName(name)
-		if cleanName != "" && rc.isValidNodeName(cleanName) {
-			nodeNames = append(nodeNames, cleanName)
-		}
-	}
-	
-	if len(nodeNames) > 0 {
-		rc.logger.Info("Extracted node names", "names", nodeNames)
-		
-		// Find the best node name - prefer longer descriptive names
-		var bestName string
-		var shortName string
-		
-		for _, name := range nodeNames {
-			// Skip node IDs starting with ! (hex IDs)
-			if name[0] == '!' {
-				continue
-			}
-			
-			// Prefer names with reasonable length and common mesh naming patterns
-			if len(name) >= 4 && len(name) <= 20 {
-				if len(name) <= 8 {
-					if shortName == "" || len(name) > len(shortName) {
-						shortName = name
-					}
-				}
-				if len(name) > 8 {
-					if bestName == "" || len(name) < len(bestName) {
-						bestName = name
-					}
-				}
-			}
-		}
-		
-		// Always try to find a hex ID first, then use names as backup
-		var nodeID string
-		for _, name := range nodeNames {
-			if name[0] == '!' && len(name) == 9 {
-				nodeID = name[1:] // Remove the ! 
-				break
-			}
-		}
-		
-		// Create node record - even if we only have a hex ID
-		if nodeID != "" || bestName != "" || shortName != "" {
-			if nodeID == "" {
-				// Fallback to name-based ID if no hex ID
-				if bestName != "" {
-					nodeID = fmt.Sprintf("node_%s", bestName)
-				} else {
-					nodeID = fmt.Sprintf("node_%s", shortName)
-				}
-			}
-			
-			node := rc.getOrCreateNode(nodeID)
-			if shortName != "" {
-				node.ShortName = shortName
-			}
-			if bestName != "" {
-				node.LongName = bestName
-			}
-			// If we only have hex ID, use that as display name too
-			if node.ShortName == "" && node.LongName == "" && nodeID != "" {
-				node.ShortName = nodeID[:8] // First 8 chars of hex ID
-			}
-			
-			rc.logger.Debug("Node updated", "id", nodeID, "short", node.ShortName, "long", node.LongName)
-			
-			// Emit node updated event
-			rc.events <- core.Event{
-				Type: core.EventNodeUpdated,
-				Data: node,
-			}
-		}
-	}
-}
 
 func (rc *RadioClient) cleanNodeName(name string) string {
-	// Remove common garbage characters and trim
+	if len(name) == 0 {
+		return ""
+	}
+	
 	cleaned := name
 	
-	// Remove trailing quotes and special chars
+	// Remove trailing garbage chars (quotes, backslashes, control chars, high ASCII)
 	for len(cleaned) > 0 {
 		lastChar := cleaned[len(cleaned)-1]
-		if lastChar == '"' || lastChar == '\'' || lastChar == '\\' || lastChar < 32 || lastChar > 126 {
+		if lastChar == '"' || lastChar == '\'' || lastChar == '\\' || 
+		   lastChar < 32 || lastChar > 126 || lastChar == 0 {
 			cleaned = cleaned[:len(cleaned)-1]
 		} else {
 			break
 		}
 	}
 	
-	// Remove leading quotes and special chars
+	// Remove leading garbage chars
 	for len(cleaned) > 0 {
 		firstChar := cleaned[0]
-		if firstChar == '"' || firstChar == '\'' || firstChar == '\\' || firstChar < 32 || firstChar > 126 {
+		if firstChar == '"' || firstChar == '\'' || firstChar == '\\' || 
+		   firstChar < 32 || firstChar > 126 || firstChar == 0 {
 			cleaned = cleaned[1:]
 		} else {
 			break
 		}
 	}
 	
-	return cleaned
+	// Remove any embedded null bytes or other binary garbage
+	result := make([]byte, 0, len(cleaned))
+	for i := 0; i < len(cleaned); i++ {
+		char := cleaned[i]
+		if char >= 32 && char <= 126 && char != 0 {
+			result = append(result, char)
+		}
+	}
+	
+	return string(result)
 }
 
 func (rc *RadioClient) isValidNodeName(name string) bool {
@@ -442,98 +333,112 @@ func (rc *RadioClient) isValidNodeName(name string) bool {
 	return float64(alphanumCount)/float64(len(name)) >= 0.5
 }
 
-func (rc *RadioClient) extractMeshPacketData(data []byte) {
-	// Look for text messages in MeshPacket data
-	// Text messages typically have PortNum=1 and readable payload
+
+
+func (rc *RadioClient) handlePacket(data []byte) {
+	// Log the raw packet data  
+	rc.logger.Debug("Received packet from device", "length", len(data))
 	
-	rc.logger.Debug("Analyzing packet for message content", "size", len(data), "hex", fmt.Sprintf("%x", data[:min(64, len(data))]))
+	// Skip the broken protobuf decoding entirely and use working manual parsing
+	// This provides proper node detection without fake messages or crashes
+	rc.parsePacketManually(data)
+}
+
+func (rc *RadioClient) parsePacketManually(data []byte) {
+	if len(data) < 2 {
+		return
+	}
 	
-	// Simple approach: look for readable text strings that could be messages
-	var messages []string
+	// Basic protobuf field parsing - look for node information only
+	if len(data) >= 4 {
+		// Look for NodeInfo patterns (field 4 in FromRadio = 0x22)
+		if data[0] == 0x22 {
+			rc.logger.Debug("Detected NodeInfo packet", "size", len(data))
+			rc.extractNodeInfoSafely(data[1:])
+		} else if data[0] == 0x1a {
+			// field 3 (MyInfo) = 0x1a
+			rc.logger.Debug("Detected MyNodeInfo packet", "size", len(data))
+		} else if data[0] == 0x12 {
+			// field 2 (MeshPacket) = 0x12 - handle without fake message extraction
+			rc.logger.Debug("Detected MeshPacket", "size", len(data))
+			// Don't extract fake messages - only process if it's a real text message packet
+		}
+	}
+}
+
+func (rc *RadioClient) extractNodeInfoSafely(data []byte) {
+	// Extract node names but don't generate fake text messages
+	var nodeNames []string
 	var current []byte
 	
 	for _, b := range data {
 		if b >= 32 && b <= 126 { // printable ASCII
 			current = append(current, b)
 		} else {
-			if len(current) >= 3 { // Lower threshold for short messages like "test message"
-				text := string(current)
-				if rc.isValidMessage(text) {
-					messages = append(messages, text)
+			if len(current) > 3 {
+				name := string(current)
+				cleanName := rc.cleanNodeName(name)
+				if cleanName != "" && rc.isValidNodeName(cleanName) {
+					nodeNames = append(nodeNames, cleanName)
 				}
 			}
 			current = nil
 		}
 	}
-	if len(current) >= 3 {
-		text := string(current)
-		if rc.isValidMessage(text) {
-			messages = append(messages, text)
+	if len(current) > 3 {
+		name := string(current)
+		cleanName := rc.cleanNodeName(name)
+		if cleanName != "" && rc.isValidNodeName(cleanName) {
+			nodeNames = append(nodeNames, cleanName)
 		}
 	}
 	
-	if len(messages) > 0 {
-		rc.logger.Info("Found potential text messages", "count", len(messages), "messages", messages)
-	}
-	
-	for _, msgText := range messages {
-		rc.logger.Info("Detected potential text message", "text", msgText)
+	if len(nodeNames) > 0 {
+		rc.logger.Debug("Extracted node names", "names", nodeNames)
 		
-		// Create a message record - we don't have full sender info yet
-		// but this shows that message detection is working
-		msg := &core.Message{
-			ChatID:    "unknown",
-			SenderID:  "unknown",
-			PortNum:   1, // TEXT_MESSAGE_APP
-			Text:      msgText,
-			Timestamp: time.Now(),
-			IsUnread:  true,
+		// Find hex ID and best name
+		var nodeID string
+		var bestName string
+		
+		for _, name := range nodeNames {
+			if len(name) > 0 && name[0] == '!' && len(name) == 9 {
+				nodeID = name[1:] // Remove the !
+			} else if len(name) >= 4 && len(name) <= 20 {
+				if bestName == "" || len(name) > len(bestName) {
+					bestName = name
+				}
+			}
 		}
 		
-		// Emit message received event
-		rc.events <- core.Event{
-			Type: core.EventMessageReceived,
-			Data: msg,
+		// Create node record - use hex ID if available
+		var finalNodeID string
+		var displayName string
+		
+		if nodeID != "" {
+			finalNodeID = nodeID
+			displayName = bestName
+		} else if bestName != "" {
+			finalNodeID = fmt.Sprintf("name_%s", bestName)  
+			displayName = bestName
+		}
+		
+		if finalNodeID != "" && displayName != "" {
+			node := rc.getOrCreateNode(finalNodeID)
+			node.ShortName = displayName
+			if len(displayName) > 10 {
+				node.LongName = displayName
+				node.ShortName = displayName[:10]
+			}
+			
+			rc.logger.Debug("Node created/updated", "id", finalNodeID, "name", displayName)
+			
+			// Emit node updated event
+			rc.events <- core.Event{
+				Type: core.EventNodeUpdated,
+				Data: node,
+			}
 		}
 	}
-}
-
-func (rc *RadioClient) isValidMessage(text string) bool {
-	// Filter for reasonable message content
-	if len(text) < 3 || len(text) > 200 {
-		return false
-	}
-	
-	// Check if it looks like a real message (has spaces and reasonable chars)
-	hasSpace := false
-	alphaCount := 0
-	digitCount := 0
-	
-	for _, r := range text {
-		if r == ' ' {
-			hasSpace = true
-		}
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-			alphaCount++
-		}
-		if r >= '0' && r <= '9' {
-			digitCount++
-		}
-	}
-	
-	// Must have some alpha characters and ideally spaces (real messages)
-	// Accept "test message", "hello", etc.
-	return alphaCount >= 2 && (hasSpace || len(text) < 20 || digitCount > 0)
-}
-
-func (rc *RadioClient) handlePacket(data []byte) {
-	// Log the raw packet data
-	rc.logger.Info("Received packet from device", 
-		"length", len(data),
-		"hex", fmt.Sprintf("%x", data))
-	
-	// For now, let's just try to extract basic information without full protobuf decode
-	rc.parsePacketManually(data)
 }
 
 func (rc *RadioClient) handleFromRadio(msg *FromRadio) {
@@ -626,12 +531,30 @@ func (rc *RadioClient) handleNodeInfoFromRadio(nodeInfo *NodeInfo) {
 }
 
 func (rc *RadioClient) handleTextMessage(packet *MeshPacket, data *Data) {
+	// Only process messages from TEXT_MESSAGE_APP port
+	if data.Portnum != PortTextMessageApp {
+		rc.logger.Debug("Skipping non-text message", "portnum", data.Portnum)
+		return
+	}
+	
 	if len(data.Payload) == 0 {
 		rc.logger.Debug("Empty text message payload")
 		return
 	}
 
+	// Validate that payload is valid UTF-8 text
+	if !utf8.Valid(data.Payload) {
+		rc.logger.Debug("Invalid UTF-8 in text message payload")
+		return
+	}
+
 	text := string(data.Payload)
+	
+	// Additional validation for reasonable text messages
+	if len(text) == 0 || len(text) > 200 {
+		rc.logger.Debug("Text message length out of bounds", "length", len(text))
+		return
+	}
 	
 	// Determine chat ID
 	chatID := rc.getChatID(packet)
@@ -796,8 +719,17 @@ func (rc *RadioClient) updateNodeMetrics(node *core.Node, packet *MeshPacket) {
 	// Update signal metrics
 	node.RSSI = int(packet.RxRssi)
 	node.SNR = packet.RxSnr
-	node.SignalQuality = int(core.CalculateSignalQuality(node.RSSI, node.SNR))
+	signalQuality := core.CalculateSignalQuality(node.RSSI, node.SNR)
+	node.SignalQuality = int(signalQuality)
 	node.LastHeard = time.Unix(int64(packet.RxTime), 0)
+	
+	// Debug logging for signal quality
+	rc.logger.Debug("Signal quality calculated", 
+		"node", node.ID,
+		"rssi", node.RSSI, 
+		"snr", node.SNR,
+		"quality", signalQuality.String(),
+		"quality_int", node.SignalQuality)
 	
 	// Store in node database
 	rc.nodeDBMu.Lock()
@@ -843,4 +775,77 @@ func (rc *RadioClient) isRunning() bool {
 	rc.runningMu.RLock()
 	defer rc.runningMu.RUnlock()
 	return rc.running
+}
+
+func (rc *RadioClient) GetNodes() []*core.Node {
+	rc.nodeDBMu.Lock()
+	defer rc.nodeDBMu.Unlock()
+	
+	// Clean up old nodes that haven't been heard from in the last 10 minutes
+	cutoff := time.Now().Add(-10 * time.Minute)
+	for id, node := range rc.nodeDB {
+		if node.LastHeard.Before(cutoff) {
+			rc.logger.Debug("Removing stale node", "id", id, "last_heard", node.LastHeard)
+			delete(rc.nodeDB, id)
+		}
+	}
+	
+	nodes := make([]*core.Node, 0, len(rc.nodeDB))
+	for _, node := range rc.nodeDB {
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (rc *RadioClient) tryExtractSignalMetrics(node *core.Node, data []byte) {
+	// This is a heuristic approach to extract RSSI/SNR from raw protobuf data
+	// In proper protobuf parsing, these would be in specific fields, but we're doing manual extraction
+	
+	// Look for patterns that might indicate signal metrics
+	// RSSI is typically negative (-30 to -120 dBm range)
+	// SNR is typically -20 to +20 dB range
+	
+	for i := 0; i < len(data)-4; i++ {
+		// Look for signed byte patterns that could be RSSI (negative values)
+		if i+1 < len(data) {
+			rssiCandidate := int8(data[i])
+			snrCandidate := float32(int8(data[i+1]))
+			
+			// Check if this looks like valid RSSI/SNR values
+			if rssiCandidate >= -120 && rssiCandidate <= -30 && // Valid RSSI range
+			   snrCandidate >= -20 && snrCandidate <= 20 { // Valid SNR range
+				
+				// Found potential signal metrics
+				node.RSSI = int(rssiCandidate)
+				node.SNR = snrCandidate
+				signalQuality := core.CalculateSignalQuality(node.RSSI, node.SNR)
+				node.SignalQuality = int(signalQuality)
+				
+				rc.logger.Debug("Extracted signal metrics", 
+					"node", node.ID,
+					"rssi", node.RSSI, 
+					"snr", node.SNR,
+					"quality", signalQuality.String())
+				return
+			}
+		}
+	}
+	
+	// If no valid signal data found, don't set defaults - leave as 0 to indicate offline
+	if node.RSSI == 0 && node.SNR == 0 {
+		// Node is offline or we haven't received signal data
+		signalQuality := core.CalculateSignalQuality(0, 0)
+		node.SignalQuality = int(signalQuality)
+		
+		rc.logger.Debug("No signal data - node offline or not heard", 
+			"node", node.ID,
+			"quality", signalQuality.String())
+	}
 }

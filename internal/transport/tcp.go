@@ -142,47 +142,73 @@ func (t *TCPTransport) readFramedPacket(conn net.Conn) ([]byte, error) {
 		return nil, fmt.Errorf("failed to set read deadline: %w", err)
 	}
 
-	// Read 4-byte header: [0x94][0xC3][length_high][length_low]
-	header := make([]byte, 4)
-	n, err := conn.Read(header)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read packet header: %w", err)
-	}
-	if n < 4 {
-		return nil, fmt.Errorf("incomplete header, got %d bytes", n)
-	}
-
-	// Validate magic bytes (0x94C3 in upper 16 bits)
-	if header[0] != 0x94 || header[1] != 0xC3 {
-		return nil, fmt.Errorf("invalid magic bytes: %02x%02x (expected 94C3)", header[0], header[1])
-	}
-
-	// Extract packet size from lower 16 bits (big-endian)
-	packetSize := int(header[2])<<8 | int(header[3])
-	
-	// Debug logging
-	fmt.Printf("TCP: Read header: %02x %02x %02x %02x = magic:94C3 size:%d\n", 
-		header[0], header[1], header[2], header[3], packetSize)
-	
-	if packetSize <= 0 || packetSize > maxPacketSize {
-		return nil, fmt.Errorf("invalid packet size: %d (max: %d)", packetSize, maxPacketSize)
-	}
-
-	// Read packet data
-	buffer := make([]byte, packetSize)
-	bytesRead := 0
-	for bytesRead < packetSize {
-		n, err := conn.Read(buffer[bytesRead:])
+	// Find sync bytes - read until we find the magic 0x94C3 sequence
+	for {
+		// Read first byte
+		firstByte := make([]byte, 1)
+		n, err := conn.Read(firstByte)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read packet data: %w", err)
+			return nil, fmt.Errorf("failed to read first sync byte: %w", err)
 		}
-		bytesRead += n
+		if n < 1 {
+			return nil, fmt.Errorf("incomplete sync byte read")
+		}
+
+		if firstByte[0] != 0x94 {
+			continue // Keep looking for magic byte
+		}
+
+		// Read second byte
+		secondByte := make([]byte, 1)
+		n, err = conn.Read(secondByte)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read second sync byte: %w", err)
+		}
+		if n < 1 {
+			return nil, fmt.Errorf("incomplete second sync byte read")
+		}
+
+		if secondByte[0] != 0xC3 {
+			continue // Keep looking for complete magic sequence
+		}
+
+		// Found sync bytes, read length
+		lengthBytes := make([]byte, 2)
+		n, err = conn.Read(lengthBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read length bytes: %w", err)
+		}
+		if n < 2 {
+			return nil, fmt.Errorf("incomplete length read, got %d bytes", n)
+		}
+
+		// Extract packet size from length bytes (big-endian)
+		packetSize := int(lengthBytes[0])<<8 | int(lengthBytes[1])
+		
+		// Debug logging
+		fmt.Printf("TCP: Found sync - magic:94C3 size:%d\n", packetSize)
+		
+		if packetSize <= 0 || packetSize > maxPacketSize {
+			fmt.Printf("TCP: Invalid packet size %d, continuing sync search\n", packetSize)
+			continue // Invalid size, keep looking
+		}
+
+		// Read packet data
+		buffer := make([]byte, packetSize)
+		bytesRead := 0
+		for bytesRead < packetSize {
+			n, err := conn.Read(buffer[bytesRead:])
+			if err != nil {
+				return nil, fmt.Errorf("failed to read packet data: %w", err)
+			}
+			bytesRead += n
+		}
+
+		// Debug logging
+		fmt.Printf("TCP: Read %d bytes of packet data: %02x...\n", len(buffer), buffer[:min(16, len(buffer))])
+
+		return buffer, nil
 	}
-
-	// Debug logging
-	fmt.Printf("TCP: Read %d bytes of packet data: %02x...\n", len(buffer), buffer[:min(16, len(buffer))])
-
-	return buffer, nil
 }
 
 func min(a, b int) int {

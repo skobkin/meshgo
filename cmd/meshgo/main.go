@@ -251,9 +251,17 @@ func (app *App) getReconnectEvents() <-chan core.Event {
 func (app *App) handleRadioEvent(event core.Event) {
 	switch event.Type {
 	case core.EventMessageReceived:
-		app.handleMessageReceived(event.Data.(*core.Message))
+		if msg, ok := event.Data.(*core.Message); ok && msg != nil {
+			app.handleMessageReceived(msg)
+		} else {
+			app.logger.Debug("Received EventMessageReceived with invalid data", "data", event.Data)
+		}
 	case core.EventNodeUpdated:
-		app.handleNodeUpdated(event.Data.(*core.Node))
+		if node, ok := event.Data.(*core.Node); ok && node != nil {
+			app.handleNodeUpdated(node)
+		} else {
+			app.logger.Debug("Received EventNodeUpdated with invalid data", "data", event.Data)
+		}
 	}
 }
 
@@ -302,12 +310,9 @@ func (app *App) handleMessageReceived(msg *core.Message) {
 func (app *App) handleNodeUpdated(node *core.Node) {
 	app.logger.Debug("Node updated", "id", node.ID, "name", node.LongName)
 
-	// Save to database
-	if err := app.storage.SaveNode(app.ctx, node); err != nil {
-		app.logger.Error("Failed to save node", "error", err)
-		return
-	}
-
+	// Don't save nodes to database - keep them only in memory for live mesh data
+	// Only save to DB if needed for chat identity mapping
+	
 	// Refresh nodes UI
 	app.refreshNodes()
 }
@@ -334,12 +339,8 @@ func (app *App) refreshChats() {
 }
 
 func (app *App) refreshNodes() {
-	nodes, err := app.storage.GetAllNodes(app.ctx)
-	if err != nil {
-		app.logger.Error("Failed to load nodes", "error", err)
-		return
-	}
-
+	// Get nodes from radio client in-memory cache instead of database
+	nodes := app.radioClient.GetNodes()
 	app.ui.UpdateNodes(nodes)
 }
 
@@ -535,4 +536,6 @@ func (app *App) handleUpdateNotifications(enabled bool) error {
 func (app *App) handleExit() {
 	app.logger.Info("Exit requested")
 	app.Shutdown()
+	// Force process termination to ensure complete shutdown
+	os.Exit(0)
 }
