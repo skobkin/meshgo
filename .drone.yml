@@ -52,6 +52,10 @@ steps:
       - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
       - go mod download
       - go test -v -race -cover ./...
+    depends_on:
+      - lint
+      - format-check
+      - build-check
     when:
       event:
         - push
