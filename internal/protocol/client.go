@@ -43,8 +43,31 @@ func (rc *RadioClient) Start(ctx context.Context, transport core.Transport) erro
 	// Start read loop
 	go rc.readLoop(ctx)
 
+	// Send initialization handshake after a short delay
+	go rc.initializeConnection(ctx)
+
 	rc.logger.Info("Radio client started", "endpoint", transport.Endpoint())
 	return nil
+}
+
+func (rc *RadioClient) initializeConnection(ctx context.Context) {
+	// Wait for connection to be established
+	time.Sleep(500 * time.Millisecond)
+	
+	rc.logger.Info("Sending startConfig request...")
+	
+	// Send a startConfig request using raw protobuf bytes
+	// ToRadio message with want_config_id (field 3) = 42
+	// Field 3 with varint encoding: tag=(3<<3)|0 = 24 = 0x18
+	// Value 42 = 0x2A
+	startConfigBytes := []byte{0x18, 0x2A} // field 3, value 42
+	
+	if err := rc.transport.WritePacket(ctx, startConfigBytes); err != nil {
+		rc.logger.Error("Failed to send startConfig", "error", err)
+		return
+	}
+
+	rc.logger.Info("Sent startConfig with want_config_id=42")
 }
 
 func (rc *RadioClient) Stop() error {
@@ -71,23 +94,38 @@ func (rc *RadioClient) SendText(ctx context.Context, chatID string, toNode uint3
 		return fmt.Errorf("radio client not running")
 	}
 
+	// Create the Data payload
+	data := &Data{
+		Portnum: PortTextMessageApp,
+		Payload: []byte(text),
+	}
+
+	// Create the MeshPacket with decoded payload
 	packet := &MeshPacket{
-		From:     rc.ownNodeID,
-		To:       toNode,
-		Channel:  0, // Default channel
-		ID:       rc.generatePacketID(),
-		PortNum:  PortTextMessageApp,
-		Payload:  EncodeTextMessage(text),
-		WantAck:  true,
-		Priority: Default,
+		From:      rc.ownNodeID,
+		To:        toNode,
+		Channel:   0, // Default channel
+		Id:        rc.generatePacketID(),
+		WantAck:   true,
+		Priority:  PriorityDefault,
+		PayloadVariant: &MeshPacket_Decoded{
+			Decoded: data,
+		},
 	}
 
-	data, err := EncodeMeshPacket(packet)
+	// Wrap in ToRadio message
+	toRadio := &ToRadio{
+		PayloadVariant: &ToRadio_Packet{
+			Packet: packet,
+		},
+	}
+
+	packetData, err := EncodeToRadio(toRadio)
 	if err != nil {
-		return fmt.Errorf("failed to encode packet: %w", err)
+		return fmt.Errorf("failed to encode ToRadio: %w", err)
 	}
 
-	if err := rc.transport.WritePacket(ctx, data); err != nil {
+	if err := rc.transport.WritePacket(ctx, packetData); err != nil {
 		return fmt.Errorf("failed to send packet: %w", err)
 	}
 
@@ -120,23 +158,30 @@ func (rc *RadioClient) SendExchangeUserInfo(ctx context.Context, node uint32) er
 		return fmt.Errorf("radio client not running")
 	}
 
-	packet := &MeshPacket{
-		From:     rc.ownNodeID,
-		To:       node,
-		Channel:  0,
-		ID:       rc.generatePacketID(),
-		PortNum:  PortNodeInfoApp,
-		Payload:  EncodeNodeInfoRequest(),
-		WantAck:  true,
-		Priority: Default,
+	// Create NodeInfo request payload
+	data := &Data{
+		Portnum: PortNodeInfoApp,
+		Payload: []byte{}, // Empty payload for NodeInfo request
 	}
 
-	data, err := EncodeMeshPacket(packet)
+	packet := &MeshPacket{
+		From:      rc.ownNodeID,
+		To:        node,
+		Channel:   0,
+		Id:        rc.generatePacketID(),
+		WantAck:   true,
+		Priority:  PriorityDefault,
+		PayloadVariant: &MeshPacket_Decoded{
+			Decoded: data,
+		},
+	}
+
+	packetData, err := EncodeMeshPacket(packet)
 	if err != nil {
 		return fmt.Errorf("failed to encode user info request: %w", err)
 	}
 
-	if err := rc.transport.WritePacket(ctx, data); err != nil {
+	if err := rc.transport.WritePacket(ctx, packetData); err != nil {
 		return fmt.Errorf("failed to send user info request: %w", err)
 	}
 
@@ -149,23 +194,31 @@ func (rc *RadioClient) SendTraceroute(ctx context.Context, node uint32) error {
 		return fmt.Errorf("radio client not running")
 	}
 
-	packet := &MeshPacket{
-		From:     rc.ownNodeID,
-		To:       node,
-		Channel:  0,
-		ID:       rc.generatePacketID(),
-		PortNum:  PortRoutingApp,
-		Payload:  EncodeTracerouteRequest(node),
-		WantAck:  false, // Traceroute doesn't need ack
-		Priority: Default,
+	// Create traceroute request payload
+	data := &Data{
+		Portnum: PortRoutingApp,
+		Dest:    node,
+		Payload: []byte{0x01}, // Simple traceroute request marker
 	}
 
-	data, err := EncodeMeshPacket(packet)
+	packet := &MeshPacket{
+		From:      rc.ownNodeID,
+		To:        node,
+		Channel:   0,
+		Id:        rc.generatePacketID(),
+		WantAck:   false, // Traceroute doesn't need ack
+		Priority:  PriorityDefault,
+		PayloadVariant: &MeshPacket_Decoded{
+			Decoded: data,
+		},
+	}
+
+	packetData, err := EncodeMeshPacket(packet)
 	if err != nil {
 		return fmt.Errorf("failed to encode traceroute request: %w", err)
 	}
 
-	if err := rc.transport.WritePacket(ctx, data); err != nil {
+	if err := rc.transport.WritePacket(ctx, packetData); err != nil {
 		return fmt.Errorf("failed to send traceroute request: %w", err)
 	}
 
@@ -189,8 +242,10 @@ func (rc *RadioClient) readLoop(ctx context.Context) {
 			continue
 		}
 
-		// Read packet with timeout
-		readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		rc.logger.Debug("Attempting to read packet...")
+		
+		// Read packet with shorter timeout initially, then longer  
+		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		data, err := rc.transport.ReadPacket(readCtx)
 		cancel()
 
@@ -199,75 +254,271 @@ func (rc *RadioClient) readLoop(ctx context.Context) {
 				return // Context cancelled
 			}
 			rc.logger.Debug("Read packet error", "error", err)
+			// Continue with a small delay to avoid spinning
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
 		if len(data) == 0 {
+			rc.logger.Debug("Received empty packet")
 			continue
 		}
 
+		rc.logger.Debug("Received raw packet", "length", len(data))
 		rc.handlePacket(data)
 	}
 
 	rc.logger.Info("Read loop stopped")
 }
 
-func (rc *RadioClient) handlePacket(data []byte) {
-	packet, err := DecodeMeshPacket(data)
-	if err != nil {
-		rc.logger.Debug("Failed to decode packet", "error", err, "length", len(data))
+func (rc *RadioClient) parsePacketManually(data []byte) {
+	if len(data) < 2 {
 		return
 	}
+	
+	// Basic protobuf field parsing
+	// Check for common field patterns in the first few bytes
+	if len(data) >= 4 {
+		// Look for NodeInfo patterns (field 4 in FromRadio = 0x22)
+		if data[0] == 0x22 {
+			rc.logger.Info("Detected NodeInfo packet", "size", len(data))
+			rc.extractNodeInfo(data[1:])
+		} else if data[0] == 0x1a {
+			// field 3 (MyInfo) = 0x1a
+			rc.logger.Info("Detected MyNodeInfo packet", "size", len(data))
+		} else if data[0] == 0x12 {
+			// field 2 (MeshPacket) = 0x12
+			rc.logger.Info("Detected MeshPacket", "size", len(data))
+		} else {
+			rc.logger.Debug("Unknown packet type", "first_byte", fmt.Sprintf("0x%02x", data[0]))
+		}
+	}
+}
 
-	rc.logger.Debug("Received packet",
-		"from", packet.From,
-		"to", packet.To,
-		"port", packet.PortNum,
-		"channel", packet.Channel,
-		"id", packet.ID)
+func (rc *RadioClient) extractNodeInfo(data []byte) {
+	// Extract readable strings from NodeInfo data with better filtering
+	var nodeNames []string
+	var current []byte
+	
+	for _, b := range data {
+		if b >= 32 && b <= 126 { // printable ASCII
+			current = append(current, b)
+		} else {
+			if len(current) > 3 {
+				name := string(current)
+				// Filter for reasonable node names
+				if rc.isValidNodeName(name) {
+					nodeNames = append(nodeNames, name)
+				}
+			}
+			current = nil
+		}
+	}
+	if len(current) > 3 {
+		name := string(current)
+		if rc.isValidNodeName(name) {
+			nodeNames = append(nodeNames, name)
+		}
+	}
+	
+	if len(nodeNames) > 0 {
+		rc.logger.Info("Extracted node names", "names", nodeNames)
+		
+		// Find the best node name - prefer longer descriptive names
+		var bestName string
+		var shortName string
+		
+		for _, name := range nodeNames {
+			// Skip node IDs starting with ! (hex IDs)
+			if name[0] == '!' {
+				continue
+			}
+			
+			// Prefer names with reasonable length and common mesh naming patterns
+			if len(name) >= 4 && len(name) <= 20 {
+				if len(name) <= 8 {
+					if shortName == "" || len(name) > len(shortName) {
+						shortName = name
+					}
+				}
+				if len(name) > 8 {
+					if bestName == "" || len(name) < len(bestName) {
+						bestName = name
+					}
+				}
+			}
+		}
+		
+		// Create node record if we found a good name
+		if bestName != "" || shortName != "" {
+			// Use the hex ID if available as the primary node ID
+			var nodeID string
+			for _, name := range nodeNames {
+				if name[0] == '!' && len(name) == 9 {
+					nodeID = name[1:] // Remove the !
+					break
+				}
+			}
+			
+			if nodeID == "" {
+				nodeID = fmt.Sprintf("node_%s", shortName)
+				if bestName != "" {
+					nodeID = fmt.Sprintf("node_%s", bestName)
+				}
+			}
+			
+			node := rc.getOrCreateNode(nodeID)
+			if shortName != "" {
+				node.ShortName = shortName
+			}
+			if bestName != "" {
+				node.LongName = bestName
+			}
+			
+			// Emit node updated event
+			rc.events <- core.Event{
+				Type: core.EventNodeUpdated,
+				Data: node,
+			}
+		}
+	}
+}
 
+func (rc *RadioClient) isValidNodeName(name string) bool {
+	// Filter out noise and keep only reasonable node names
+	if len(name) < 4 || len(name) > 25 {
+		return false
+	}
+	
+	// Skip names that look like garbage (too many non-alphanumeric chars)
+	alphanumCount := 0
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			alphanumCount++
+		}
+	}
+	
+	// Must be at least 50% reasonable characters
+	return float64(alphanumCount)/float64(len(name)) >= 0.5
+}
+
+func (rc *RadioClient) handlePacket(data []byte) {
+	// Log the raw packet data
+	rc.logger.Info("Received packet from device", 
+		"length", len(data),
+		"hex", fmt.Sprintf("%x", data))
+	
+	// For now, let's just try to extract basic information without full protobuf decode
+	rc.parsePacketManually(data)
+}
+
+func (rc *RadioClient) handleFromRadio(msg *FromRadio) {
+	rc.logger.Debug("Received FromRadio message", "id", msg.Id)
+
+	// Handle different FromRadio payload types
+	if packet := msg.GetPacket(); packet != nil {
+		rc.logger.Debug("FromRadio contains MeshPacket")
+		rc.handleMeshPacket(packet)
+	} else if myInfo := msg.GetMyInfo(); myInfo != nil {
+		rc.handleMyNodeInfo(myInfo)
+	} else if nodeInfo := msg.GetNodeInfo(); nodeInfo != nil {
+		rc.handleNodeInfoFromRadio(nodeInfo)
+	} else if configId := msg.GetConfigCompleteId(); configId != 0 {
+		rc.logger.Info("Configuration complete", "config_id", configId)
+	} else {
+		rc.logger.Debug("FromRadio with unknown payload type")
+	}
+}
+
+func (rc *RadioClient) handleMeshPacket(packet *MeshPacket) {
 	// Update receive metadata
 	if packet.RxTime == 0 {
 		packet.RxTime = uint32(time.Now().Unix())
 	}
 
-	// Handle different packet types
-	switch packet.PortNum {
+	// Get the decoded payload
+	decodedData := packet.GetDecoded()
+	if decodedData == nil {
+		// Handle encrypted packets - for now, just log and skip
+		if packet.GetEncrypted() != nil {
+			rc.logger.Debug("Received encrypted packet - skipping", 
+				"from", packet.From, 
+				"to", packet.To,
+				"size", len(packet.GetEncrypted()))
+		} else {
+			rc.logger.Debug("Received packet with no payload")
+		}
+		return
+	}
+
+	rc.logger.Debug("Received MeshPacket",
+		"from", packet.From,
+		"to", packet.To,
+		"portnum", decodedData.Portnum,
+		"channel", packet.Channel,
+		"id", packet.Id)
+
+	// Handle different packet types based on portnum
+	switch decodedData.Portnum {
 	case PortTextMessageApp:
-		rc.handleTextMessage(packet)
+		rc.handleTextMessage(packet, decodedData)
 	case PortNodeInfoApp:
-		rc.handleNodeInfo(packet)
+		rc.handleNodeInfo(packet, decodedData)
 	case PortPositionApp:
-		rc.handlePosition(packet)
+		rc.handlePosition(packet, decodedData)
 	case PortRoutingApp:
-		rc.handleRouting(packet)
+		rc.handleRouting(packet, decodedData)
 	default:
-		rc.logger.Debug("Unhandled packet type", "port", packet.PortNum)
+		rc.logger.Debug("Unhandled packet type", "portnum", decodedData.Portnum)
 	}
 }
 
-func (rc *RadioClient) handleTextMessage(packet *MeshPacket) {
-	if packet.Decoded == nil {
-		rc.logger.Debug("No decoded text message")
+func (rc *RadioClient) handleMyNodeInfo(myInfo *MyNodeInfo) {
+	rc.logger.Info("Received MyNodeInfo", 
+		"node_num", myInfo.MyNodeNum,
+		"firmware", myInfo.FirmwareVersion,
+		"hw_model", myInfo.HwModel)
+	
+	// Store our own node ID
+	rc.ownNodeID = myInfo.MyNodeNum
+}
+
+func (rc *RadioClient) handleNodeInfoFromRadio(nodeInfo *NodeInfo) {
+	rc.logger.Info("Received NodeInfo from config", "node_num", nodeInfo.Num)
+	
+	// Create a fake packet to reuse existing logic
+	packet := &MeshPacket{
+		From:   nodeInfo.Num,
+		RxTime: uint32(time.Now().Unix()),
+	}
+	
+	node := rc.updateNodeFromPacket(packet, nodeInfo)
+	
+	// Emit node updated event
+	rc.events <- core.Event{
+		Type: core.EventNodeUpdated,
+		Data: node,
+	}
+}
+
+func (rc *RadioClient) handleTextMessage(packet *MeshPacket, data *Data) {
+	if len(data.Payload) == 0 {
+		rc.logger.Debug("Empty text message payload")
 		return
 	}
 
-	textMsg, ok := packet.Decoded.(*TextMessage)
-	if !ok {
-		rc.logger.Debug("Invalid text message type")
-		return
-	}
-
+	text := string(data.Payload)
+	
 	// Determine chat ID
 	chatID := rc.getChatID(packet)
 	
-	rxrssi := int(packet.RxRSSI)
+	rxrssi := int(packet.RxRssi)
 	msg := &core.Message{
 		ChatID:    chatID,
 		SenderID:  fmt.Sprintf("%d", packet.From),
-		PortNum:   int(packet.PortNum),
-		Text:      textMsg.Text,
-		RXSNR:     &packet.RxSNR,
+		PortNum:   int(data.Portnum),
+		Text:      text,
+		RXSNR:     &packet.RxSnr,
 		RXRSSI:    &rxrssi,
 		Timestamp: time.Unix(int64(packet.RxTime), 0),
 		IsUnread:  true,
@@ -282,16 +533,36 @@ func (rc *RadioClient) handleTextMessage(packet *MeshPacket) {
 	rc.logger.Info("Text message received",
 		"from", packet.From,
 		"chat", chatID,
-		"text", textMsg.Text)
+		"text", text)
 }
 
-func (rc *RadioClient) handleNodeInfo(packet *MeshPacket) {
-	if packet.Decoded == nil {
+func (rc *RadioClient) handleNodeInfo(packet *MeshPacket, data *Data) {
+	if len(data.Payload) == 0 {
+		// Empty payload might be a request - just update node from packet metadata
+		nodeID := fmt.Sprintf("%d", packet.From)
+		node := rc.getOrCreateNode(nodeID)
+		rc.updateNodeMetrics(node, packet)
+		
+		// Emit node updated event
+		rc.events <- core.Event{
+			Type: core.EventNodeUpdated,
+			Data: node,
+		}
 		return
 	}
 
-	nodeInfo, ok := packet.Decoded.(*NodeInfo)
+	// Decode NodeInfo from payload will be handled below
+
+	// Extract nodeInfo from decoded interface
+	decoded, err := DecodePayload(data)
+	if err != nil {
+		rc.logger.Debug("Failed to decode NodeInfo payload", "error", err)
+		return
+	}
+
+	nodeInfo, ok := decoded.(*NodeInfo)
 	if !ok {
+		rc.logger.Debug("Decoded payload is not NodeInfo")
 		return
 	}
 
@@ -306,13 +577,22 @@ func (rc *RadioClient) handleNodeInfo(packet *MeshPacket) {
 	rc.logger.Info("Node info received", "node", node.ID)
 }
 
-func (rc *RadioClient) handlePosition(packet *MeshPacket) {
-	if packet.Decoded == nil {
+func (rc *RadioClient) handlePosition(packet *MeshPacket, data *Data) {
+	if len(data.Payload) == 0 {
+		rc.logger.Debug("Empty position payload")
 		return
 	}
 
-	position, ok := packet.Decoded.(*Position)
+	// Decode Position from payload
+	decoded, err := DecodePayload(data)
+	if err != nil {
+		rc.logger.Debug("Failed to decode Position payload", "error", err)
+		return
+	}
+
+	position, ok := decoded.(*Position)
 	if !ok {
+		rc.logger.Debug("Decoded payload is not Position")
 		return
 	}
 
@@ -327,7 +607,7 @@ func (rc *RadioClient) handlePosition(packet *MeshPacket) {
 		Time:           position.Time,
 		LocationSource: int(position.LocationSource),
 		AltitudeSource: int(position.AltitudeSource),
-		GPSAccuracy:    position.GPSAccuracy,
+		GPSAccuracy:    position.GpsAccuracy,
 	}
 	
 	rc.updateNodeMetrics(node, packet)
@@ -342,13 +622,9 @@ func (rc *RadioClient) handlePosition(packet *MeshPacket) {
 		"lat", position.Latitude(), "lon", position.Longitude())
 }
 
-func (rc *RadioClient) handleRouting(packet *MeshPacket) {
-	if packet.Decoded == nil {
-		return
-	}
-
+func (rc *RadioClient) handleRouting(packet *MeshPacket, data *Data) {
 	// Handle traceroute responses and route discovery
-	rc.logger.Debug("Routing packet received", "from", packet.From)
+	rc.logger.Debug("Routing packet received", "from", packet.From, "payload_size", len(data.Payload))
 }
 
 func (rc *RadioClient) updateNodeFromPacket(packet *MeshPacket, nodeInfo *NodeInfo) *core.Node {
@@ -369,7 +645,7 @@ func (rc *RadioClient) updateNodeFromPacket(packet *MeshPacket, nodeInfo *NodeIn
 			Time:           nodeInfo.Position.Time,
 			LocationSource: int(nodeInfo.Position.LocationSource),
 			AltitudeSource: int(nodeInfo.Position.AltitudeSource),
-			GPSAccuracy:    nodeInfo.Position.GPSAccuracy,
+			GPSAccuracy:    nodeInfo.Position.GpsAccuracy,
 		}
 	}
 
@@ -394,8 +670,8 @@ func (rc *RadioClient) updateNodeFromPacket(packet *MeshPacket, nodeInfo *NodeIn
 
 func (rc *RadioClient) updateNodeMetrics(node *core.Node, packet *MeshPacket) {
 	// Update signal metrics
-	node.RSSI = int(packet.RxRSSI)
-	node.SNR = packet.RxSNR
+	node.RSSI = int(packet.RxRssi)
+	node.SNR = packet.RxSnr
 	node.SignalQuality = int(core.CalculateSignalQuality(node.RSSI, node.SNR))
 	node.LastHeard = time.Unix(int64(packet.RxTime), 0)
 	

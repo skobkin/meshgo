@@ -69,9 +69,9 @@ func main() {
 }
 
 func NewApp(consoleMode bool) (*App, error) {
-	// Setup logger
+	// Setup logger with debug level
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: slog.LevelDebug,
 	}))
 
 	// Initialize config manager
