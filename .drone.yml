@@ -22,7 +22,7 @@ steps:
         - pull_request
 
   - name: format-check
-    image: golang:1.24
+    image: golang:1.24-alpine
     commands:
       - gofmt -l . | tee /tmp/fmt-diff
       - test ! -s /tmp/fmt-diff || (echo "Code not formatted properly:" && cat /tmp/fmt-diff && exit 1)
@@ -32,11 +32,11 @@ steps:
         - pull_request
 
   - name: build-check
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
     commands:
-      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
       - go mod download
       - go build -v ./...
     when:
@@ -45,11 +45,11 @@ steps:
         - pull_request
 
   - name: test
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
     commands:
-      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
       - go mod download
       - go test -v -race -cover ./...
     depends_on:
@@ -79,42 +79,42 @@ trigger:
 
 steps:
   - name: prepare-release
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
     commands:
-      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev zip
+      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zip
       - mkdir -p dist
     
   - name: build-linux-amd64
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
       GOOS: linux
       GOARCH: amd64
     commands:
-      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev
+      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zip
       - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-linux-amd64 ./cmd/meshgo
       - cd dist && zip -9 meshgo-linux-amd64.zip meshgo-linux-amd64
     depends_on:
       - prepare-release
 
   - name: build-linux-arm64
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
       GOOS: linux
       GOARCH: arm64
       CC: aarch64-linux-gnu-gcc
     commands:
-      - apt-get update && apt-get install -y pkg-config libgl1-mesa-dev xorg-dev gcc-aarch64-linux-gnu
+      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zip gcc-aarch64-none-elf
       - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-linux-arm64 ./cmd/meshgo
       - cd dist && zip -9 meshgo-linux-arm64.zip meshgo-linux-arm64
     depends_on:
       - prepare-release
 
   - name: build-windows-amd64
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
       GOOS: windows
@@ -122,14 +122,14 @@ steps:
       CC: x86_64-w64-mingw32-gcc
       CXX: x86_64-w64-mingw32-g++
     commands:
-      - apt-get update && apt-get install -y pkg-config gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+      - apk add --no-cache git ca-certificates build-base pkgconfig zip mingw-w64-gcc
       - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-windows-amd64.exe ./cmd/meshgo
       - cd dist && zip -9 meshgo-windows-amd64.zip meshgo-windows-amd64.exe
     depends_on:
       - prepare-release
 
   - name: build-darwin-amd64
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
       GOOS: darwin
@@ -137,13 +137,14 @@ steps:
     commands:
       # Note: macOS builds with CGO require specific setup that may not work in standard Docker
       # For production use, consider using a macOS runner or disable CGO for Darwin builds
+      - apk add --no-cache git ca-certificates build-base zip
       - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
       - cd dist && zip -9 meshgo-darwin-amd64.zip meshgo-darwin-amd64
     depends_on:
       - prepare-release
 
   - name: build-darwin-arm64
-    image: golang:1.24
+    image: golang:1.24-alpine
     environment:
       CGO_ENABLED: 1
       GOOS: darwin
@@ -151,6 +152,7 @@ steps:
     commands:
       # Note: macOS builds with CGO require specific setup that may not work in standard Docker
       # For production use, consider using a macOS runner or disable CGO for Darwin builds
+      - apk add --no-cache git ca-certificates build-base zip
       - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-arm64 ./cmd/meshgo
       - cd dist && zip -9 meshgo-darwin-arm64.zip meshgo-darwin-arm64
     depends_on:
