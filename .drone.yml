@@ -20,6 +20,7 @@ steps:
       event:
         - push
         - pull_request
+        - tag
 
   - name: format-check
     image: golang:1.24-alpine
@@ -30,6 +31,7 @@ steps:
       event:
         - push
         - pull_request
+        - tag
 
   - name: build-check
     image: golang:1.24-alpine
@@ -43,6 +45,7 @@ steps:
       event:
         - push
         - pull_request
+        - tag
 
   - name: test
     image: golang:1.24-alpine
@@ -60,6 +63,7 @@ steps:
       event:
         - push
         - pull_request
+        - tag
 
 ---
 kind: pipeline
@@ -99,19 +103,6 @@ steps:
     depends_on:
       - prepare-release
 
-  - name: build-linux-arm64
-    image: golang:1.24-alpine
-    environment:
-      CGO_ENABLED: 1
-      GOOS: linux
-      GOARCH: arm64
-      CC: aarch64-linux-gnu-gcc
-    commands:
-      - apk add --no-cache git ca-certificates build-base pkgconfig mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev zip gcc-aarch64-none-elf
-      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-linux-arm64 ./cmd/meshgo
-      - cd dist && zip -9 meshgo-linux-arm64.zip meshgo-linux-arm64
-    depends_on:
-      - prepare-release
 
   - name: build-windows-amd64
     image: golang:1.24-alpine
@@ -131,32 +122,19 @@ steps:
   - name: build-darwin-amd64
     image: golang:1.24-alpine
     environment:
-      CGO_ENABLED: 1
+      CGO_ENABLED: 0
       GOOS: darwin
       GOARCH: amd64
     commands:
       # Note: macOS builds with CGO require specific setup that may not work in standard Docker
-      # For production use, consider using a macOS runner or disable CGO for Darwin builds
-      - apk add --no-cache git ca-certificates build-base zip
-      - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
+      # Building without CGO to avoid OpenGL and other native dependency issues
+      - apk add --no-cache git ca-certificates zip
+      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
       - cd dist && zip -9 meshgo-darwin-amd64.zip meshgo-darwin-amd64
     depends_on:
       - prepare-release
+    failure: ignore
 
-  - name: build-darwin-arm64
-    image: golang:1.24-alpine
-    environment:
-      CGO_ENABLED: 1
-      GOOS: darwin
-      GOARCH: arm64
-    commands:
-      # Note: macOS builds with CGO require specific setup that may not work in standard Docker
-      # For production use, consider using a macOS runner or disable CGO for Darwin builds
-      - apk add --no-cache git ca-certificates build-base zip
-      - CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-arm64 ./cmd/meshgo
-      - cd dist && zip -9 meshgo-darwin-arm64.zip meshgo-darwin-arm64
-    depends_on:
-      - prepare-release
 
   - name: create-release
     image: plugins/gitea-release
@@ -175,10 +153,8 @@ steps:
         
         Choose the appropriate binary for your platform:
         - **Linux AMD64**: `meshgo-linux-amd64.zip` - For most Linux systems
-        - **Linux ARM64**: `meshgo-linux-arm64.zip` - For ARM64 Linux systems (Raspberry Pi, etc.)
         - **Windows AMD64**: `meshgo-windows-amd64.zip` - For Windows 10/11 64-bit
-        - **macOS Intel**: `meshgo-darwin-amd64.zip` - For Intel-based Macs
-        - **macOS Apple Silicon**: `meshgo-darwin-arm64.zip` - For M1/M2/M3 Macs
+        - **macOS Intel**: `meshgo-darwin-amd64.zip` - For Intel-based Macs (if build succeeded)
         
         ### Installation
         
@@ -192,10 +168,8 @@ steps:
         See the [commit history](${DRONE_REPO_LINK}/commits/${DRONE_TAG}) for detailed changes in this release.
       files:
         - dist/meshgo-linux-amd64.zip
-        - dist/meshgo-linux-arm64.zip
         - dist/meshgo-windows-amd64.zip
         - dist/meshgo-darwin-amd64.zip
-        - dist/meshgo-darwin-arm64.zip
       checksum:
         - sha256
         - sha512
@@ -203,10 +177,7 @@ steps:
       prerelease: false
     depends_on:
       - build-linux-amd64
-      - build-linux-arm64
       - build-windows-amd64
-      - build-darwin-amd64
-      - build-darwin-arm64
 
 ---
 kind: secret
