@@ -115,21 +115,22 @@ steps:
     depends_on:
       - prepare-release
 
-  - name: build-darwin-amd64
-    image: golang:1.24-alpine
-    environment:
-      CGO_ENABLED: 0
-      GOOS: darwin
-      GOARCH: amd64
-    commands:
-      # Note: macOS builds with CGO require specific setup that may not work in standard Docker
-      # Building without CGO to avoid OpenGL and other native dependency issues
-      - apk add --no-cache git ca-certificates zip
-      - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
-      - cd dist && zip -9 meshgo-darwin-amd64.zip meshgo-darwin-amd64
-    depends_on:
-      - prepare-release
-    failure: ignore
+  # Temporarily commenting out macOS build due to compatibility issues
+  # - name: build-darwin-amd64
+  #   image: golang:1.24-alpine
+  #   environment:
+  #     CGO_ENABLED: 0
+  #     GOOS: darwin
+  #     GOARCH: amd64
+  #   commands:
+  #     # Note: macOS builds with CGO require specific setup that may not work in standard Docker
+  #     # Building without CGO to avoid OpenGL and other native dependency issues
+  #     - apk add --no-cache git ca-certificates zip
+  #     - go build -ldflags "-s -w -X main.Version=${DRONE_TAG}" -o dist/meshgo-darwin-amd64 ./cmd/meshgo
+  #     - cd dist && zip -9 meshgo-darwin-amd64.zip meshgo-darwin-amd64
+  #   depends_on:
+  #     - prepare-release
+  #   failure: ignore
 
 
   - name: create-release
@@ -140,32 +141,42 @@ steps:
       api_key:
         from_secret: forgejo_token
       title: "MeshGo ${DRONE_TAG}"
-      note: |
+      note: >
         ## MeshGo ${DRONE_TAG}
-        
+
+
         This is an automated release of MeshGo built from tag `${DRONE_TAG}`.
-        
+
+
         ### Downloads
-        
+
+
         Choose the appropriate binary for your platform:
+
         - **Linux AMD64**: `meshgo-linux-amd64.zip` - For most Linux systems
+
         - **Windows AMD64**: `meshgo-windows-amd64.zip` - For Windows 10/11 64-bit
-        - **macOS Intel**: `meshgo-darwin-amd64.zip` - For Intel-based Macs (if build succeeded)
-        
+
+
         ### Installation
-        
+
+
         1. Download the appropriate ZIP file for your platform
+
         2. Extract the binary from the ZIP file
-        3. Make the binary executable (Linux/macOS): `chmod +x meshgo*`
+
+        3. Make the binary executable (Linux): `chmod +x meshgo*`
+
         4. Run the application: `./meshgo` (or `meshgo.exe` on Windows)
-        
+
+
         ### Changes
-        
+
+
         See the [commit history](${DRONE_REPO_LINK}/commits/${DRONE_TAG}) for detailed changes in this release.
       files:
         - dist/meshgo-linux-amd64.zip
         - dist/meshgo-windows-amd64.zip
-        - dist/meshgo-darwin-amd64.zip
       checksum:
         - sha256
         - sha512
