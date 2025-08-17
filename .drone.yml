@@ -18,7 +18,6 @@ steps:
       - golangci-lint run --timeout=10m
     when:
       event:
-        - push
         - pull_request
         - tag
 
@@ -29,7 +28,6 @@ steps:
       - test ! -s /tmp/fmt-diff || (echo "Code not formatted properly:" && cat /tmp/fmt-diff && exit 1)
     when:
       event:
-        - push
         - pull_request
         - tag
 
@@ -43,7 +41,6 @@ steps:
       - go build -v ./...
     when:
       event:
-        - push
         - pull_request
         - tag
 
@@ -61,7 +58,6 @@ steps:
       - build-check
     when:
       event:
-        - push
         - pull_request
         - tag
 
