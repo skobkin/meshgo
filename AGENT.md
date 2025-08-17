@@ -160,6 +160,64 @@ bus.Emit(Event{Type: ConnectionStateChanged, Data: state})
 - Test on all target platforms regularly
 - Document public APIs and complex algorithms
 
+## Pre-Commit Validation
+
+**IMPORTANT**: Before declaring work complete or committing changes, ALWAYS run these validation checks to prevent CI failures:
+
+### Required Pre-Commit Checks
+```bash
+# 1. Format check - ensure all Go code is properly formatted
+gofmt -l . | tee /tmp/fmt-diff
+test ! -s /tmp/fmt-diff || (echo "Code not formatted properly. Run: gofmt -w ." && exit 1)
+
+# 2. Test all packages - ensure no test failures
+go test ./...
+
+# 3. Build check - ensure all packages compile
+go build ./...
+
+# 4. Lint check (if golangci-lint is available)
+command -v golangci-lint >/dev/null 2>&1 && golangci-lint run --timeout=10m
+
+# 5. Module consistency
+go mod tidy && git diff --exit-code go.mod go.sum
+```
+
+### Quick Pre-Commit Script
+Save this as a script for easy validation:
+```bash
+#!/bin/bash
+set -e
+echo "Running pre-commit checks..."
+
+echo "✓ Formatting check..."
+gofmt -l . | tee /tmp/fmt-diff
+test ! -s /tmp/fmt-diff || (echo "❌ Code not formatted. Run: gofmt -w ." && exit 1)
+
+echo "✓ Running tests..."
+go test ./...
+
+echo "✓ Build check..."
+go build ./...
+
+if command -v golangci-lint >/dev/null 2>&1; then
+    echo "✓ Lint check..."
+    golangci-lint run --timeout=10m
+fi
+
+echo "✓ Module consistency..."
+go mod tidy
+git diff --exit-code go.mod go.sum
+
+echo "✅ All pre-commit checks passed!"
+```
+
+### When to Run Checks
+- **Always** before committing any code changes
+- After fixing test failures or build issues
+- When adding new dependencies or changing go.mod
+- Before declaring any development task complete
+
 ## Original specification
 If you're unsure of what app should be able to do, then check the original PRD document in the root directory.
 If you can't find it, request it from the user.
