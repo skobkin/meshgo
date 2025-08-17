@@ -119,7 +119,7 @@ func TestRadioClient_Start(t *testing.T) {
 	}
 
 	// Cleanup
-	client.Stop()
+	_ = client.Stop()
 }
 
 func TestRadioClient_Stop(t *testing.T) {
@@ -332,7 +332,7 @@ func TestRadioClient_requestAllChannels(t *testing.T) {
 
 	// Set up the client with transport
 	client.transport = transport
-	transport.Connect(ctx)
+	_ = transport.Connect(ctx)
 
 	// This should not panic and should send requests
 	client.requestAllChannels(ctx)

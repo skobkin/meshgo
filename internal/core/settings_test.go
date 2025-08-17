@@ -61,16 +61,16 @@ func TestNewConfigManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Set temporary config dir
 	oldConfigDir := os.Getenv("XDG_CONFIG_HOME")
-	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
 	defer func() {
 		if oldConfigDir == "" {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
 		} else {
-			os.Setenv("XDG_CONFIG_HOME", oldConfigDir)
+			_ = os.Setenv("XDG_CONFIG_HOME", oldConfigDir)
 		}
 	}()
 
@@ -105,7 +105,7 @@ func TestConfigManager_LoadAndSave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configFile := filepath.Join(tmpDir, "config.json")
 
@@ -165,7 +165,7 @@ func TestConfigManager_LoadNonExistentFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configFile := filepath.Join(tmpDir, "nonexistent.json")
 
@@ -187,7 +187,7 @@ func TestConfigManager_LoadInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configFile := filepath.Join(tmpDir, "invalid.json")
 
@@ -215,7 +215,7 @@ func TestConfigManager_UpdateConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir:  tmpDir,
@@ -251,7 +251,7 @@ func TestConfigManager_UpdateNotifications(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir:  tmpDir,
@@ -274,7 +274,7 @@ func TestConfigManager_UpdateLogging(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir:  tmpDir,
@@ -301,7 +301,7 @@ func TestConfigManager_UpdateUI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir:  tmpDir,
@@ -328,7 +328,7 @@ func TestConfigManager_UpdateConnectOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir:  tmpDir,
@@ -351,7 +351,7 @@ func TestConfigManager_LogDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir: tmpDir,
@@ -370,7 +370,7 @@ func TestConfigManager_EnsureLogDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cm := &ConfigManager{
 		configDir: tmpDir,

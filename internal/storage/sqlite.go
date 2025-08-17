@@ -167,7 +167,7 @@ LIMIT ? OFFSET ?
 	if err != nil {
 		return nil, fmt.Errorf("failed to query messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []*core.Message
 	for rows.Next() {
@@ -361,7 +361,7 @@ ORDER BY last_heard DESC
 	if err != nil {
 		return nil, fmt.Errorf("failed to query nodes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var nodes []*core.Node
 	for rows.Next() {
@@ -380,11 +380,11 @@ ORDER BY last_heard DESC
 		node.LastHeard = time.Unix(lastHeard, 0)
 
 		if len(positionData) > 0 {
-			json.Unmarshal(positionData, &node.Position)
+			_ = json.Unmarshal(positionData, &node.Position)
 		}
 
 		if len(metricsData) > 0 {
-			json.Unmarshal(metricsData, &node.DeviceMetrics)
+			_ = json.Unmarshal(metricsData, &node.DeviceMetrics)
 		}
 
 		nodes = append(nodes, node)
@@ -517,7 +517,7 @@ ORDER BY last_message_ts DESC
 	if err != nil {
 		return nil, fmt.Errorf("failed to query chats: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var chats []*core.Chat
 	for rows.Next() {

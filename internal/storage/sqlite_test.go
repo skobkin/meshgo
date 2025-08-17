@@ -19,13 +19,13 @@ func setupTestDB(t *testing.T) (*SQLiteStore, func()) {
 
 	store, err := NewSQLiteStore(tmpDir)
 	if err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to create test store: %v", err)
 	}
 
 	cleanup := func() {
-		store.Close()
-		os.RemoveAll(tmpDir)
+		_ = store.Close()
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	return store, cleanup
@@ -36,13 +36,13 @@ func TestNewSQLiteStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	store, err := NewSQLiteStore(tmpDir)
 	if err != nil {
 		t.Fatalf("NewSQLiteStore failed: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Check database file was created
 	dbPath := filepath.Join(tmpDir, "meshgo.db")

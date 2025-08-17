@@ -47,11 +47,11 @@ func (t *TCPTransport) Connect(ctx context.Context) error {
 	// Enable keepalive
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
 		if err := tcpConn.SetKeepAlive(true); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return fmt.Errorf("failed to set keepalive: %w", err)
 		}
 		if err := tcpConn.SetKeepAlivePeriod(30 * time.Second); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return fmt.Errorf("failed to set keepalive period: %w", err)
 		}
 	}

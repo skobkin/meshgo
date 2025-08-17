@@ -88,7 +88,7 @@ func NewFyneUI(logger *slog.Logger) *FyneUI {
 func (f *FyneUI) setupUI() {
 	// Status bar
 	statusLabel := widget.NewLabelWithData(f.statusBinding)
-	f.statusBinding.Set("Status: Disconnected")
+	_ = f.statusBinding.Set("Status: Disconnected")
 
 	// Create tabs with vertical rail
 	tabs := container.NewAppTabs()
@@ -232,7 +232,7 @@ func (f *FyneUI) createNodesTab() fyne.CanvasObject {
 			nodeID := nodeIDs[id]
 			if node, exists := f.nodes[nodeID]; exists {
 				if f.callbacks != nil && f.callbacks.OnOpenDirectMessage != nil {
-					f.callbacks.OnOpenDirectMessage(node.ID)
+					_ = f.callbacks.OnOpenDirectMessage(node.ID)
 				}
 			}
 		}
@@ -285,7 +285,7 @@ func (f *FyneUI) createSettingsTab() fyne.CanvasObject {
 	// Notifications section
 	notificationsEnabled := widget.NewCheck("Enable notifications", func(checked bool) {
 		if f.callbacks != nil && f.callbacks.OnToggleNotifications != nil {
-			f.callbacks.OnToggleNotifications(checked)
+			_ = f.callbacks.OnToggleNotifications(checked)
 		}
 	})
 	notificationsEnabled.SetChecked(true)
@@ -390,7 +390,7 @@ func (f *FyneUI) handleConnectButton() {
 	if f.connectionState == core.StateConnected || f.connectionState == core.StateConnecting || f.connectionState == core.StateRetrying {
 		// Disconnect
 		if f.callbacks.OnDisconnect != nil {
-			f.callbacks.OnDisconnect()
+			_ = f.callbacks.OnDisconnect()
 		}
 	} else {
 		// Connect
@@ -398,7 +398,7 @@ func (f *FyneUI) handleConnectButton() {
 		endpoint := f.connectEntry.Text
 
 		if endpoint == "" {
-			dialog.ShowError(fmt.Errorf("Please enter connection endpoint"), f.window)
+			dialog.ShowError(fmt.Errorf("please enter connection endpoint"), f.window)
 			return
 		}
 
@@ -434,19 +434,19 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 		// First row: short name, long name, favorite button
 		nameRow := vbox.Objects[0].(*fyne.Container)
 		if len(nameRow.Objects) >= 3 {
-			nameRow.Objects[0].(*widget.Label).SetText(node.Node.ShortName)
-			nameRow.Objects[1].(*widget.Label).SetText(node.Node.LongName)
+			nameRow.Objects[0].(*widget.Label).SetText(node.ShortName)
+			nameRow.Objects[1].(*widget.Label).SetText(node.LongName)
 
 			// Favorite button
 			favoriteBtn := nameRow.Objects[2].(*widget.Button)
-			if node.Node.Favorite {
+			if node.Favorite {
 				favoriteBtn.SetText("⭐")
 			} else {
 				favoriteBtn.SetText("☆")
 			}
 			favoriteBtn.OnTapped = func() {
 				if f.callbacks != nil && f.callbacks.OnToggleNodeFavorite != nil {
-					f.callbacks.OnToggleNodeFavorite(node.Node.ID)
+					_ = f.callbacks.OnToggleNodeFavorite(node.ID)
 				}
 			}
 		}
@@ -455,7 +455,7 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 		statusRow := vbox.Objects[1].(*fyne.Container)
 		if len(statusRow.Objects) >= 4 {
 			// Signal quality icon
-			signalIcon := "📶"
+			var signalIcon string
 			if node.IsOnline {
 				switch node.SignalBars {
 				case 3:
@@ -489,11 +489,11 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 			// Encryption status
 			encryptionIcon := "🔓" // Default: unencrypted
 			if node.Node != nil {
-				if node.Node.EncCustomKey {
+				if node.EncCustomKey {
 					encryptionIcon = "🔑" // Custom key
-				} else if node.Node.EncDefaultKey {
+				} else if node.EncDefaultKey {
 					encryptionIcon = "🔒" // Default key
-				} else if node.Node.Unencrypted {
+				} else if node.Unencrypted {
 					encryptionIcon = "🔓" // Explicitly unencrypted
 				}
 			}
@@ -505,10 +505,10 @@ func (f *FyneUI) updateNodeItem(i widget.ListItemID, obj fyne.CanvasObject) {
 			signalRow := vbox.Objects[2].(*fyne.Container)
 			if len(signalRow.Objects) >= 1 {
 				var signalDetails string
-				if node.IsOnline && node.Node != nil && (node.Node.RSSI != 0 || node.Node.SNR != 0) {
+				if node.IsOnline && node.Node != nil && (node.RSSI != 0 || node.SNR != 0) {
 					// Format: "SNR: 9.50dB RSSI: -49dBm" (remove redundant quality text)
 					signalDetails = fmt.Sprintf("SNR: %.2fdB RSSI: %ddBm",
-						node.Node.SNR, node.Node.RSSI)
+						node.SNR, node.RSSI)
 				} else {
 					// For nodes without real signal readings (Unknown) or offline nodes, show nothing
 					signalDetails = ""
@@ -551,7 +551,7 @@ func (f *FyneUI) updateChatItem(i widget.ListItemID, obj fyne.CanvasObject) {
 		// Right: encryption icon
 		encryptionIcon := "🔓" // Default: unencrypted
 		if chat.Chat != nil {
-			switch chat.Chat.Encryption {
+			switch chat.Encryption {
 			case 1: // Default key
 				encryptionIcon = "🔒"
 			case 2: // Custom key
@@ -698,7 +698,7 @@ func (f *FyneUI) UpdateConnectionStatus(state core.ConnectionState, endpoint str
 
 	// All UI updates must happen on the Fyne thread
 	fyne.Do(func() {
-		f.statusBinding.Set(status)
+		_ = f.statusBinding.Set(status)
 
 		// Update connection button based on state
 		if f.connectionButton != nil {
