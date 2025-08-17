@@ -117,12 +117,12 @@ func TestDecodeTextMessage(t *testing.T) {
 func TestDecodePosition(t *testing.T) {
 	// Create test position data using proper protobuf encoding
 	testPos := &gomeshproto.Position{
-		LatitudeI:  375594120,  // 37.5594120 * 1e7
+		LatitudeI:  375594120,   // 37.5594120 * 1e7
 		LongitudeI: -1213894470, // -121.3894470 * 1e7
 		Altitude:   100,
 		Time:       1609459200, // Jan 1, 2021
 	}
-	
+
 	payload, err := proto.Marshal(testPos)
 	if err != nil {
 		t.Fatalf("Failed to marshal test position: %v", err)
@@ -142,7 +142,7 @@ func TestDecodePosition(t *testing.T) {
 	if position.LatitudeI != 375594120 {
 		t.Errorf("LatitudeI: got %d, want %d", position.LatitudeI, 375594120)
 	}
-	
+
 	if position.LongitudeI != -1213894470 {
 		t.Errorf("LongitudeI: got %d, want %d", position.LongitudeI, -1213894470)
 	}
@@ -152,7 +152,7 @@ func TestDecodePosition(t *testing.T) {
 	if abs(actualLat-expectedLat) > 0.0000001 {
 		t.Errorf("Latitude calculation: got %f, want %f", actualLat, expectedLat)
 	}
-	
+
 	expectedLng := -121.3894470
 	actualLng := float64(position.LongitudeI) * 1e-7
 	if abs(actualLng-expectedLng) > 0.0000001 {

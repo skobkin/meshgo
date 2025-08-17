@@ -24,7 +24,7 @@ func isHeadless() bool {
 	display := os.Getenv("DISPLAY")
 	waylandDisplay := os.Getenv("WAYLAND_DISPLAY")
 	term := os.Getenv("TERM")
-	
+
 	// If no display environment and we're in a terminal-only environment
 	return display == "" && waylandDisplay == "" && (term == "dumb" || term == "")
 }
