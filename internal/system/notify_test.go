@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// Helper function to create a test notifier that runs in headless mode
+func newTestNotifier() *Notifier {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	notifier := &Notifier{
+		enabled:    true,
+		logger:     logger,
+		lastNotify: make(map[string]time.Time),
+		headless:   true, // Force headless mode for testing
+	}
+	return notifier
+}
+
 func TestNewNotifier(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	notifier := NewNotifier(logger)
@@ -26,8 +38,7 @@ func TestNewNotifier(t *testing.T) {
 }
 
 func TestNotifier_SetEnabled(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	notifier := NewNotifier(logger)
+	notifier := newTestNotifier()
 
 	// Test enabling
 	notifier.SetEnabled(true)
@@ -43,15 +54,14 @@ func TestNotifier_SetEnabled(t *testing.T) {
 }
 
 func TestNotifier_NotifyNewMessage(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	notifier := NewNotifier(logger)
+	notifier := newTestNotifier()
 
 	// Test with notifications enabled
 	notifier.SetEnabled(true)
 	err := notifier.NotifyNewMessage("chat1", "Test Chat", "Hello, World!", time.Now())
-	// Note: This might fail on headless systems, so we just check it doesn't panic
+	// Should work in headless mode
 	if err != nil {
-		t.Logf("NotifyNewMessage failed (this may be expected on headless systems): %v", err)
+		t.Errorf("NotifyNewMessage should not fail in headless mode: %v", err)
 	}
 
 	// Test with notifications disabled
@@ -63,15 +73,14 @@ func TestNotifier_NotifyNewMessage(t *testing.T) {
 }
 
 func TestNotifier_Alert(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	notifier := NewNotifier(logger)
+	notifier := newTestNotifier()
 
 	// Test with notifications enabled
 	notifier.SetEnabled(true)
 	err := notifier.Alert("Test Title", "Test Message")
-	// Note: This might fail on headless systems, so we just check it doesn't panic
+	// Should work in headless mode
 	if err != nil {
-		t.Logf("Alert failed (this may be expected on headless systems): %v", err)
+		t.Errorf("Alert should not fail in headless mode: %v", err)
 	}
 
 	// Test with notifications disabled
@@ -83,15 +92,14 @@ func TestNotifier_Alert(t *testing.T) {
 }
 
 func TestNotifier_Beep(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	notifier := NewNotifier(logger)
+	notifier := newTestNotifier()
 
 	// Test with notifications enabled
 	notifier.SetEnabled(true)
 	err := notifier.Beep()
-	// Note: This might fail on headless systems, so we just check it doesn't panic
+	// Should work in headless mode
 	if err != nil {
-		t.Logf("Beep failed (this may be expected on headless systems): %v", err)
+		t.Errorf("Beep should not fail in headless mode: %v", err)
 	}
 
 	// Test with notifications disabled
@@ -103,8 +111,7 @@ func TestNotifier_Beep(t *testing.T) {
 }
 
 func TestNotifier_ConcurrentAccess(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	notifier := NewNotifier(logger)
+	notifier := newTestNotifier()
 
 	// Test concurrent enable/disable operations
 	done := make(chan bool, 2)

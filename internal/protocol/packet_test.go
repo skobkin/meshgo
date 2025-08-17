@@ -80,14 +80,14 @@ func TestEncodeTextMessage(t *testing.T) {
 	}
 
 	// Decode the Data message and check the payload
-	data := &Data{}
+	data := &gomeshproto.Data{}
 	err = proto.Unmarshal(encoded, data)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal encoded data: %v", err)
 	}
 
-	if data.Portnum != PortTextMessageApp {
-		t.Errorf("Portnum: got %d, want %d", data.Portnum, PortTextMessageApp)
+	if data.Portnum != gomeshproto.PortNum_TEXT_MESSAGE_APP {
+		t.Errorf("Portnum: got %d, want %d", data.Portnum, gomeshproto.PortNum_TEXT_MESSAGE_APP)
 	}
 	if string(data.Payload) != text {
 		t.Errorf("Payload: got %s, want %s", string(data.Payload), text)
@@ -115,28 +115,18 @@ func TestDecodeTextMessage(t *testing.T) {
 }
 
 func TestDecodePosition(t *testing.T) {
-	// Create test position data (simplified)
-	payload := make([]byte, 16)
-	// Latitude: 37.5594120 * 1e7 = 375594120
-	payload[0] = 0x78
-	payload[1] = 0x6C
-	payload[2] = 0x65
-	payload[3] = 0x16
-	// Longitude: -121.3894470 * 1e7 = -1213894470 (as uint32: 3081072826)
-	payload[4] = 0xCA
-	payload[5] = 0x7E
-	payload[6] = 0xDA
-	payload[7] = 0xB7
-	// Altitude: 100
-	payload[8] = 0x64
-	payload[9] = 0x00
-	payload[10] = 0x00
-	payload[11] = 0x00
-	// Time: 1609459200 (Jan 1, 2021)
-	payload[12] = 0x00
-	payload[13] = 0x6C
-	payload[14] = 0xF7
-	payload[15] = 0x5F
+	// Create test position data using proper protobuf encoding
+	testPos := &gomeshproto.Position{
+		LatitudeI:  375594120,  // 37.5594120 * 1e7
+		LongitudeI: -1213894470, // -121.3894470 * 1e7
+		Altitude:   100,
+		Time:       1609459200, // Jan 1, 2021
+	}
+	
+	payload, err := proto.Marshal(testPos)
+	if err != nil {
+		t.Fatalf("Failed to marshal test position: %v", err)
+	}
 
 	data := &Data{Portnum: PortPositionApp, Payload: payload}
 	decoded, err := DecodePayload(data)
@@ -144,19 +134,29 @@ func TestDecodePosition(t *testing.T) {
 		t.Fatalf("DecodePayload() error = %v", err)
 	}
 
-	position, ok := decoded.(*Position)
+	position, ok := decoded.(*gomeshproto.Position)
 	if !ok {
-		t.Fatalf("Expected *Position, got %T", decoded)
+		t.Fatalf("Expected *gomeshproto.Position, got %T", decoded)
 	}
 
 	if position.LatitudeI != 375594120 {
 		t.Errorf("LatitudeI: got %d, want %d", position.LatitudeI, 375594120)
 	}
+	
+	if position.LongitudeI != -1213894470 {
+		t.Errorf("LongitudeI: got %d, want %d", position.LongitudeI, -1213894470)
+	}
 
 	expectedLat := 37.5594120
-	actualLat := position.Latitude()
+	actualLat := float64(position.LatitudeI) * 1e-7
 	if abs(actualLat-expectedLat) > 0.0000001 {
-		t.Errorf("Latitude(): got %f, want %f", actualLat, expectedLat)
+		t.Errorf("Latitude calculation: got %f, want %f", actualLat, expectedLat)
+	}
+	
+	expectedLng := -121.3894470
+	actualLng := float64(position.LongitudeI) * 1e-7
+	if abs(actualLng-expectedLng) > 0.0000001 {
+		t.Errorf("Longitude calculation: got %f, want %f", actualLng, expectedLng)
 	}
 }
 

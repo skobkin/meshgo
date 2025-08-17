@@ -3,6 +3,7 @@ package system
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -14,6 +15,18 @@ type Notifier struct {
 	logger     *slog.Logger
 	lastNotify map[string]time.Time
 	mu         sync.RWMutex
+	headless   bool
+}
+
+// isHeadless detects if we're running in a headless environment
+func isHeadless() bool {
+	// Check for common indicators of headless environments
+	display := os.Getenv("DISPLAY")
+	waylandDisplay := os.Getenv("WAYLAND_DISPLAY")
+	term := os.Getenv("TERM")
+	
+	// If no display environment and we're in a terminal-only environment
+	return display == "" && waylandDisplay == "" && (term == "dumb" || term == "")
 }
 
 func NewNotifier(logger *slog.Logger) *Notifier {
@@ -21,6 +34,7 @@ func NewNotifier(logger *slog.Logger) *Notifier {
 		enabled:    true,
 		logger:     logger,
 		lastNotify: make(map[string]time.Time),
+		headless:   isHeadless(),
 	}
 }
 
@@ -54,10 +68,15 @@ func (n *Notifier) NotifyNewMessage(chatID, title, body string, timestamp time.T
 	}
 
 	// Use beeep for cross-platform notifications
-	err := beeep.Notify(title, body, "")
-	if err != nil {
-		n.logger.Error("Failed to send notification", "error", err, "chat", chatID)
-		return fmt.Errorf("notification failed: %w", err)
+	if n.headless {
+		// In headless mode, just log the notification
+		n.logger.Info("Notification (headless)", "chat", chatID, "title", title, "body", body)
+	} else {
+		err := beeep.Notify(title, body, "")
+		if err != nil {
+			n.logger.Error("Failed to send notification", "error", err, "chat", chatID)
+			return fmt.Errorf("notification failed: %w", err)
+		}
 	}
 
 	n.lastNotify[chatID] = time.Now()
@@ -74,10 +93,15 @@ func (n *Notifier) Alert(title, message string) error {
 		return nil
 	}
 
-	err := beeep.Alert(title, message, "")
-	if err != nil {
-		n.logger.Error("Failed to send alert", "error", err)
-		return fmt.Errorf("alert failed: %w", err)
+	if n.headless {
+		// In headless mode, just log the alert
+		n.logger.Warn("Alert (headless)", "title", title, "message", message)
+	} else {
+		err := beeep.Alert(title, message, "")
+		if err != nil {
+			n.logger.Error("Failed to send alert", "error", err)
+			return fmt.Errorf("alert failed: %w", err)
+		}
 	}
 
 	n.logger.Debug("Alert sent", "title", title)
@@ -93,10 +117,15 @@ func (n *Notifier) Beep() error {
 		return nil
 	}
 
-	err := beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
-	if err != nil {
-		n.logger.Error("Failed to beep", "error", err)
-		return fmt.Errorf("beep failed: %w", err)
+	if n.headless {
+		// In headless mode, just log the beep
+		n.logger.Info("Beep (headless)")
+	} else {
+		err := beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
+		if err != nil {
+			n.logger.Error("Failed to beep", "error", err)
+			return fmt.Errorf("beep failed: %w", err)
+		}
 	}
 
 	return nil

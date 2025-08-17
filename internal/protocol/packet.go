@@ -8,6 +8,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/runtime/protoimpl"
+
+	"meshgo/internal/protocol/gomeshproto"
 )
 
 // PortNum represents application port numbers for routing messages
@@ -855,12 +857,12 @@ func EncodeMeshPacket(packet *MeshPacket) ([]byte, error) {
 	return proto.Marshal(packet)
 }
 
-func DecodeMeshPacket(data []byte) (*MeshPacket, error) {
+func DecodeMeshPacket(data []byte) (*gomeshproto.MeshPacket, error) {
 	if len(data) == 0 {
 		return nil, errors.New("empty data")
 	}
 
-	packet := &MeshPacket{}
+	packet := &gomeshproto.MeshPacket{}
 	err := proto.Unmarshal(data, packet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal MeshPacket: %w", err)
@@ -888,7 +890,7 @@ func DecodePayload(data *Data) (interface{}, error) {
 		return nodeInfo, nil
 
 	case PortPositionApp:
-		position := &Position{}
+		position := &gomeshproto.Position{}
 		if err := proto.Unmarshal(data.Payload, position); err != nil {
 			return nil, fmt.Errorf("failed to decode Position: %w", err)
 		}
@@ -909,8 +911,8 @@ func DecodePayload(data *Data) (interface{}, error) {
 // Helper functions for encoding application messages
 
 func EncodeTextMessage(text string) ([]byte, error) {
-	data := &Data{
-		Portnum: PortTextMessageApp,
+	data := &gomeshproto.Data{
+		Portnum: gomeshproto.PortNum_TEXT_MESSAGE_APP,
 		Payload: []byte(text),
 	}
 	return proto.Marshal(data)
@@ -918,8 +920,8 @@ func EncodeTextMessage(text string) ([]byte, error) {
 
 func EncodeNodeInfoRequest() ([]byte, error) {
 	// NodeInfo requests are typically empty payloads
-	data := &Data{
-		Portnum: PortNodeInfoApp,
+	data := &gomeshproto.Data{
+		Portnum: gomeshproto.PortNum_NODEINFO_APP,
 		Payload: []byte{},
 	}
 	return proto.Marshal(data)
