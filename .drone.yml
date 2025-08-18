@@ -141,39 +141,7 @@ steps:
       api_key:
         from_secret: forgejo_token
       title: "MeshGo ${DRONE_TAG}"
-      note: >
-        ## MeshGo ${DRONE_TAG}
-
-
-        This is an automated release of MeshGo built from tag `${DRONE_TAG}`.
-
-
-        ### Downloads
-
-
-        Choose the appropriate binary for your platform:
-
-        - **Linux AMD64**: `meshgo-linux-amd64.zip` - For most Linux systems
-
-        - **Windows AMD64**: `meshgo-windows-amd64.zip` - For Windows 10/11 64-bit
-
-
-        ### Installation
-
-
-        1. Download the appropriate ZIP file for your platform
-
-        2. Extract the binary from the ZIP file
-
-        3. Make the binary executable (Linux): `chmod +x meshgo*`
-
-        4. Run the application: `./meshgo` (or `meshgo.exe` on Windows)
-
-
-        ### Changes
-
-
-        See the [commit history](${DRONE_REPO_LINK}/commits/${DRONE_TAG}) for detailed changes in this release.
+      note: "Automated release ${DRONE_TAG}. See [changelog](${DRONE_REPO_LINK}/commits/${DRONE_TAG}) for details."
       files:
         - dist/meshgo-linux-amd64.zip
         - dist/meshgo-windows-amd64.zip
