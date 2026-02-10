@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
@@ -121,6 +123,46 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		r.IPTransport.SetHost(cfg.Connection.Host)
 		_ = r.IPTransport.Close()
 	}
+
+	return nil
+}
+
+func (r *Runtime) ClearDatabase() error {
+	if r.DB == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin clear db tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmts := []string{
+		`DELETE FROM messages;`,
+		`DELETE FROM chats;`,
+		`DELETE FROM nodes;`,
+	}
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("clear database tables: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit clear db tx: %w", err)
+	}
+
+	if r.ChatStore != nil {
+		r.ChatStore.Reset()
+	}
+	if r.NodeStore != nil {
+		r.NodeStore.Reset()
+	}
+	slog.Info("database cleared")
 
 	return nil
 }

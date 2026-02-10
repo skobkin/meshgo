@@ -163,6 +163,14 @@ func (s *ChatStore) Changes() <-chan struct{} {
 	return s.changes
 }
 
+func (s *ChatStore) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.chats = make(map[string]Chat)
+	s.messages = make(map[string][]ChatMessage)
+	s.notify()
+}
+
 func (s *ChatStore) notify() {
 	select {
 	case s.changes <- struct{}{}:

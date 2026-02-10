@@ -18,5 +18,6 @@ type Dependencies struct {
 	}
 	IPTransport *transport.IPTransport
 	OnSave      func(cfg config.AppConfig) error
+	OnClearDB   func() error
 	OnQuit      func()
 }

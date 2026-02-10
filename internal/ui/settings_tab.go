@@ -24,7 +24,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	hostEntry.SetText(current.Connection.Host)
 	hostEntry.SetPlaceHolder("IP address or hostname")
 
-	logToFile := widget.NewCheck("Log to file", nil)
+	logToFile := widget.NewCheck("", nil)
 	logToFile.SetChecked(current.Logging.LogToFile)
 
 	levelSelect := widget.NewSelect([]string{"debug", "info", "warn", "error"}, nil)
@@ -59,18 +59,47 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		current = cfg
 		status.SetText("Saved")
 	})
+	saveButton.Importance = widget.HighImportance
 
-	form := widget.NewForm(
+	clearDBButton := widget.NewButton("Clear database", func() {
+		if dep.OnClearDB == nil {
+			status.SetText("Database clear is not available")
+			return
+		}
+		if err := dep.OnClearDB(); err != nil {
+			status.SetText("Database clear failed: " + err.Error())
+			return
+		}
+		status.SetText("Database cleared")
+	})
+	if dep.OnClearDB == nil {
+		clearDBButton.Disable()
+	}
+
+	connectionForm := widget.NewForm(
 		widget.NewFormItem("Connector", connectorSelect),
 		widget.NewFormItem("IP Host", hostEntry),
-		widget.NewFormItem("Log Level", levelSelect),
 	)
 
-	return container.NewVBox(
-		widget.NewLabel("App Settings & Connection"),
+	loggingForm := widget.NewForm(
+		widget.NewFormItem("Log Level", levelSelect),
+		widget.NewFormItem("Log to file", logToFile),
+	)
+
+	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(
 		connStatusLabel,
-		form,
-		logToFile,
+		connectionForm,
+	))
+	loggingBlock := widget.NewCard("Logging", "", loggingForm)
+	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewVBox(
+		clearDBButton,
+	))
+
+	return container.NewVBox(
+		widget.NewLabel("App settings"),
+		connectionBlock,
+		loggingBlock,
+		maintenanceBlock,
 		saveButton,
 		status,
 	)

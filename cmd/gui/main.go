@@ -38,6 +38,7 @@ func main() {
 		Sender:      rt.Radio,
 		IPTransport: rt.IPTransport,
 		OnSave:      rt.SaveAndApplyConfig,
+		OnClearDB:   rt.ClearDatabase,
 		OnQuit: func() {
 			stop()
 			closeRuntime()

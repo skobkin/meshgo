@@ -126,6 +126,13 @@ func (s *NodeStore) Changes() <-chan struct{} {
 	return s.changes
 }
 
+func (s *NodeStore) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nodes = make(map[string]Node)
+	s.notify()
+}
+
 func (s *NodeStore) notify() {
 	select {
 	case s.changes <- struct{}{}:
