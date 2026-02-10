@@ -3,11 +3,14 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -90,10 +93,14 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		func() fyne.CanvasObject {
 			messageLine := container.NewBorder(nil, nil, nil, newTooltipLabel("", ""), widget.NewRichTextWithText("message"))
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
-			return container.NewVBox(
+			row := container.NewVBox(
 				messageLine,
 				container.NewHBox(metaParts, layout.NewSpacer(), widget.NewLabel("status")),
 			)
+			bubbleBg := canvas.NewRectangle(chatBubbleFillColor(domain.MessageDirectionIn))
+			bubbleBg.CornerRadius = 10
+			bubble := container.NewStack(bubbleBg, container.NewPadded(row))
+			return container.New(newChatRowLayout(false), bubble)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(messages) {
@@ -101,7 +108,16 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			}
 			msg := messages[id]
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
-			box := obj.(*fyne.Container)
+			rowContainer := obj.(*fyne.Container)
+			rowLayout, ok := rowContainer.Layout.(*chatRowLayout)
+			if ok {
+				rowLayout.SetAlignRight(msg.Direction == domain.MessageDirectionOut)
+			}
+			bubble := rowContainer.Objects[0].(*fyne.Container)
+			bubbleBg := bubble.Objects[0].(*canvas.Rectangle)
+			bubbleBg.FillColor = chatBubbleFillColor(msg.Direction)
+			bubbleBg.Refresh()
+			box := bubble.Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
 			messageLine := box.Objects[0].(*fyne.Container)
 			messageText := messageLine.Objects[0].(*widget.RichText)
 			messageBadge := messageLine.Objects[1].(*tooltipLabel)
@@ -113,6 +129,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
 			metaParts.Refresh()
 			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
+			rowContainer.Refresh()
 		},
 	)
 
@@ -359,48 +376,45 @@ func parseMessageMeta(raw string) (messageMeta, bool) {
 }
 
 func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) string {
-	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
+	sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
 	if hasSender {
-		return fmt.Sprintf("%s %s: %s", prefix, sender, body)
+		return fmt.Sprintf("%s: %s", sender, body)
 	}
-	return fmt.Sprintf("%s %s", prefix, body)
+	return body
 }
 
-func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) (prefix, sender, body string, hasSender bool) {
-	prefix = "<"
+func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) (sender, body string, hasSender bool) {
 	if m.Direction == domain.MessageDirectionOut {
-		prefix = ">"
 		if hasMeta {
 			if localID := normalizeNodeID(meta.From); localID != "" {
-				return prefix, displaySender(localID, nodeNameByID), m.Body, true
+				return displaySender(localID, nodeNameByID), m.Body, true
 			}
 		}
 		if localNodeID != nil {
 			if localID := normalizeNodeID(localNodeID()); localID != "" {
-				return prefix, displaySender(localID, nodeNameByID), m.Body, true
+				return displaySender(localID, nodeNameByID), m.Body, true
 			}
 		}
-		return prefix, "you", m.Body, true
+		return "you", m.Body, true
 	}
 	if hasMeta {
 		if sender := normalizeNodeID(meta.From); sender != "" {
-			return prefix, displaySender(sender, nodeNameByID), m.Body, true
+			return displaySender(sender, nodeNameByID), m.Body, true
 		}
 	}
-	return prefix, "", m.Body, false
+	return "", m.Body, false
 }
 
 func messageTextSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) []widget.RichTextSegment {
-	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
+	sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
 	if hasSender {
 		return []widget.RichTextSegment{
-			&widget.TextSegment{Text: prefix + " ", Style: widget.RichTextStyleInline},
 			&widget.TextSegment{Text: sender, Style: widget.RichTextStyleStrong},
 			&widget.TextSegment{Text: ": " + body, Style: widget.RichTextStyleInline},
 		}
 	}
 	return []widget.RichTextSegment{
-		&widget.TextSegment{Text: prefix + " " + body, Style: widget.RichTextStyleInline},
+		&widget.TextSegment{Text: body, Style: widget.RichTextStyleInline},
 	}
 }
 
@@ -582,6 +596,73 @@ func messageTransportBadge(meta messageMeta, hasMeta bool) (text, tooltip string
 	}
 
 	return "", ""
+}
+
+func chatBubbleFillColor(direction domain.MessageDirection) color.Color {
+	app := fyne.CurrentApp()
+	if app == nil {
+		if direction == domain.MessageDirectionOut {
+			return color.NRGBA{R: 72, G: 92, B: 123, A: 255}
+		}
+		return color.NRGBA{R: 48, G: 48, B: 48, A: 255}
+	}
+
+	th := app.Settings().Theme()
+	variant := app.Settings().ThemeVariant()
+	base := toNRGBA(th.Color(theme.ColorNameInputBackground, variant))
+	incoming := colorWithContrastOffset(base)
+	if direction != domain.MessageDirectionOut {
+		return incoming
+	}
+
+	primary := toNRGBA(th.Color(theme.ColorNamePrimary, variant))
+	if isDarkColor(incoming) {
+		return mixNRGBA(incoming, primary, 0.25)
+	}
+
+	return mixNRGBA(incoming, primary, 0.18)
+}
+
+func toNRGBA(c color.Color) color.NRGBA {
+	nrgba, ok := color.NRGBAModel.Convert(c).(color.NRGBA)
+	if ok {
+		return nrgba
+	}
+
+	return color.NRGBA{}
+}
+
+func mixNRGBA(a, b color.NRGBA, bWeight float32) color.NRGBA {
+	if bWeight < 0 {
+		bWeight = 0
+	}
+	if bWeight > 1 {
+		bWeight = 1
+	}
+	aWeight := 1 - bWeight
+
+	return color.NRGBA{
+		R: uint8(float32(a.R)*aWeight + float32(b.R)*bWeight),
+		G: uint8(float32(a.G)*aWeight + float32(b.G)*bWeight),
+		B: uint8(float32(a.B)*aWeight + float32(b.B)*bWeight),
+		A: uint8(float32(a.A)*aWeight + float32(b.A)*bWeight),
+	}
+}
+
+func colorWithContrastOffset(c color.NRGBA) color.NRGBA {
+	if isDarkColor(c) {
+		return mixNRGBA(c, color.NRGBA{R: 255, G: 255, B: 255, A: 255}, 0.08)
+	}
+
+	return mixNRGBA(c, color.NRGBA{R: 0, G: 0, B: 0, A: 255}, 0.06)
+}
+
+func isDarkColor(c color.NRGBA) bool {
+	return colorLuma(c) < 0.5
+}
+
+func colorLuma(c color.NRGBA) float32 {
+	return (0.299*float32(c.R) + 0.587*float32(c.G) + 0.114*float32(c.B)) / 255
 }
 
 func normalizeNodeID(raw string) string {

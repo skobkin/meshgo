@@ -81,7 +81,7 @@ func TestMessageTextLine_IncomingShowsSender(t *testing.T) {
 		nil,
 		nil,
 	)
-	if line != "< !1234abcd: hello" {
+	if line != "!1234abcd: hello" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
@@ -99,12 +99,12 @@ func TestMessageTextLine_IncomingPrefersResolvedSenderName(t *testing.T) {
 		},
 		nil,
 	)
-	if line != "< Alice: hello" {
+	if line != "Alice: hello" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
 
-func TestMessageTextLine_OutgoingUsesArrow(t *testing.T) {
+func TestMessageTextLine_OutgoingUsesSender(t *testing.T) {
 	line := messageTextLine(
 		domain.ChatMessage{Direction: domain.MessageDirectionOut, Body: "ping"},
 		messageMeta{},
@@ -112,7 +112,7 @@ func TestMessageTextLine_OutgoingUsesArrow(t *testing.T) {
 		nil,
 		nil,
 	)
-	if line != "> you: ping" {
+	if line != "you: ping" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
@@ -130,13 +130,13 @@ func TestMessageTextLine_OutgoingUsesResolvedSenderName(t *testing.T) {
 		},
 		nil,
 	)
-	if line != "> Local Node: ping" {
+	if line != "Local Node: ping" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
 
 func TestMessageTextParts_IncomingWithSender(t *testing.T) {
-	prefix, sender, body, hasSender := messageTextParts(
+	sender, body, hasSender := messageTextParts(
 		domain.ChatMessage{Direction: domain.MessageDirectionIn, Body: "hello"},
 		messageMeta{From: "!1234abcd"},
 		true,
@@ -148,8 +148,8 @@ func TestMessageTextParts_IncomingWithSender(t *testing.T) {
 		},
 		nil,
 	)
-	if prefix != "<" || sender != "Alice" || body != "hello" || !hasSender {
-		t.Fatalf("unexpected parts: prefix=%q sender=%q body=%q hasSender=%v", prefix, sender, body, hasSender)
+	if sender != "Alice" || body != "hello" || !hasSender {
+		t.Fatalf("unexpected parts: sender=%q body=%q hasSender=%v", sender, body, hasSender)
 	}
 }
 
@@ -161,12 +161,12 @@ func TestMessageTextSegments_SenderIsBold(t *testing.T) {
 		func(_ string) string { return "Alice" },
 		nil,
 	)
-	if len(segs) != 3 {
+	if len(segs) != 2 {
 		t.Fatalf("unexpected segment count: %d", len(segs))
 	}
-	sender, ok := segs[1].(*widget.TextSegment)
+	sender, ok := segs[0].(*widget.TextSegment)
 	if !ok {
-		t.Fatalf("sender segment type mismatch: %T", segs[1])
+		t.Fatalf("sender segment type mismatch: %T", segs[0])
 	}
 	if sender.Text != "Alice" {
 		t.Fatalf("unexpected sender text: %q", sender.Text)
@@ -189,7 +189,7 @@ func TestMessageTextLine_OutgoingUsesLocalNodeResolver(t *testing.T) {
 		},
 		func() string { return "!1234abcd" },
 	)
-	if line != "> Local Node: ping" {
+	if line != "Local Node: ping" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
