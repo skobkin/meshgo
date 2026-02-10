@@ -22,12 +22,12 @@ func Run(dep Dependencies) error {
 	icon := resources.TrayIconResource()
 	fyApp.SetIcon(icon)
 
-	window := fyApp.NewWindow("meshgo")
+	initialStatus := initialConnStatus(dep)
+	window := fyApp.NewWindow(formatWindowTitle(initialStatus))
 	window.Resize(fyne.NewSize(1000, 700))
 
-	initialStatus := initialConnStatus(dep)
-	sidebarConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
 	settingsConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
+	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
 
 	chatsTab := newChatsTab(dep.ChatStore, dep.Sender, resolveNodeDisplayName(dep.NodeStore))
 	nodesTab := newNodesTab(dep.NodeStore, DefaultNodeRowRenderer())
@@ -71,7 +71,6 @@ func Run(dep Dependencies) error {
 		left.Add(button)
 	}
 	left.Add(layout.NewSpacer())
-	left.Add(sidebarConnStatus)
 
 	if dep.Bus != nil {
 		sub := dep.Bus.Subscribe(connectors.TopicConnStatus)
@@ -83,7 +82,7 @@ func Run(dep Dependencies) error {
 				}
 				text := formatConnStatus(status)
 				fyne.Do(func() {
-					sidebarConnStatus.SetText(text)
+					window.SetTitle(formatWindowTitle(status))
 					settingsConnStatus.SetText(text)
 				})
 			}
@@ -163,6 +162,10 @@ func formatConnStatus(status connectors.ConnStatus) string {
 		text += " (" + status.Err + ")"
 	}
 	return text
+}
+
+func formatWindowTitle(status connectors.ConnStatus) string {
+	return "MeshGo - " + formatConnStatus(status)
 }
 
 func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {

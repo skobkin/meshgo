@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
@@ -25,5 +26,16 @@ func TestResolveNodeDisplayName_Priority(t *testing.T) {
 	}
 	if got := resolve("!33333333"); got != "" {
 		t.Fatalf("expected empty fallback for id-only node, got %q", got)
+	}
+}
+
+func TestFormatWindowTitle(t *testing.T) {
+	got := formatWindowTitle(connectors.ConnStatus{
+		State:         connectors.ConnectionStateConnected,
+		TransportName: "ip",
+	})
+	want := "MeshGo - Connection: connected via ip"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
 	}
 }
