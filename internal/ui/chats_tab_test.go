@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -201,8 +202,55 @@ func TestMessageMetaLine_DirectIncomingShowsRSSIAndSNR(t *testing.T) {
 		messageMeta{Hops: ptrInt(0), RxRSSI: &rssi, RxSNR: &snr},
 		true,
 	)
-	if line != "hops: 0 | RSSI: -67 | SNR: 4.25" {
+	if line != "hops: 0 | ▂▄▆█ | RSSI: -67 | SNR: 4.25" {
 		t.Fatalf("unexpected line: %q", line)
+	}
+}
+
+func TestMessageMetaSegments_DirectIncomingSignalBarsAndValueColors(t *testing.T) {
+	rssi := -125
+	snr := -14.0
+	segs := messageMetaSegments(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(0), RxRSSI: &rssi, RxSNR: &snr},
+		true,
+	)
+
+	line := richTextSegmentsText(segs)
+	if line != "hops: 0 | ▂▄▆  | RSSI: -125 | SNR: -14.00" {
+		t.Fatalf("unexpected line: %q", line)
+	}
+
+	bars := findTextSegmentByContent(t, segs, "▂▄▆ ")
+	if bars.Style.ColorName != theme.ColorNameWarning {
+		t.Fatalf("unexpected bars color: %q", bars.Style.ColorName)
+	}
+
+	rssiValue := findTextSegmentByContent(t, segs, "-125")
+	if rssiValue.Style.ColorName != theme.ColorNameWarning {
+		t.Fatalf("unexpected RSSI color: %q", rssiValue.Style.ColorName)
+	}
+
+	snrValue := findTextSegmentByContent(t, segs, "-14.00")
+	if snrValue.Style.ColorName != theme.ColorNameWarning {
+		t.Fatalf("unexpected SNR color: %q", snrValue.Style.ColorName)
+	}
+}
+
+func TestMessageMetaSegments_UnknownSignalOmitsBars(t *testing.T) {
+	rssi := -67
+	segs := messageMetaSegments(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(0), RxRSSI: &rssi},
+		true,
+	)
+
+	line := richTextSegmentsText(segs)
+	if line != "hops: 0 | RSSI: -67" {
+		t.Fatalf("unexpected line: %q", line)
+	}
+	if strings.Contains(line, "▂") || strings.Contains(line, "▄") {
+		t.Fatalf("signal bars should be omitted for unknown signal quality: %q", line)
 	}
 }
 
@@ -281,4 +329,31 @@ func TestMessageStatusLine_IncomingHidden(t *testing.T) {
 
 func ptrInt(v int) *int {
 	return &v
+}
+
+func richTextSegmentsText(segs []widget.RichTextSegment) string {
+	var b strings.Builder
+	for _, seg := range segs {
+		text, ok := seg.(*widget.TextSegment)
+		if !ok {
+			continue
+		}
+		b.WriteString(text.Text)
+	}
+	return b.String()
+}
+
+func findTextSegmentByContent(t *testing.T, segs []widget.RichTextSegment, content string) *widget.TextSegment {
+	t.Helper()
+	for _, seg := range segs {
+		text, ok := seg.(*widget.TextSegment)
+		if !ok {
+			continue
+		}
+		if text.Text == content {
+			return text
+		}
+	}
+	t.Fatalf("segment with text %q not found", content)
+	return nil
 }

@@ -24,12 +24,6 @@ type NodeRowRenderer struct {
 
 const nodeFilterDebounce = 500 * time.Millisecond
 
-var (
-	signalColorGood = color.NRGBA{R: 0x2e, G: 0xcc, B: 0x71, A: 0xff}
-	signalColorFair = color.NRGBA{R: 0xff, G: 0x98, B: 0x00, A: 0xff}
-	signalColorBad  = color.NRGBA{R: 0xe5, G: 0x39, B: 0x35, A: 0xff}
-)
-
 func DefaultNodeRowRenderer() NodeRowRenderer {
 	return NodeRowRenderer{
 		Create: func() fyne.CanvasObject {
@@ -165,30 +159,32 @@ func nodeLine2Role(node domain.Node) string {
 }
 
 func nodeLine2Signal(node domain.Node) nodeSignalView {
-	if node.RSSI == nil || node.SNR == nil {
+	quality, ok := signalQualityFromMetrics(node.RSSI, node.SNR)
+	if !ok {
 		return nodeSignalView{Visible: false}
 	}
-	switch domain.DetermineSignalQuality(float32(*node.SNR), *node.RSSI) {
-	case domain.SignalGood:
-		return nodeSignalView{
-			Text:    "▂▄▆█ Good",
-			Color:   signalColorGood,
-			Visible: true,
-		}
-	case domain.SignalFair:
-		return nodeSignalView{
-			Text:    "▂▄▆  Fair",
-			Color:   signalColorFair,
-			Visible: true,
-		}
-	case domain.SignalBad:
-		return nodeSignalView{
-			Text:    "▂▄   Bad",
-			Color:   signalColorBad,
-			Visible: true,
-		}
-	default:
+	level := signalLevelLabel(quality)
+	bars := signalBarsForQuality(quality)
+	if level == "" || bars == "" {
 		return nodeSignalView{Visible: false}
+	}
+	return nodeSignalView{
+		Text:    fmt.Sprintf("%s %s", bars, level),
+		Color:   signalColorForQuality(quality),
+		Visible: true,
+	}
+}
+
+func signalLevelLabel(quality domain.SignalQuality) string {
+	switch quality {
+	case domain.SignalGood:
+		return "Good"
+	case domain.SignalFair:
+		return "Fair"
+	case domain.SignalBad:
+		return "Bad"
+	default:
+		return ""
 	}
 }
 

@@ -90,7 +90,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		func() fyne.CanvasObject {
 			return container.NewVBox(
 				widget.NewRichTextWithText("message"),
-				container.NewHBox(widget.NewLabel("meta"), layout.NewSpacer(), widget.NewLabel("status")),
+				container.NewHBox(widget.NewRichTextWithText("meta"), layout.NewSpacer(), widget.NewLabel("status")),
 			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -104,7 +104,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Refresh()
 			metaRow := box.Objects[1].(*fyne.Container)
-			metaRow.Objects[0].(*widget.Label).SetText(messageMetaLine(msg, meta, hasMeta))
+			metaText := metaRow.Objects[0].(*widget.RichText)
+			metaText.Segments = messageMetaSegments(msg, meta, hasMeta)
+			metaText.Refresh()
 			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
 		},
 	)
@@ -398,28 +400,82 @@ func messageTextSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool, n
 }
 
 func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) string {
+	fragments := messageMetaFragments(m, meta, hasMeta)
+	var b strings.Builder
+	for _, f := range fragments {
+		b.WriteString(f.Text)
+	}
+	return b.String()
+}
+
+func messageMetaSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool) []widget.RichTextSegment {
+	fragments := messageMetaFragments(m, meta, hasMeta)
+	segments := make([]widget.RichTextSegment, 0, len(fragments))
+	for _, f := range fragments {
+		segments = append(segments, &widget.TextSegment{Text: f.Text, Style: f.Style})
+	}
+	return segments
+}
+
+type messageMetaFragment struct {
+	Text  string
+	Style widget.RichTextStyle
+}
+
+func messageMetaFragments(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaFragment {
 	hops, hopsKnown := messageHops(meta, hasMeta)
 	hopsLine := "hops: ?"
 	if hopsKnown {
 		hopsLine = fmt.Sprintf("hops: %d", hops)
 	}
 
-	parts := []string{hopsLine}
+	parts := []messageMetaFragment{{Text: hopsLine, Style: widget.RichTextStyleInline}}
 	if isMessageFromMQTT(meta, hasMeta) {
-		parts = append(parts, "[MQTT]")
-		return strings.Join(parts, " | ")
+		parts = appendMetaSeparator(parts)
+		parts = append(parts, messageMetaFragment{Text: "[MQTT]", Style: widget.RichTextStyleInline})
+		return parts
 	}
 
 	if m.Direction == domain.MessageDirectionIn && hopsKnown && hops == 0 {
+		if quality, ok := signalQualityFromMetrics(meta.RxRSSI, meta.RxSNR); ok {
+			parts = appendMetaSeparator(parts)
+			parts = append(parts, messageMetaFragment{
+				Text:  signalBarsForQuality(quality),
+				Style: signalRichTextStyle(signalThemeColorForQuality(quality), true),
+			})
+		}
 		if meta.RxRSSI != nil {
-			parts = append(parts, fmt.Sprintf("RSSI: %d", *meta.RxRSSI))
+			parts = appendMetaSeparator(parts)
+			parts = append(parts, messageMetaFragment{Text: "RSSI: ", Style: widget.RichTextStyleInline})
+			parts = append(parts, messageMetaFragment{
+				Text:  fmt.Sprintf("%d", *meta.RxRSSI),
+				Style: signalRichTextStyle(signalThemeColorForRSSI(*meta.RxRSSI), false),
+			})
 		}
 		if meta.RxSNR != nil {
-			parts = append(parts, fmt.Sprintf("SNR: %.2f", *meta.RxSNR))
+			parts = appendMetaSeparator(parts)
+			parts = append(parts, messageMetaFragment{Text: "SNR: ", Style: widget.RichTextStyleInline})
+			parts = append(parts, messageMetaFragment{
+				Text:  fmt.Sprintf("%.2f", *meta.RxSNR),
+				Style: signalRichTextStyle(signalThemeColorForSNR(*meta.RxSNR), false),
+			})
 		}
 	}
 
-	return strings.Join(parts, " | ")
+	return parts
+}
+
+func appendMetaSeparator(parts []messageMetaFragment) []messageMetaFragment {
+	return append(parts, messageMetaFragment{Text: " | ", Style: widget.RichTextStyleInline})
+}
+
+func signalRichTextStyle(colorName fyne.ThemeColorName, monospace bool) widget.RichTextStyle {
+	style := widget.RichTextStyleInline
+	style.ColorName = colorName
+	if monospace {
+		style.TextStyle.Monospace = true
+	}
+	return style
 }
 
 func messageStatusLine(m domain.ChatMessage) string {
