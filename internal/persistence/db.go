@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	_ "modernc.org/sqlite"
 )
+
+const schemaVersion = 3
 
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
@@ -37,8 +40,10 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
+	slog.Info("db schema version detected", "current", version, "target", schemaVersion)
 
-	if version >= 2 {
+	if version >= schemaVersion {
+		slog.Info("db schema is up to date", "version", version)
 		return nil
 	}
 
@@ -49,6 +54,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	defer tx.Rollback()
 
 	if version < 1 {
+		slog.Info("applying db migration", "from", version, "to", schemaVersion)
 		stmts := []string{
 			`CREATE TABLE IF NOT EXISTS nodes (
 				node_id TEXT PRIMARY KEY,
@@ -58,6 +64,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				voltage REAL NULL,
 				board_model TEXT NULL,
 				device_role TEXT NULL,
+				is_unmessageable INTEGER NULL,
 				last_heard_at INTEGER,
 				rssi INTEGER NULL,
 				snr REAL NULL,
@@ -84,7 +91,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS messages_chat_at_idx ON messages(chat_key, at ASC);`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS messages_chat_device_unique_idx ON messages(chat_key, device_message_id) WHERE device_message_id IS NOT NULL;`,
-			`PRAGMA user_version = 2;`,
+			`PRAGMA user_version = 3;`,
 		}
 
 		for _, stmt := range stmts {
@@ -92,23 +99,42 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				return fmt.Errorf("apply migration statement: %w", err)
 			}
 		}
+		version = schemaVersion
 	} else {
-		stmts := []string{
-			`ALTER TABLE nodes ADD COLUMN battery_level INTEGER NULL;`,
-			`ALTER TABLE nodes ADD COLUMN voltage REAL NULL;`,
-			`ALTER TABLE nodes ADD COLUMN board_model TEXT NULL;`,
-			`ALTER TABLE nodes ADD COLUMN device_role TEXT NULL;`,
-			`PRAGMA user_version = 2;`,
-		}
-		for _, stmt := range stmts {
-			if _, err := tx.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("apply migration statement: %w", err)
+		if version < 2 {
+			slog.Info("applying db migration", "from", version, "to", 2)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN battery_level INTEGER NULL;`,
+				`ALTER TABLE nodes ADD COLUMN voltage REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN board_model TEXT NULL;`,
+				`ALTER TABLE nodes ADD COLUMN device_role TEXT NULL;`,
+				`PRAGMA user_version = 2;`,
 			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 2
+		}
+		if version < 3 {
+			slog.Info("applying db migration", "from", version, "to", 3)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN is_unmessageable INTEGER NULL;`,
+				`PRAGMA user_version = 3;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 3
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migrations: %w", err)
 	}
+	slog.Info("db migration completed", "version", version)
 	return nil
 }

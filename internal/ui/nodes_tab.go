@@ -22,13 +22,17 @@ type NodeRowRenderer struct {
 func DefaultNodeRowRenderer() NodeRowRenderer {
 	return NodeRowRenderer{
 		Create: func() fyne.CanvasObject {
-			line1Left := widget.NewLabel("name")
+			nameLabel := widget.NewLabel("name")
+			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
 			line1Right := widget.NewLabel("seen")
-			line2Left := widget.NewLabel("profile")
+			line2Model := widget.NewLabel("model")
+			line2Role := widget.NewLabel("role")
+			line2Role.Alignment = fyne.TextAlignCenter
 			line2Right := widget.NewLabel("id")
+			line2Right.TextStyle = fyne.TextStyle{Monospace: true}
 			return container.NewVBox(
-				container.NewHBox(line1Left, layout.NewSpacer(), line1Right),
-				container.NewHBox(line2Left, layout.NewSpacer(), line2Right),
+				container.NewHBox(nameLabel, layout.NewSpacer(), line1Right),
+				container.NewBorder(nil, nil, line2Model, line2Right, line2Role),
 			)
 		},
 		Update: func(obj fyne.CanvasObject, node domain.Node) {
@@ -37,61 +41,60 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 			line2 := root.Objects[1].(*fyne.Container)
 			line1Left := line1.Objects[0].(*widget.Label)
 			line1Right := line1.Objects[2].(*widget.Label)
-			line2Left := line2.Objects[0].(*widget.Label)
+			line2Role := line2.Objects[0].(*widget.Label)
+			line2Model := line2.Objects[1].(*widget.Label)
 			line2Right := line2.Objects[2].(*widget.Label)
 
-			line1Left.SetText(nodeLine1Left(node))
+			line1Left.SetText(nodeDisplayName(node))
 			line1Right.SetText(nodeLine1Right(node, time.Now()))
-			line2Left.SetText(nodeLine2Left(node))
+			line2Model.SetText(nodeLine2Model(node))
+			line2Role.SetText(nodeLine2Role(node))
 			line2Right.SetText(node.NodeID)
 		},
 	}
 }
 
-func nodeLine1Left(node domain.Node) string {
-	parts := []string{nodeDisplayName(node)}
-	if charge := nodeCharge(node); charge != "" {
-		parts = append(parts, charge)
-	}
-	return strings.Join(parts, " | ")
-}
-
 func nodeLine1Right(node domain.Node, now time.Time) string {
 	parts := []string{}
-	if node.Voltage != nil {
-		parts = append(parts, fmt.Sprintf("Vlt: %.2fV", *node.Voltage))
+	if charge := nodeCharge(node); charge != "" {
+		parts = append(parts, charge)
 	}
 	parts = append(parts, formatSeenAgo(node.LastHeardAt, now))
 	return strings.Join(parts, " | ")
 }
 
-func nodeLine2Left(node domain.Node) string {
-	parts := []string{}
+func nodeLine2Model(node domain.Node) string {
 	if v := strings.TrimSpace(node.BoardModel); v != "" {
-		parts = append(parts, v)
+		return v
 	}
+	return "Unknown device"
+}
+
+func nodeLine2Role(node domain.Node) string {
 	if v := strings.TrimSpace(node.Role); v != "" {
-		parts = append(parts, v)
+		return v
 	}
-	if len(parts) == 0 {
-		return "Unknown device"
-	}
-	return strings.Join(parts, " | ")
+	return ""
 }
 
 func nodeDisplayName(node domain.Node) string {
 	shortName := strings.TrimSpace(node.ShortName)
 	longName := strings.TrimSpace(node.LongName)
+	var base string
 	switch {
 	case shortName != "" && longName != "":
-		return fmt.Sprintf("[%s] %s", shortName, longName)
+		base = fmt.Sprintf("[%s] %s", shortName, longName)
 	case longName != "":
-		return longName
+		base = longName
 	case shortName != "":
-		return fmt.Sprintf("[%s]", shortName)
+		base = fmt.Sprintf("[%s]", shortName)
 	default:
-		return node.NodeID
+		base = node.NodeID
 	}
+	if node.IsUnmessageable != nil && *node.IsUnmessageable {
+		return base + " {INFRA}"
+	}
+	return base
 }
 
 func nodeCharge(node domain.Node) string {

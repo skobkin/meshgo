@@ -4,6 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/widget"
+
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
@@ -32,6 +35,19 @@ func TestNodeDisplayName(t *testing.T) {
 			name: "fallback id",
 			node: domain.Node{NodeID: "!abcd1234"},
 			want: "!abcd1234",
+		},
+		{
+			name: "infrastructure node suffix",
+			node: domain.Node{
+				NodeID:    "!abcd1234",
+				ShortName: "ABCD",
+				LongName:  "Alpha Bravo",
+				IsUnmessageable: func() *bool {
+					v := true
+					return &v
+				}(),
+			},
+			want: "[ABCD] Alpha Bravo {INFRA}",
 		},
 	}
 
@@ -66,5 +82,38 @@ func TestFormatSeenAgo(t *testing.T) {
 	}
 	if got := formatSeenAgo(now.Add(-(72*time.Hour + 2*time.Hour)), now); got != "3 days" {
 		t.Fatalf("unexpected days line: %q", got)
+	}
+}
+
+func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
+	renderer := DefaultNodeRowRenderer()
+	obj := renderer.Create()
+	renderer.Update(obj, domain.Node{
+		NodeID:     "!abcd1234",
+		BoardModel: "T-Echo",
+		Role:       "CLIENT",
+		BatteryLevel: func() *uint32 {
+			v := uint32(80)
+			return &v
+		}(),
+	})
+
+	root := obj.(*fyne.Container)
+	line2 := root.Objects[1].(*fyne.Container)
+	role := line2.Objects[0].(*widget.Label)
+	model := line2.Objects[1].(*widget.Label)
+	id := line2.Objects[2].(*widget.Label)
+
+	if model.Text != "T-Echo" {
+		t.Fatalf("unexpected model text: %q", model.Text)
+	}
+	if role.Text != "CLIENT" {
+		t.Fatalf("unexpected role text: %q", role.Text)
+	}
+	if !id.TextStyle.Monospace {
+		t.Fatalf("node id label should be monospace")
+	}
+	if role.Alignment != fyne.TextAlignCenter {
+		t.Fatalf("role label should be center aligned")
 	}
 }

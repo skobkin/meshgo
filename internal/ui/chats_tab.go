@@ -286,16 +286,24 @@ func parseMessageMeta(raw string) (messageMeta, bool) {
 }
 
 func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string) string {
-	prefix := "<"
+	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID)
+	if hasSender {
+		return fmt.Sprintf("%s %s: %s", prefix, sender, body)
+	}
+	return fmt.Sprintf("%s %s", prefix, body)
+}
+
+func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string) (prefix, sender, body string, hasSender bool) {
+	prefix = "<"
 	if m.Direction == domain.MessageDirectionOut {
 		prefix = ">"
 	}
 	if m.Direction == domain.MessageDirectionIn && hasMeta {
 		if sender := normalizeNodeID(meta.From); sender != "" {
-			return fmt.Sprintf("%s %s: %s", prefix, displaySender(sender, nodeNameByID), m.Body)
+			return prefix, displaySender(sender, nodeNameByID), m.Body, true
 		}
 	}
-	return fmt.Sprintf("%s %s", prefix, m.Body)
+	return prefix, "", m.Body, false
 }
 
 func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) string {

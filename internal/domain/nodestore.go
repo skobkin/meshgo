@@ -79,6 +79,9 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.Role == "" {
 			node.Role = existing.Role
 		}
+		if node.IsUnmessageable == nil {
+			node.IsUnmessageable = existing.IsUnmessageable
+		}
 		if node.RSSI == nil {
 			node.RSSI = existing.RSSI
 		}

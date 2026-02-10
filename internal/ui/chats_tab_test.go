@@ -111,6 +111,23 @@ func TestMessageTextLine_OutgoingUsesArrow(t *testing.T) {
 	}
 }
 
+func TestMessageTextParts_IncomingWithSender(t *testing.T) {
+	prefix, sender, body, hasSender := messageTextParts(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn, Body: "hello"},
+		messageMeta{From: "!1234abcd"},
+		true,
+		func(nodeID string) string {
+			if nodeID != "!1234abcd" {
+				t.Fatalf("unexpected node id: %q", nodeID)
+			}
+			return "Alice"
+		},
+	)
+	if prefix != "<" || sender != "Alice" || body != "hello" || !hasSender {
+		t.Fatalf("unexpected parts: prefix=%q sender=%q body=%q hasSender=%v", prefix, sender, body, hasSender)
+	}
+}
+
 func TestMessageMetaLine_DirectIncomingShowsRSSIAndSNR(t *testing.T) {
 	rssi := -67
 	snr := 4.25

@@ -160,6 +160,10 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
 		node.Role = role
 	}
+	if user.IsUnmessagable != nil {
+		v := user.GetIsUnmessagable()
+		node.IsUnmessageable = &v
+	}
 	if dm := nodeInfo.GetDeviceMetrics(); dm != nil {
 		if dm.BatteryLevel != nil {
 			v := dm.GetBatteryLevel()
@@ -220,6 +224,10 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 	}
 	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
 		node.Role = role
+	}
+	if user.IsUnmessagable != nil {
+		v := user.GetIsUnmessagable()
+		node.IsUnmessageable = &v
 	}
 	if rssi := packet.GetRxRssi(); rssi != 0 {
 		rssiVal := int(rssi)

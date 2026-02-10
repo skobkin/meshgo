@@ -18,8 +18,9 @@ func NewNodeRepo(db *sql.DB) *NodeRepo {
 
 func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	var (
-		batteryLevel any
-		voltage      any
+		batteryLevel    any
+		voltage         any
+		isUnmessageable any
 	)
 	if n.BatteryLevel != nil {
 		batteryLevel = int64(*n.BatteryLevel)
@@ -27,9 +28,16 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	if n.Voltage != nil {
 		voltage = *n.Voltage
 	}
+	if n.IsUnmessageable != nil {
+		if *n.IsUnmessageable {
+			isUnmessageable = int64(1)
+		} else {
+			isUnmessageable = int64(0)
+		}
+	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, battery_level, voltage, board_model, device_role, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, battery_level, voltage, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = excluded.long_name,
 			short_name = excluded.short_name,
@@ -37,11 +45,12 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 			voltage = excluded.voltage,
 			board_model = excluded.board_model,
 			device_role = excluded.device_role,
+			is_unmessageable = excluded.is_unmessageable,
 			last_heard_at = excluded.last_heard_at,
 			rssi = excluded.rssi,
 			snr = excluded.snr,
 			updated_at = excluded.updated_at
-	`, n.NodeID, n.LongName, n.ShortName, batteryLevel, voltage, nullableString(n.BoardModel), nullableString(n.Role), toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, batteryLevel, voltage, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -50,7 +59,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, battery_level, voltage, board_model, device_role, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, battery_level, voltage, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -62,17 +71,18 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 	var out []domain.Node
 	for rows.Next() {
 		var (
-			n       domain.Node
-			heardMs int64
-			updMs   int64
-			battery sql.NullInt64
-			voltage sql.NullFloat64
-			board   sql.NullString
-			role    sql.NullString
-			rssi    sql.NullInt64
-			snr     sql.NullFloat64
+			n             domain.Node
+			heardMs       int64
+			updMs         int64
+			battery       sql.NullInt64
+			voltage       sql.NullFloat64
+			board         sql.NullString
+			role          sql.NullString
+			unmessageable sql.NullInt64
+			rssi          sql.NullInt64
+			snr           sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &battery, &voltage, &board, &role, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &battery, &voltage, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
 		n.LastHeardAt = fromUnixMillis(heardMs)
@@ -90,6 +100,10 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 		}
 		if role.Valid {
 			n.Role = role.String
+		}
+		if unmessageable.Valid {
+			v := unmessageable.Int64 != 0
+			n.IsUnmessageable = &v
 		}
 		if rssi.Valid {
 			v := int(rssi.Int64)

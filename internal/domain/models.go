@@ -45,17 +45,18 @@ type ChatMessage struct {
 }
 
 type Node struct {
-	NodeID       string
-	LongName     string
-	ShortName    string
-	BatteryLevel *uint32
-	Voltage      *float64
-	BoardModel   string
-	Role         string
-	LastHeardAt  time.Time
-	RSSI         *int
-	SNR          *float64
-	UpdatedAt    time.Time
+	NodeID          string
+	LongName        string
+	ShortName       string
+	BatteryLevel    *uint32
+	Voltage         *float64
+	BoardModel      string
+	Role            string
+	IsUnmessageable *bool
+	LastHeardAt     time.Time
+	RSSI            *int
+	SNR             *float64
+	UpdatedAt       time.Time
 }
 
 type NodeUpdate struct {
