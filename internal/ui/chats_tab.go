@@ -76,6 +76,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		messages = store.Messages(selectedKey)
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
+		scrollMessageListToEnd(messageList, len(messages))
 		focusEntry(entry)
 	}
 
