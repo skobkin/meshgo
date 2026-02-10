@@ -146,12 +146,29 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 }
 
 func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpdate {
+	user := nodeInfo.GetUser()
 	node := domain.Node{
 		NodeID:      formatNodeNum(nodeInfo.GetNum()),
-		LongName:    strings.TrimSpace(nodeInfo.GetUser().GetLongName()),
-		ShortName:   strings.TrimSpace(nodeInfo.GetUser().GetShortName()),
+		LongName:    strings.TrimSpace(user.GetLongName()),
+		ShortName:   strings.TrimSpace(user.GetShortName()),
 		LastHeardAt: packetTimestamp(nodeInfo.GetLastHeard(), now),
 		UpdatedAt:   now,
+	}
+	if model := user.GetHwModel(); model != generated.HardwareModel_UNSET {
+		node.BoardModel = model.String()
+	}
+	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
+		node.Role = role
+	}
+	if dm := nodeInfo.GetDeviceMetrics(); dm != nil {
+		if dm.BatteryLevel != nil {
+			v := dm.GetBatteryLevel()
+			node.BatteryLevel = &v
+		}
+		if dm.Voltage != nil {
+			v := float64(dm.GetVoltage())
+			node.Voltage = &v
+		}
 	}
 
 	if snr := nodeInfo.GetSnr(); snr != 0 {
@@ -197,6 +214,12 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 		ShortName:   strings.TrimSpace(user.GetShortName()),
 		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
 		UpdatedAt:   now,
+	}
+	if model := user.GetHwModel(); model != generated.HardwareModel_UNSET {
+		node.BoardModel = model.String()
+	}
+	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
+		node.Role = role
 	}
 	if rssi := packet.GetRxRssi(); rssi != 0 {
 		rssiVal := int(rssi)

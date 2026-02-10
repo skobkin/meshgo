@@ -2,10 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -19,28 +22,122 @@ type NodeRowRenderer struct {
 func DefaultNodeRowRenderer() NodeRowRenderer {
 	return NodeRowRenderer{
 		Create: func() fyne.CanvasObject {
-			return container.NewVBox(widget.NewLabel("node"), widget.NewLabel("details"))
+			line1Left := widget.NewLabel("name")
+			line1Right := widget.NewLabel("seen")
+			line2Left := widget.NewLabel("profile")
+			line2Right := widget.NewLabel("id")
+			return container.NewVBox(
+				container.NewHBox(line1Left, layout.NewSpacer(), line1Right),
+				container.NewHBox(line2Left, layout.NewSpacer(), line2Right),
+			)
 		},
 		Update: func(obj fyne.CanvasObject, node domain.Node) {
-			box := obj.(*fyne.Container)
-			name := node.LongName
-			if name == "" {
-				name = node.ShortName
-			}
-			if name == "" {
-				name = node.NodeID
-			}
-			details := fmt.Sprintf("id=%s heard=%s", node.NodeID, node.LastHeardAt.Format(time.RFC3339))
-			if node.RSSI != nil {
-				details += fmt.Sprintf(" rssi=%d", *node.RSSI)
-			}
-			if node.SNR != nil {
-				details += fmt.Sprintf(" snr=%.2f", *node.SNR)
-			}
-			box.Objects[0].(*widget.Label).SetText(name)
-			box.Objects[1].(*widget.Label).SetText(details)
+			root := obj.(*fyne.Container)
+			line1 := root.Objects[0].(*fyne.Container)
+			line2 := root.Objects[1].(*fyne.Container)
+			line1Left := line1.Objects[0].(*widget.Label)
+			line1Right := line1.Objects[2].(*widget.Label)
+			line2Left := line2.Objects[0].(*widget.Label)
+			line2Right := line2.Objects[2].(*widget.Label)
+
+			line1Left.SetText(nodeLine1Left(node))
+			line1Right.SetText(nodeLine1Right(node, time.Now()))
+			line2Left.SetText(nodeLine2Left(node))
+			line2Right.SetText(node.NodeID)
 		},
 	}
+}
+
+func nodeLine1Left(node domain.Node) string {
+	parts := []string{nodeDisplayName(node)}
+	if charge := nodeCharge(node); charge != "" {
+		parts = append(parts, charge)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func nodeLine1Right(node domain.Node, now time.Time) string {
+	parts := []string{}
+	if node.Voltage != nil {
+		parts = append(parts, fmt.Sprintf("Vlt: %.2fV", *node.Voltage))
+	}
+	parts = append(parts, formatSeenAgo(node.LastHeardAt, now))
+	return strings.Join(parts, " | ")
+}
+
+func nodeLine2Left(node domain.Node) string {
+	parts := []string{}
+	if v := strings.TrimSpace(node.BoardModel); v != "" {
+		parts = append(parts, v)
+	}
+	if v := strings.TrimSpace(node.Role); v != "" {
+		parts = append(parts, v)
+	}
+	if len(parts) == 0 {
+		return "Unknown device"
+	}
+	return strings.Join(parts, " | ")
+}
+
+func nodeDisplayName(node domain.Node) string {
+	shortName := strings.TrimSpace(node.ShortName)
+	longName := strings.TrimSpace(node.LongName)
+	switch {
+	case shortName != "" && longName != "":
+		return fmt.Sprintf("[%s] %s", shortName, longName)
+	case longName != "":
+		return longName
+	case shortName != "":
+		return fmt.Sprintf("[%s]", shortName)
+	default:
+		return node.NodeID
+	}
+}
+
+func nodeCharge(node domain.Node) string {
+	if node.BatteryLevel == nil {
+		return ""
+	}
+	v := *node.BatteryLevel
+	if v > 100 {
+		return "Charge: ext"
+	}
+	return fmt.Sprintf("Charge: %d%%", v)
+}
+
+func formatSeenAgo(lastSeen time.Time, now time.Time) string {
+	if lastSeen.IsZero() {
+		return "seen: ?"
+	}
+	d := now.Sub(lastSeen)
+	if d < 0 {
+		d = 0
+	}
+
+	if d < time.Hour {
+		minutes := maxRounded(d.Minutes())
+		return fmt.Sprintf("%d min", minutes)
+	}
+	if d < 24*time.Hour {
+		hours := maxRounded(d.Hours())
+		if hours == 1 {
+			return "1 hour"
+		}
+		return fmt.Sprintf("%d hours", hours)
+	}
+	days := maxRounded(d.Hours() / 24)
+	if days == 1 {
+		return "1 day"
+	}
+	return fmt.Sprintf("%d days", days)
+}
+
+func maxRounded(v float64) int {
+	n := int(math.Round(v))
+	if n < 1 {
+		return 1
+	}
+	return n
 }
 
 func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasObject {

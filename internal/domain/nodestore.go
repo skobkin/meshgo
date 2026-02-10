@@ -67,6 +67,18 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.ShortName == "" {
 			node.ShortName = existing.ShortName
 		}
+		if node.BatteryLevel == nil {
+			node.BatteryLevel = existing.BatteryLevel
+		}
+		if node.Voltage == nil {
+			node.Voltage = existing.Voltage
+		}
+		if node.BoardModel == "" {
+			node.BoardModel = existing.BoardModel
+		}
+		if node.Role == "" {
+			node.Role = existing.Role
+		}
 		if node.RSSI == nil {
 			node.RSSI = existing.RSSI
 		}

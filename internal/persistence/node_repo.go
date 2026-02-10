@@ -17,17 +17,31 @@ func NewNodeRepo(db *sql.DB) *NodeRepo {
 }
 
 func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
+	var (
+		batteryLevel any
+		voltage      any
+	)
+	if n.BatteryLevel != nil {
+		batteryLevel = int64(*n.BatteryLevel)
+	}
+	if n.Voltage != nil {
+		voltage = *n.Voltage
+	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, battery_level, voltage, board_model, device_role, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = excluded.long_name,
 			short_name = excluded.short_name,
+			battery_level = excluded.battery_level,
+			voltage = excluded.voltage,
+			board_model = excluded.board_model,
+			device_role = excluded.device_role,
 			last_heard_at = excluded.last_heard_at,
 			rssi = excluded.rssi,
 			snr = excluded.snr,
 			updated_at = excluded.updated_at
-	`, n.NodeID, n.LongName, n.ShortName, toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, batteryLevel, voltage, nullableString(n.BoardModel), nullableString(n.Role), toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -36,7 +50,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, battery_level, voltage, board_model, device_role, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -51,14 +65,32 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			n       domain.Node
 			heardMs int64
 			updMs   int64
+			battery sql.NullInt64
+			voltage sql.NullFloat64
+			board   sql.NullString
+			role    sql.NullString
 			rssi    sql.NullInt64
 			snr     sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &battery, &voltage, &board, &role, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
 		n.LastHeardAt = fromUnixMillis(heardMs)
 		n.UpdatedAt = fromUnixMillis(updMs)
+		if battery.Valid {
+			v := uint32(battery.Int64)
+			n.BatteryLevel = &v
+		}
+		if voltage.Valid {
+			v := voltage.Float64
+			n.Voltage = &v
+		}
+		if board.Valid {
+			n.BoardModel = board.String
+		}
+		if role.Valid {
+			n.Role = role.String
+		}
 		if rssi.Valid {
 			v := int(rssi.Int64)
 			n.RSSI = &v
