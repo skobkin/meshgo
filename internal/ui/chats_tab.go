@@ -178,10 +178,16 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 				selectedKey = chats[0].Key
 			}
 		}
+		selectedIndex := chatIndexByKey(chats, selectedKey)
 		messages = store.Messages(selectedKey)
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
 		chatList.Refresh()
 		messageList.Refresh()
+		if selectedIndex >= 0 {
+			chatList.Select(selectedIndex)
+		} else {
+			chatList.UnselectAll()
+		}
 	}
 
 	go func() {
@@ -397,4 +403,16 @@ func hasChat(chats []domain.Chat, key string) bool {
 		}
 	}
 	return false
+}
+
+func chatIndexByKey(chats []domain.Chat, key string) int {
+	if key == "" {
+		return -1
+	}
+	for i, c := range chats {
+		if c.Key == key {
+			return i
+		}
+	}
+	return -1
 }

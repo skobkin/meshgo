@@ -163,6 +163,24 @@ func TestMessageMetaLine_UnknownHopsGracefulFallback(t *testing.T) {
 	}
 }
 
+func TestChatIndexByKey(t *testing.T) {
+	chats := []domain.Chat{
+		{Key: "dm:alice"},
+		{Key: "ch:1"},
+		{Key: "ch:2"},
+	}
+
+	if got := chatIndexByKey(chats, "ch:1"); got != 1 {
+		t.Fatalf("unexpected index for ch:1: %d", got)
+	}
+	if got := chatIndexByKey(chats, "missing"); got != -1 {
+		t.Fatalf("unexpected index for missing key: %d", got)
+	}
+	if got := chatIndexByKey(chats, ""); got != -1 {
+		t.Fatalf("unexpected index for empty key: %d", got)
+	}
+}
+
 func ptrInt(v int) *int {
 	return &v
 }
