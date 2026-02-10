@@ -83,7 +83,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
-			return container.NewVBox(widget.NewLabel("message"), widget.NewLabel("meta"))
+			return container.NewVBox(
+				widget.NewLabel("message"),
+				container.NewHBox(widget.NewLabel("meta"), layout.NewSpacer(), widget.NewLabel("status")),
+			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(messages) {
@@ -93,14 +96,15 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
 			box := obj.(*fyne.Container)
 			box.Objects[0].(*widget.Label).SetText(messageTextLine(msg, meta, hasMeta, nodeNameByID))
-			box.Objects[1].(*widget.Label).SetText(messageMetaLine(msg, meta, hasMeta))
+			metaRow := box.Objects[1].(*fyne.Container)
+			metaRow.Objects[0].(*widget.Label).SetText(messageMetaLine(msg, meta, hasMeta))
+			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
 		},
 	)
 
 	entry := widget.NewEntry()
 	entry.SetPlaceHolder("Type message (max 200 bytes)")
 	counterLabel := widget.NewLabel("0/200 bytes")
-	statusLabel := widget.NewLabel("")
 	sendButton := widget.NewButton("Send", nil)
 
 	updateCounter := func(text string) {
@@ -122,32 +126,26 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	sendCurrent := func() {
 		text := strings.TrimSpace(entry.Text)
 		if selectedKey == "" {
-			statusLabel.SetText("Select a chat first")
 			return
 		}
 		if text == "" {
-			statusLabel.SetText("Message is empty")
 			return
 		}
 		if len([]byte(text)) > 200 {
-			statusLabel.SetText("Message exceeds 200-byte limit")
 			return
 		}
 
 		setSending(true)
-		statusLabel.SetText("Sending...")
 		go func(chatKey, body string) {
 			res := <-sender.SendText(chatKey, body)
 			if res.Err != nil {
 				fyne.Do(func() {
-					statusLabel.SetText("Send failed: " + res.Err.Error())
 					setSending(false)
 				})
 				return
 			}
 			fyne.Do(func() {
 				entry.SetText("")
-				statusLabel.SetText("Sent")
 				setSending(false)
 			})
 		}(selectedKey, text)
@@ -159,7 +157,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	composer := container.NewBorder(nil, nil, nil, sendButton, entry)
 	right := container.NewBorder(
 		chatTitle,
-		container.NewVBox(counterLabel, statusLabel, composer),
+		container.NewVBox(counterLabel, composer),
 		nil,
 		nil,
 		messageList,
@@ -343,6 +341,24 @@ func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) strin
 	}
 
 	return strings.Join(parts, " | ")
+}
+
+func messageStatusLine(m domain.ChatMessage) string {
+	if m.Direction != domain.MessageDirectionOut {
+		return ""
+	}
+	switch m.Status {
+	case domain.MessageStatusPending:
+		return "Pending"
+	case domain.MessageStatusSent:
+		return "Sent"
+	case domain.MessageStatusAcked:
+		return "Acked"
+	case domain.MessageStatusFailed:
+		return "Failed"
+	default:
+		return ""
+	}
 }
 
 func messageHops(meta messageMeta, hasMeta bool) (int, bool) {

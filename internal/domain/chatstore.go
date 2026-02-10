@@ -42,6 +42,7 @@ func (s *ChatStore) Load(chats []Chat, messages map[string][]ChatMessage) {
 
 func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
 	textSub := b.Subscribe(connectors.TopicTextMessage)
+	statusSub := b.Subscribe(connectors.TopicMessageStatus)
 	channelsSub := b.Subscribe(connectors.TopicChannels)
 
 	go func() {
@@ -59,6 +60,25 @@ func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
 					continue
 				}
 				s.AppendMessage(chatMsg)
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-statusSub:
+				if !ok {
+					return
+				}
+				update, ok := msg.(MessageStatusUpdate)
+				if !ok {
+					continue
+				}
+				s.UpdateMessageStatusByDeviceID(update.DeviceMessageID, update.Status)
 			}
 		}
 	}()
@@ -117,6 +137,41 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 	if msg.At.IsZero() {
 		msg.At = time.Now()
 	}
+	if msg.DeviceMessageID != "" {
+		msgs := s.messages[msg.ChatKey]
+		for i := range msgs {
+			if msgs[i].DeviceMessageID != msg.DeviceMessageID {
+				continue
+			}
+			changed := false
+			if msgs[i].Body == "" && msg.Body != "" {
+				msgs[i].Body = msg.Body
+				changed = true
+			}
+			if msgs[i].MetaJSON == "" && msg.MetaJSON != "" {
+				msgs[i].MetaJSON = msg.MetaJSON
+				changed = true
+			}
+			if !msg.At.IsZero() && msgs[i].At.Before(msg.At) {
+				msgs[i].At = msg.At
+				changed = true
+			}
+			if ShouldTransitionMessageStatus(msgs[i].Status, msg.Status) {
+				msgs[i].Status = msg.Status
+				changed = true
+			}
+			if changed {
+				s.messages[msg.ChatKey] = msgs
+				chat, ok := s.chats[msg.ChatKey]
+				if ok && msg.At.After(chat.UpdatedAt) {
+					chat.UpdatedAt = msg.At
+					s.chats[msg.ChatKey] = chat
+				}
+				s.notify()
+			}
+			return
+		}
+	}
 	s.messages[msg.ChatKey] = append(s.messages[msg.ChatKey], msg)
 
 	chat, ok := s.chats[msg.ChatKey]
@@ -129,6 +184,34 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 	chat.UpdatedAt = msg.At
 	s.chats[msg.ChatKey] = chat
 	s.notify()
+}
+
+func (s *ChatStore) UpdateMessageStatusByDeviceID(deviceMessageID string, status MessageStatus) {
+	deviceMessageID = strings.TrimSpace(deviceMessageID)
+	if deviceMessageID == "" || status == 0 {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	changed := false
+	for chatKey, messages := range s.messages {
+		for i := range messages {
+			if messages[i].DeviceMessageID != deviceMessageID {
+				continue
+			}
+			if !ShouldTransitionMessageStatus(messages[i].Status, status) {
+				continue
+			}
+			messages[i].Status = status
+			changed = true
+		}
+		s.messages[chatKey] = messages
+	}
+	if changed {
+		s.notify()
+	}
 }
 
 func (s *ChatStore) ChatListSorted() []Chat {

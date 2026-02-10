@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -33,6 +34,9 @@ type Service struct {
 	codec     Codec
 	bus       bus.MessageBus
 	outbox    chan sendRequest
+
+	ackTrackMu sync.Mutex
+	ackTrack   map[string]struct{}
 }
 
 func NewService(logger *slog.Logger, b bus.MessageBus, tr transport.Transport, codec Codec) *Service {
@@ -42,6 +46,7 @@ func NewService(logger *slog.Logger, b bus.MessageBus, tr transport.Transport, c
 		codec:     codec,
 		bus:       b,
 		outbox:    make(chan sendRequest, 128),
+		ackTrack:  make(map[string]struct{}),
 	}
 }
 
@@ -148,6 +153,16 @@ func (s *Service) runReader(ctx context.Context) error {
 		if decoded.TextMessage != nil {
 			s.bus.Publish(connectors.TopicTextMessage, *decoded.TextMessage)
 		}
+		if decoded.MessageStatus != nil {
+			status := *decoded.MessageStatus
+			if status.Status == domain.MessageStatusSent && s.isAckTracked(status.DeviceMessageID) {
+				continue
+			}
+			if status.Status == domain.MessageStatusAcked || status.Status == domain.MessageStatusFailed {
+				s.clearAckTracked(status.DeviceMessageID)
+			}
+			s.bus.Publish(connectors.TopicMessageStatus, status)
+		}
 	}
 }
 
@@ -191,27 +206,32 @@ func (s *Service) runOutbox(ctx context.Context) {
 }
 
 func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
-	payload, err := s.codec.EncodeText(req.chatKey, req.text)
+	encoded, err := s.codec.EncodeText(req.chatKey, req.text)
 	if err != nil {
 		return SendResult{Err: fmt.Errorf("encode outgoing message: %w", err)}
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-	err = s.transport.WriteFrame(writeCtx, payload)
+	err = s.transport.WriteFrame(writeCtx, encoded.Payload)
 	cancel()
 	if err != nil {
 		return SendResult{Err: fmt.Errorf("send outgoing frame: %w", err)}
 	}
 
 	now := time.Now()
+	initialStatus := domain.MessageStatusPending
+	if encoded.WantAck {
+		s.markAckTracked(encoded.DeviceMessageID)
+	}
 	msg := domain.ChatMessage{
-		ChatKey:   req.chatKey,
-		Direction: domain.MessageDirectionOut,
-		Body:      req.text,
-		Status:    domain.MessageStatusSent,
-		At:        now,
+		DeviceMessageID: encoded.DeviceMessageID,
+		ChatKey:         req.chatKey,
+		Direction:       domain.MessageDirectionOut,
+		Body:            req.text,
+		Status:          initialStatus,
+		At:              now,
 	}
 
-	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
+	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
 	s.bus.Publish(connectors.TopicTextMessage, msg)
 	return SendResult{Message: msg}
 }
@@ -249,4 +269,35 @@ func sleepWithContext(ctx context.Context, d time.Duration) bool {
 	case <-time.After(d):
 		return true
 	}
+}
+
+func (s *Service) markAckTracked(deviceMessageID string) {
+	deviceMessageID = strings.TrimSpace(deviceMessageID)
+	if deviceMessageID == "" {
+		return
+	}
+	s.ackTrackMu.Lock()
+	s.ackTrack[deviceMessageID] = struct{}{}
+	s.ackTrackMu.Unlock()
+}
+
+func (s *Service) clearAckTracked(deviceMessageID string) {
+	deviceMessageID = strings.TrimSpace(deviceMessageID)
+	if deviceMessageID == "" {
+		return
+	}
+	s.ackTrackMu.Lock()
+	delete(s.ackTrack, deviceMessageID)
+	s.ackTrackMu.Unlock()
+}
+
+func (s *Service) isAckTracked(deviceMessageID string) bool {
+	deviceMessageID = strings.TrimSpace(deviceMessageID)
+	if deviceMessageID == "" {
+		return false
+	}
+	s.ackTrackMu.Lock()
+	_, ok := s.ackTrack[deviceMessageID]
+	s.ackTrackMu.Unlock()
+	return ok
 }

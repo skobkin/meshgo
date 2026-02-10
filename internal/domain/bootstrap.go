@@ -37,6 +37,7 @@ func StartPersistenceSync(ctx context.Context, b bus.MessageBus, queue WriteQueu
 	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
 	channelSub := b.Subscribe(connectors.TopicChannels)
 	textSub := b.Subscribe(connectors.TopicTextMessage)
+	statusSub := b.Subscribe(connectors.TopicMessageStatus)
 
 	go func() {
 		defer b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
@@ -109,6 +110,28 @@ func StartPersistenceSync(ctx context.Context, b bus.MessageBus, queue WriteQueu
 						chat.LastSentByMeAt = copyMsg.At
 					}
 					return chatRepo.Upsert(writeCtx, chat)
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-statusSub:
+				if !ok {
+					return
+				}
+				update, ok := raw.(MessageStatusUpdate)
+				if !ok {
+					continue
+				}
+				copyUpdate := update
+				queue.Enqueue("update_message_status", func(writeCtx context.Context) error {
+					return msgRepo.UpdateStatusByDeviceMessageID(writeCtx, copyUpdate.DeviceMessageID, copyUpdate.Status)
 				})
 			}
 		}

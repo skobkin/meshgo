@@ -44,6 +44,34 @@ type ChatMessage struct {
 	MetaJSON        string
 }
 
+type MessageStatusUpdate struct {
+	DeviceMessageID string
+	Status          MessageStatus
+	Reason          string
+}
+
+func ShouldTransitionMessageStatus(current, next MessageStatus) bool {
+	if next == 0 || current == next {
+		return false
+	}
+	if current == 0 {
+		return true
+	}
+
+	switch next {
+	case MessageStatusAcked:
+		return current != MessageStatusAcked
+	case MessageStatusFailed:
+		return current != MessageStatusAcked && current != MessageStatusFailed
+	case MessageStatusSent:
+		return current == MessageStatusPending
+	case MessageStatusPending:
+		return false
+	default:
+		return false
+	}
+}
+
 type Node struct {
 	NodeID          string
 	LongName        string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/skobkin/meshgo/internal/domain"
 )
@@ -18,11 +19,15 @@ func NewMessageRepo(db *sql.DB) *MessageRepo {
 
 func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO messages(chat_key, device_message_id, direction, body, status, at, meta_json)
+		INSERT OR IGNORE INTO messages(chat_key, device_message_id, direction, body, status, at, meta_json)
 		VALUES(?, ?, ?, ?, ?, ?, ?)
 	`, m.ChatKey, nullableString(m.DeviceMessageID), int(m.Direction), m.Body, int(m.Status), toUnixMillis(m.At), nullableString(m.MetaJSON))
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err == nil && rowsAffected == 0 {
+		return 0, nil
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
@@ -87,6 +92,60 @@ func (r *MessageRepo) LoadRecentPerChat(ctx context.Context, limit int) (map[str
 		return nil, fmt.Errorf("iterate chat keys: %w", err)
 	}
 	return result, nil
+}
+
+func (r *MessageRepo) UpdateStatusByDeviceMessageID(ctx context.Context, deviceMessageID string, status domain.MessageStatus) error {
+	deviceMessageID = strings.TrimSpace(deviceMessageID)
+	if deviceMessageID == "" || status == 0 {
+		return nil
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT local_id, status
+		FROM messages
+		WHERE device_message_id = ?
+	`, deviceMessageID)
+	if err != nil {
+		return fmt.Errorf("query messages by device id: %w", err)
+	}
+	defer rows.Close()
+
+	type rowState struct {
+		id     int64
+		status domain.MessageStatus
+	}
+	toUpdate := make([]rowState, 0, 1)
+	for rows.Next() {
+		var (
+			id        int64
+			statusRaw int
+		)
+		if err := rows.Scan(&id, &statusRaw); err != nil {
+			return fmt.Errorf("scan message status row: %w", err)
+		}
+		current := domain.MessageStatus(statusRaw)
+		if !domain.ShouldTransitionMessageStatus(current, status) {
+			continue
+		}
+		toUpdate = append(toUpdate, rowState{id: id, status: status})
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate message status rows: %w", err)
+	}
+	if len(toUpdate) == 0 {
+		return nil
+	}
+
+	for _, item := range toUpdate {
+		if _, err := r.db.ExecContext(ctx, `
+			UPDATE messages
+			SET status = ?
+			WHERE local_id = ?
+		`, int(item.status), item.id); err != nil {
+			return fmt.Errorf("update message status: %w", err)
+		}
+	}
+	return nil
 }
 
 func scanMessage(scanner interface {

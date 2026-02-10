@@ -10,14 +10,21 @@ type DecodedFrame struct {
 	NodeUpdate       *domain.NodeUpdate
 	Channels         *domain.ChannelList
 	TextMessage      *domain.ChatMessage
+	MessageStatus    *domain.MessageStatusUpdate
 	ConfigSnapshot   *connectors.ConfigSnapshot
 	ConfigCompleteID uint32
 	WantConfigReady  bool
 }
 
+type EncodedText struct {
+	Payload         []byte
+	DeviceMessageID string
+	WantAck         bool
+}
+
 type Codec interface {
 	EncodeWantConfig() ([]byte, error)
 	EncodeHeartbeat() ([]byte, error)
-	EncodeText(chatKey, text string) ([]byte, error)
+	EncodeText(chatKey, text string) (EncodedText, error)
 	DecodeFromRadio(payload []byte) (DecodedFrame, error)
 }

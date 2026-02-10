@@ -219,6 +219,7 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 	channelSub := b.Subscribe(connectors.TopicChannels)
 	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
 	textSub := b.Subscribe(connectors.TopicTextMessage)
+	statusSub := b.Subscribe(connectors.TopicMessageStatus)
 	configSub := b.Subscribe(connectors.TopicConfigSnapshot)
 	rawInSub := b.Subscribe(connectors.TopicRawFrameIn)
 	rawOutSub := b.Subscribe(connectors.TopicRawFrameOut)
@@ -231,6 +232,7 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 				b.Unsubscribe(channelSub, connectors.TopicChannels)
 				b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
 				b.Unsubscribe(textSub, connectors.TopicTextMessage)
+				b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
 				b.Unsubscribe(configSub, connectors.TopicConfigSnapshot)
 				b.Unsubscribe(rawInSub, connectors.TopicRawFrameIn)
 				b.Unsubscribe(rawOutSub, connectors.TopicRawFrameOut)
@@ -250,6 +252,10 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 			case raw := <-textSub:
 				if msg, ok := raw.(domain.ChatMessage); ok {
 					logger.Info("text", "chat", msg.ChatKey, "direction", msg.Direction, "body", msg.Body)
+				}
+			case raw := <-statusSub:
+				if update, ok := raw.(domain.MessageStatusUpdate); ok {
+					logger.Info("message-status", "device_message_id", update.DeviceMessageID, "status", update.Status, "reason", update.Reason)
 				}
 			case raw := <-configSub:
 				if cfg, ok := raw.(connectors.ConfigSnapshot); ok {

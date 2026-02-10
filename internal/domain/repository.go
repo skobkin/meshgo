@@ -15,4 +15,5 @@ type ChatRepository interface {
 type MessageRepository interface {
 	Insert(ctx context.Context, m ChatMessage) (int64, error)
 	LoadRecentPerChat(ctx context.Context, limit int) (map[string][]ChatMessage, error)
+	UpdateStatusByDeviceMessageID(ctx context.Context, deviceMessageID string, status MessageStatus) error
 }

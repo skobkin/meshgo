@@ -181,6 +181,39 @@ func TestChatIndexByKey(t *testing.T) {
 	}
 }
 
+func TestMessageStatusLine_Outgoing(t *testing.T) {
+	tests := []struct {
+		name   string
+		status domain.MessageStatus
+		want   string
+	}{
+		{name: "pending", status: domain.MessageStatusPending, want: "Pending"},
+		{name: "sent", status: domain.MessageStatusSent, want: "Sent"},
+		{name: "acked", status: domain.MessageStatusAcked, want: "Acked"},
+		{name: "failed", status: domain.MessageStatusFailed, want: "Failed"},
+	}
+
+	for _, tc := range tests {
+		got := messageStatusLine(domain.ChatMessage{
+			Direction: domain.MessageDirectionOut,
+			Status:    tc.status,
+		})
+		if got != tc.want {
+			t.Fatalf("%s: expected %q, got %q", tc.name, tc.want, got)
+		}
+	}
+}
+
+func TestMessageStatusLine_IncomingHidden(t *testing.T) {
+	got := messageStatusLine(domain.ChatMessage{
+		Direction: domain.MessageDirectionIn,
+		Status:    domain.MessageStatusAcked,
+	})
+	if got != "" {
+		t.Fatalf("expected empty status for incoming message, got %q", got)
+	}
+}
+
 func ptrInt(v int) *int {
 	return &v
 }

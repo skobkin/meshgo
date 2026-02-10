@@ -48,16 +48,17 @@ func (c *MeshtasticCodec) EncodeHeartbeat() ([]byte, error) {
 	return proto.Marshal(wire)
 }
 
-func (c *MeshtasticCodec) EncodeText(chatKey, text string) ([]byte, error) {
+func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) {
 	to, channel, err := parseChatTarget(chatKey)
 	if err != nil {
-		return nil, err
+		return EncodedText{}, err
 	}
+	packetID := c.nextNonZeroID()
 
 	packet := &generated.MeshPacket{
 		To:      to,
 		Channel: channel,
-		Id:      c.nextNonZeroID(),
+		Id:      packetID,
 		WantAck: to != broadcastNodeNum,
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
 			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
@@ -65,7 +66,16 @@ func (c *MeshtasticCodec) EncodeText(chatKey, text string) ([]byte, error) {
 		}},
 	}
 	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
-	return proto.Marshal(wire)
+	payload, err := proto.Marshal(wire)
+	if err != nil {
+		return EncodedText{}, err
+	}
+
+	return EncodedText{
+		Payload:         payload,
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+		WantAck:         packet.GetWantAck(),
+	}, nil
 }
 
 func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) {
@@ -100,6 +110,11 @@ func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) 
 			out.ConfigSnapshot = &snapshot
 		}
 	}
+	if queueStatus := wire.GetQueueStatus(); queueStatus != nil {
+		if status, ok := decodeQueueStatus(queueStatus); ok {
+			out.MessageStatus = &status
+		}
+	}
 
 	if packet := wire.GetPacket(); packet != nil {
 		decodePacket(packet, now, c.localNodeNum.Load(), &out)
@@ -113,6 +128,9 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 	if decoded == nil {
 		return
 	}
+	if status, ok := decodePacketStatus(packet, decoded); ok {
+		out.MessageStatus = &status
+	}
 
 	switch decoded.GetPortnum() {
 	case generated.PortNum_TEXT_MESSAGE_APP, generated.PortNum_TEXT_MESSAGE_COMPRESSED_APP, generated.PortNum_DETECTION_SENSOR_APP, generated.PortNum_ALERT_APP:
@@ -125,12 +143,16 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		if localNode != 0 && packet.GetFrom() == localNode {
 			direction = domain.MessageDirectionOut
 		}
+		status := domain.MessageStatusSent
+		if direction == domain.MessageDirectionOut && packet.GetWantAck() {
+			status = domain.MessageStatusPending
+		}
 
 		msg := domain.ChatMessage{
 			ChatKey:   chatKeyForPacket(packet, direction),
 			Direction: direction,
 			Body:      text,
-			Status:    domain.MessageStatusSent,
+			Status:    status,
 			At:        packetTimestamp(packet.GetRxTime(), now),
 			MetaJSON:  packetMetaJSON(decoded.GetPortnum(), packet),
 		}
@@ -143,6 +165,53 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 			out.NodeUpdate = &nodeUpdate
 		}
 	}
+}
+
+func decodeQueueStatus(queueStatus *generated.QueueStatus) (domain.MessageStatusUpdate, bool) {
+	packetID := queueStatus.GetMeshPacketId()
+	if packetID == 0 {
+		return domain.MessageStatusUpdate{}, false
+	}
+
+	update := domain.MessageStatusUpdate{
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+		Status:          domain.MessageStatusSent,
+	}
+	if res := generated.Routing_Error(queueStatus.GetRes()); res != generated.Routing_NONE {
+		update.Status = domain.MessageStatusFailed
+		update.Reason = res.String()
+	}
+	return update, true
+}
+
+func decodePacketStatus(packet *generated.MeshPacket, decoded *generated.Data) (domain.MessageStatusUpdate, bool) {
+	requestID := decoded.GetRequestId()
+	if requestID == 0 {
+		return domain.MessageStatusUpdate{}, false
+	}
+
+	isRouting := decoded.GetPortnum() == generated.PortNum_ROUTING_APP
+	isAck := packet.GetPriority() == generated.MeshPacket_ACK
+	if !isRouting && !isAck {
+		return domain.MessageStatusUpdate{}, false
+	}
+
+	update := domain.MessageStatusUpdate{
+		DeviceMessageID: strconv.FormatUint(uint64(requestID), 10),
+		Status:          domain.MessageStatusAcked,
+	}
+
+	if isRouting {
+		var routing generated.Routing
+		if err := proto.Unmarshal(decoded.GetPayload(), &routing); err == nil {
+			if reason := routing.GetErrorReason(); reason != generated.Routing_NONE {
+				update.Status = domain.MessageStatusFailed
+				update.Reason = reason.String()
+			}
+		}
+	}
+
+	return update, true
 }
 
 func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpdate {
