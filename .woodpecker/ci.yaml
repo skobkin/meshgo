@@ -79,7 +79,7 @@ steps:
         from_secret: GITEA_TOKEN
     commands:
       - export PATH=/usr/local/go/bin:/go/bin:$PATH
-      - export CACHE_ROOT="$PWD/.ci-cache"
+      - export CACHE_ROOT="/tmp/.ci-cache"
       - export GOMODCACHE="$CACHE_ROOT/gomod"
       - export GOCACHE="$CACHE_ROOT/gobuild"
       - export GOPATH="$CACHE_ROOT/gopath"
@@ -87,6 +87,7 @@ steps:
       - test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
       - test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
       - test -n "$FORGE_DOWNLOAD_URL" || export FORGE_DOWNLOAD_URL="$CI_FORGE_URL"
+      - rm -rf "$PWD/.ci-cache"
       - apk add --no-cache git build-base pkgconf mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mingw-w64-gcc
       - go install github.com/goreleaser/goreleaser/v2@v2.12.7
       - $GOPATH/bin/goreleaser release --clean
