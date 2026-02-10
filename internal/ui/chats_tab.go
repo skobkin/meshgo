@@ -422,11 +422,15 @@ type messageMetaFragment struct {
 	Style widget.RichTextStyle
 }
 
+var hopBadges = [...]string{
+	"⓪", "①", "②", "③", "④", "⑤", "⑥", "⑦",
+}
+
 func messageMetaFragments(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaFragment {
 	hops, hopsKnown := messageHops(meta, hasMeta)
-	hopsLine := "hops: ?"
+	hopsLine := "?"
 	if hopsKnown {
-		hopsLine = fmt.Sprintf("hops: %d", hops)
+		hopsLine = hopBadge(hops)
 	}
 
 	parts := []messageMetaFragment{{Text: hopsLine, Style: widget.RichTextStyleInline}}
@@ -463,6 +467,17 @@ func messageMetaFragments(m domain.ChatMessage, meta messageMeta, hasMeta bool) 
 	}
 
 	return parts
+}
+
+func hopBadge(hops int) string {
+	if hops < 0 {
+		return "?"
+	}
+	if hops < len(hopBadges) {
+		return hopBadges[hops]
+	}
+
+	return fmt.Sprintf("h%d", hops)
 }
 
 func appendMetaSeparator(parts []messageMetaFragment) []messageMetaFragment {
