@@ -29,6 +29,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	messages := store.Messages(selectedKey)
 	var messageList *widget.List
 	var chatTitle *widget.Label
+	var entry *widget.Entry
+	pendingScrollChatKey := ""
+	pendingScrollMinCount := 0
 
 	chatList := widget.NewList(
 		func() int { return len(chats) },
@@ -73,6 +76,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		messages = store.Messages(selectedKey)
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
+		focusEntry(entry)
 	}
 
 	chatTitle = widget.NewLabel("No chat selected")
@@ -102,7 +106,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		},
 	)
 
-	entry := widget.NewEntry()
+	entry = widget.NewEntry()
 	entry.SetPlaceHolder("Type message (max 200 bytes)")
 	counterLabel := widget.NewLabel("0/200 bytes")
 	sendButton := widget.NewButton("Send", nil)
@@ -135,11 +139,17 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			return
 		}
 
+		pendingScrollChatKey = selectedKey
+		pendingScrollMinCount = len(messages) + 1
 		setSending(true)
 		go func(chatKey, body string) {
 			res := <-sender.SendText(chatKey, body)
 			if res.Err != nil {
 				fyne.Do(func() {
+					if pendingScrollChatKey == chatKey {
+						pendingScrollChatKey = ""
+						pendingScrollMinCount = 0
+					}
 					setSending(false)
 				})
 				return
@@ -192,6 +202,13 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		} else {
 			chatList.UnselectAll()
 		}
+		if pendingScrollChatKey != "" &&
+			selectedKey == pendingScrollChatKey &&
+			len(messages) >= pendingScrollMinCount {
+			scrollMessageListToEnd(messageList, len(messages))
+			pendingScrollChatKey = ""
+			pendingScrollMinCount = 0
+		}
 	}
 
 	go func() {
@@ -209,6 +226,29 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	}
 
 	return container.New(layout.NewStackLayout(), split)
+}
+
+func focusEntry(entry *widget.Entry) {
+	if entry == nil {
+		return
+	}
+	app := fyne.CurrentApp()
+	if app == nil {
+		return
+	}
+	canvas := app.Driver().CanvasForObject(entry)
+	if canvas == nil {
+		return
+	}
+	canvas.Focus(entry)
+}
+
+func scrollMessageListToEnd(list *widget.List, length int) {
+	if list == nil || length <= 0 {
+		return
+	}
+	list.ScrollTo(length - 1)
+	list.ScrollToBottom()
 }
 
 func chatTypeLabel(c domain.Chat) string {
