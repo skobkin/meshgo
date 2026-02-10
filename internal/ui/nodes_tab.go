@@ -2,12 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
@@ -22,6 +24,12 @@ type NodeRowRenderer struct {
 
 const nodeFilterDebounce = 500 * time.Millisecond
 
+var (
+	signalColorGood = color.NRGBA{R: 0x2e, G: 0xcc, B: 0x71, A: 0xff}
+	signalColorFair = color.NRGBA{R: 0xff, G: 0x98, B: 0x00, A: 0xff}
+	signalColorBad  = color.NRGBA{R: 0xe5, G: 0x39, B: 0x35, A: 0xff}
+)
+
 func DefaultNodeRowRenderer() NodeRowRenderer {
 	return NodeRowRenderer{
 		Create: func() fyne.CanvasObject {
@@ -31,30 +39,106 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 			line2Model := widget.NewLabel("model")
 			line2Role := widget.NewLabel("role")
 			line2Role.Alignment = fyne.TextAlignCenter
+			line2Signal := canvas.NewText("", signalColorGood)
+			line2Signal.TextStyle = fyne.TextStyle{Monospace: true}
+			line2Signal.Hide()
 			line2Right := widget.NewLabel("id")
 			line2Right.TextStyle = fyne.TextStyle{Monospace: true}
+			line2RightBox := container.NewHBox(line2Signal, line2Right)
+
 			return container.NewVBox(
 				container.NewHBox(nameLabel, layout.NewSpacer(), line1Right),
-				container.NewBorder(nil, nil, line2Model, line2Right, line2Role),
+				container.NewBorder(nil, nil, line2Model, line2RightBox, line2Role),
 			)
 		},
 		Update: func(obj fyne.CanvasObject, node domain.Node) {
-			root := obj.(*fyne.Container)
-			line1 := root.Objects[0].(*fyne.Container)
-			line2 := root.Objects[1].(*fyne.Container)
-			line1Left := line1.Objects[0].(*widget.Label)
-			line1Right := line1.Objects[2].(*widget.Label)
-			line2Role := line2.Objects[0].(*widget.Label)
-			line2Model := line2.Objects[1].(*widget.Label)
-			line2Right := line2.Objects[2].(*widget.Label)
-
-			line1Left.SetText(nodeDisplayName(node))
-			line1Right.SetText(nodeLine1Right(node, time.Now()))
-			line2Model.SetText(nodeLine2Model(node))
-			line2Role.SetText(nodeLine2Role(node))
-			line2Right.SetText(node.NodeID)
+			labels, ok := extractNodeRowLabels(obj)
+			if !ok {
+				return
+			}
+			labels.name.SetText(nodeDisplayName(node))
+			labels.seen.SetText(nodeLine1Right(node, time.Now()))
+			labels.model.SetText(nodeLine2Model(node))
+			labels.role.SetText(nodeLine2Role(node))
+			signal := nodeLine2Signal(node)
+			labels.signal.Text = signal.Text
+			labels.signal.Color = signal.Color
+			if signal.Visible {
+				labels.signal.Show()
+			} else {
+				labels.signal.Hide()
+			}
+			labels.signal.Refresh()
+			labels.id.SetText(node.NodeID)
 		},
 	}
+}
+
+type nodeRowLabels struct {
+	name   *widget.Label
+	seen   *widget.Label
+	model  *widget.Label
+	role   *widget.Label
+	signal *canvas.Text
+	id     *widget.Label
+}
+
+// extractNodeRowLabels maps list row container objects to typed labels.
+func extractNodeRowLabels(obj fyne.CanvasObject) (nodeRowLabels, bool) {
+	root, ok := obj.(*fyne.Container)
+	if !ok || len(root.Objects) < 2 {
+		return nodeRowLabels{}, false
+	}
+	line1, ok := root.Objects[0].(*fyne.Container)
+	if !ok || len(line1.Objects) < 3 {
+		return nodeRowLabels{}, false
+	}
+	line2, ok := root.Objects[1].(*fyne.Container)
+	if !ok || len(line2.Objects) < 3 {
+		return nodeRowLabels{}, false
+	}
+	name, ok := line1.Objects[0].(*widget.Label)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	seen, ok := line1.Objects[2].(*widget.Label)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	role, ok := line2.Objects[0].(*widget.Label)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	model, ok := line2.Objects[1].(*widget.Label)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	rightBox, ok := line2.Objects[2].(*fyne.Container)
+	if !ok || len(rightBox.Objects) < 2 {
+		return nodeRowLabels{}, false
+	}
+	signal, ok := rightBox.Objects[0].(*canvas.Text)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	id, ok := rightBox.Objects[1].(*widget.Label)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	return nodeRowLabels{
+		name:   name,
+		seen:   seen,
+		model:  model,
+		role:   role,
+		signal: signal,
+		id:     id,
+	}, true
+}
+
+type nodeSignalView struct {
+	Text    string
+	Color   color.Color
+	Visible bool
 }
 
 func nodeLine1Right(node domain.Node, now time.Time) string {
@@ -78,6 +162,34 @@ func nodeLine2Role(node domain.Node) string {
 		return v
 	}
 	return ""
+}
+
+func nodeLine2Signal(node domain.Node) nodeSignalView {
+	if node.RSSI == nil || node.SNR == nil {
+		return nodeSignalView{Visible: false}
+	}
+	switch domain.DetermineSignalQuality(float32(*node.SNR), *node.RSSI) {
+	case domain.SignalGood:
+		return nodeSignalView{
+			Text:    "▂▄▆█ Good",
+			Color:   signalColorGood,
+			Visible: true,
+		}
+	case domain.SignalFair:
+		return nodeSignalView{
+			Text:    "▂▄▆  Fair",
+			Color:   signalColorFair,
+			Visible: true,
+		}
+	case domain.SignalBad:
+		return nodeSignalView{
+			Text:    "▂▄   Bad",
+			Color:   signalColorBad,
+			Visible: true,
+		}
+	default:
+		return nodeSignalView{Visible: false}
+	}
 }
 
 func nodeDisplayName(node domain.Node) string {

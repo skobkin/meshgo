@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
 )
@@ -88,21 +87,28 @@ func TestFormatSeenAgo(t *testing.T) {
 func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	renderer := DefaultNodeRowRenderer()
 	obj := renderer.Create()
+	rssi := -114
+	snr := -6.9
 	renderer.Update(obj, domain.Node{
 		NodeID:     "!abcd1234",
 		BoardModel: "T-Echo",
 		Role:       "CLIENT",
+		RSSI:       &rssi,
+		SNR:        &snr,
 		BatteryLevel: func() *uint32 {
 			v := uint32(80)
 			return &v
 		}(),
 	})
 
-	root := obj.(*fyne.Container)
-	line2 := root.Objects[1].(*fyne.Container)
-	role := line2.Objects[0].(*widget.Label)
-	model := line2.Objects[1].(*widget.Label)
-	id := line2.Objects[2].(*widget.Label)
+	row, ok := extractNodeRowLabels(obj)
+	if !ok {
+		t.Fatalf("failed to parse row labels")
+	}
+	role := row.role
+	model := row.model
+	id := row.id
+	signal := row.signal
 
 	if model.Text != "T-Echo" {
 		t.Fatalf("unexpected model text: %q", model.Text)
@@ -115,6 +121,40 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	}
 	if role.Alignment != fyne.TextAlignCenter {
 		t.Fatalf("role label should be center aligned")
+	}
+	if !signal.Visible() {
+		t.Fatalf("signal should be visible")
+	}
+	if signal.Text != "▂▄▆█ Good" {
+		t.Fatalf("unexpected signal text: %q", signal.Text)
+	}
+}
+
+func TestNodeLine2Signal(t *testing.T) {
+	goodRSSI, goodSNR := -110, -6.0
+	fairRSSI, fairSNR := -125, -14.0
+	badRSSI, badSNR := -127, -15.5
+
+	tests := []struct {
+		name string
+		node domain.Node
+		want string
+		show bool
+	}{
+		{name: "unknown without metrics", node: domain.Node{}, want: "", show: false},
+		{name: "good", node: domain.Node{RSSI: &goodRSSI, SNR: &goodSNR}, want: "▂▄▆█ Good", show: true},
+		{name: "fair", node: domain.Node{RSSI: &fairRSSI, SNR: &fairSNR}, want: "▂▄▆  Fair", show: true},
+		{name: "bad", node: domain.Node{RSSI: &badRSSI, SNR: &badSNR}, want: "▂▄   Bad", show: true},
+	}
+
+	for _, tt := range tests {
+		got := nodeLine2Signal(tt.node)
+		if got.Text != tt.want {
+			t.Fatalf("%s: got %q want %q", tt.name, got.Text, tt.want)
+		}
+		if got.Visible != tt.show {
+			t.Fatalf("%s: got visible=%v want visible=%v", tt.name, got.Visible, tt.show)
+		}
 	}
 }
 
