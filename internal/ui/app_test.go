@@ -34,7 +34,7 @@ func TestFormatWindowTitle(t *testing.T) {
 		State:         connectors.ConnectionStateConnected,
 		TransportName: "ip",
 	})
-	want := "MeshGo - Connection: connected via ip"
+	want := "MeshGo - connected via ip"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
 	}

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -187,7 +186,7 @@ func initialConnStatus(dep Dependencies) connectors.ConnStatus {
 }
 
 func formatConnStatus(status connectors.ConnStatus) string {
-	text := fmt.Sprintf("Connection: %s", status.State)
+	text := string(status.State)
 	if status.TransportName != "" {
 		text += " via " + status.TransportName
 	}

@@ -74,6 +74,7 @@ func run() error {
 		}
 	}()
 	logger := logMgr.Logger("cli")
+	logger.Info("starting meshgo debug", "version", app.BuildVersion(), "build_date", app.BuildDateYMD())
 
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {

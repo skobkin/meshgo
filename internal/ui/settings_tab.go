@@ -1,13 +1,18 @@
 package ui
 
 import (
+	"fmt"
+	"net/url"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
@@ -95,12 +100,58 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		clearDBButton,
 	))
 
-	return container.NewVBox(
+	logo := newLinkImage(resources.LogoTextResource(), fyne.NewSize(220, 80), func() {
+		if err := openExternalURL(app.SourceURL); err != nil {
+			status.SetText("Failed to open source website: " + err.Error())
+		}
+	})
+
+	sourceLink := widget.NewHyperlink("Source", mustParseURL(app.SourceURL))
+	meshtasticLink := widget.NewHyperlink("Meshtastic", mustParseURL(app.MeshtasticURL))
+	poweredByRow := container.NewHBox(
+		widget.NewLabel("Powered by "),
+		meshtasticLink,
+	)
+	versionBlock := widget.NewCard("", "", container.NewVBox(
+		container.NewHBox(logo, layout.NewSpacer()),
+		widget.NewLabel("Version: "+app.BuildVersionWithDate()),
+		sourceLink,
+		poweredByRow,
+	))
+
+	content := container.NewVBox(
 		widget.NewLabel("App settings"),
 		connectionBlock,
 		loggingBlock,
 		maintenanceBlock,
 		saveButton,
+		versionBlock,
 		status,
 	)
+
+	return container.NewVScroll(content)
+}
+
+func openExternalURL(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return fmt.Errorf("parse url: %w", err)
+	}
+
+	currentApp := fyne.CurrentApp()
+	if currentApp == nil {
+		return fmt.Errorf("application is not initialized")
+	}
+	if err := currentApp.OpenURL(parsed); err != nil {
+		return fmt.Errorf("open url: %w", err)
+	}
+	return nil
+}
+
+func mustParseURL(rawURL string) *url.URL {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		panic(fmt.Sprintf("invalid url %q: %v", rawURL, err))
+	}
+	return parsed
 }

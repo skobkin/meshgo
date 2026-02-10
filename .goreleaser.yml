@@ -26,6 +26,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -buildid=
+      - -X github.com/skobkin/meshgo/internal/app.Version={{ .Version }}
+      - -X github.com/skobkin/meshgo/internal/app.BuildDate={{ .Date }}
 
   - id: meshgo-gui-windows
     main: ./cmd/gui
@@ -42,6 +44,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -H=windowsgui -buildid=
+      - -X github.com/skobkin/meshgo/internal/app.Version={{ .Version }}
+      - -X github.com/skobkin/meshgo/internal/app.BuildDate={{ .Date }}
 
   - id: meshgo-debug
     skip: '{{ and (ne (index .Env "WITH_DEBUG_CMD") "true") (ne (index .Env "WITH_DEBUG_CMD") "1") }}'
@@ -58,6 +62,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -buildid=
+      - -X github.com/skobkin/meshgo/internal/app.Version={{ .Version }}
+      - -X github.com/skobkin/meshgo/internal/app.BuildDate={{ .Date }}
 
 upx:
   - enabled: "{{ or (eq (index .Env \"WITH_UPX\") \"1\") (eq (index .Env \"WITH_UPX\") \"true\") }}"

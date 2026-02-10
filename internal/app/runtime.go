@@ -67,6 +67,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		return nil, fmt.Errorf("configure logging: %w", err)
 	}
 	rt.LogManager = logMgr
+	slog.Info("starting meshgo runtime", "version", BuildVersion(), "build_date", BuildDateYMD())
 
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {
