@@ -73,6 +73,24 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.Voltage == nil {
 			node.Voltage = existing.Voltage
 		}
+		if node.Temperature == nil {
+			node.Temperature = existing.Temperature
+		}
+		if node.Humidity == nil {
+			node.Humidity = existing.Humidity
+		}
+		if node.Pressure == nil {
+			node.Pressure = existing.Pressure
+		}
+		if node.AirQualityIndex == nil {
+			node.AirQualityIndex = existing.AirQualityIndex
+		}
+		if node.PowerVoltage == nil {
+			node.PowerVoltage = existing.PowerVoltage
+		}
+		if node.PowerCurrent == nil {
+			node.PowerCurrent = existing.PowerCurrent
+		}
 		if node.BoardModel == "" {
 			node.BoardModel = existing.BoardModel
 		}

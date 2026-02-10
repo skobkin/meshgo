@@ -9,7 +9,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
@@ -62,6 +62,12 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				short_name TEXT,
 				battery_level INTEGER NULL,
 				voltage REAL NULL,
+				temperature REAL NULL,
+				humidity REAL NULL,
+				pressure REAL NULL,
+				air_quality_index REAL NULL,
+				power_voltage REAL NULL,
+				power_current REAL NULL,
 				board_model TEXT NULL,
 				device_role TEXT NULL,
 				is_unmessageable INTEGER NULL,
@@ -91,7 +97,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS messages_chat_at_idx ON messages(chat_key, at ASC);`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS messages_chat_device_unique_idx ON messages(chat_key, device_message_id) WHERE device_message_id IS NOT NULL;`,
-			`PRAGMA user_version = 3;`,
+			`PRAGMA user_version = 4;`,
 		}
 
 		for _, stmt := range stmts {
@@ -129,6 +135,24 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 3
+		}
+		if version < 4 {
+			slog.Info("applying db migration", "from", version, "to", 4)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN temperature REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN humidity REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN pressure REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN air_quality_index REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN power_voltage REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN power_current REAL NULL;`,
+				`PRAGMA user_version = 4;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 4
 		}
 	}
 

@@ -172,6 +172,10 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		if nodeUpdate, ok := decodeNodeFromPacketPayload(packet, decoded.GetPayload(), now); ok {
 			out.NodeUpdate = &nodeUpdate
 		}
+	case generated.PortNum_TELEMETRY_APP:
+		if nodeUpdate, ok := decodeNodeTelemetryFromPacket(packet, decoded.GetPayload(), now); ok {
+			out.NodeUpdate = &nodeUpdate
+		}
 	}
 }
 
@@ -241,16 +245,7 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 		v := user.GetIsUnmessagable()
 		node.IsUnmessageable = &v
 	}
-	if dm := nodeInfo.GetDeviceMetrics(); dm != nil {
-		if dm.BatteryLevel != nil {
-			v := dm.GetBatteryLevel()
-			node.BatteryLevel = &v
-		}
-		if dm.Voltage != nil {
-			v := float64(dm.GetVoltage())
-			node.Voltage = &v
-		}
-	}
+	applyDeviceMetrics(&node, nodeInfo.GetDeviceMetrics())
 
 	if snr := nodeInfo.GetSnr(); snr != 0 {
 		snrVal := float64(snr)
@@ -258,6 +253,42 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 	}
 
 	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}
+}
+
+func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
+	if packet.GetFrom() == 0 {
+		return domain.NodeUpdate{}, false
+	}
+
+	var telemetry generated.Telemetry
+	if err := proto.Unmarshal(payload, &telemetry); err != nil {
+		return domain.NodeUpdate{}, false
+	}
+
+	node := domain.Node{
+		NodeID:      formatNodeNum(packet.GetFrom()),
+		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
+		UpdatedAt:   now,
+	}
+
+	applyDeviceMetrics(&node, telemetry.GetDeviceMetrics())
+	applyEnvironmentMetrics(&node, telemetry.GetEnvironmentMetrics())
+	applyPowerMetrics(&node, telemetry.GetPowerMetrics())
+	applyAirQualityMetrics(&node, telemetry.GetAirQualityMetrics())
+
+	if telemetry.GetEnvironmentMetrics() == nil && telemetry.GetPowerMetrics() == nil && telemetry.GetAirQualityMetrics() == nil && telemetry.GetDeviceMetrics() == nil {
+		return domain.NodeUpdate{}, false
+	}
+	if rssi := packet.GetRxRssi(); rssi != 0 {
+		rssiVal := int(rssi)
+		node.RSSI = &rssiVal
+	}
+	if snr := packet.GetRxSnr(); snr != 0 {
+		snrVal := float64(snr)
+		node.SNR = &snrVal
+	}
+
+	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
 }
 
 func decodeChannelInfo(channelInfo *generated.Channel) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
@@ -316,6 +347,81 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 	}
 
 	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+}
+
+func applyDeviceMetrics(node *domain.Node, dm *generated.DeviceMetrics) {
+	if dm == nil || node == nil {
+		return
+	}
+	if dm.BatteryLevel != nil {
+		v := dm.GetBatteryLevel()
+		node.BatteryLevel = &v
+	}
+	if dm.Voltage != nil {
+		v := float64(dm.GetVoltage())
+		node.Voltage = &v
+	}
+}
+
+func applyEnvironmentMetrics(node *domain.Node, env *generated.EnvironmentMetrics) {
+	if env == nil || node == nil {
+		return
+	}
+	if env.Temperature != nil {
+		v := float64(env.GetTemperature())
+		node.Temperature = &v
+	}
+	if env.RelativeHumidity != nil {
+		v := float64(env.GetRelativeHumidity())
+		node.Humidity = &v
+	}
+	if env.BarometricPressure != nil {
+		v := float64(env.GetBarometricPressure())
+		node.Pressure = &v
+	}
+	if env.Iaq != nil {
+		v := float64(env.GetIaq())
+		node.AirQualityIndex = &v
+	}
+	// Some older telemetry reports power metrics in environment payload.
+	if env.Voltage != nil {
+		v := float64(env.GetVoltage())
+		node.PowerVoltage = &v
+		if node.Voltage == nil {
+			node.Voltage = &v
+		}
+	}
+	if env.Current != nil {
+		v := float64(env.GetCurrent())
+		node.PowerCurrent = &v
+	}
+}
+
+func applyPowerMetrics(node *domain.Node, power *generated.PowerMetrics) {
+	if power == nil || node == nil {
+		return
+	}
+	if power.Ch1Voltage != nil {
+		v := float64(power.GetCh1Voltage())
+		node.PowerVoltage = &v
+		if node.Voltage == nil {
+			node.Voltage = &v
+		}
+	}
+	if power.Ch1Current != nil {
+		v := float64(power.GetCh1Current())
+		node.PowerCurrent = &v
+	}
+}
+
+func applyAirQualityMetrics(node *domain.Node, aq *generated.AirQualityMetrics) {
+	if aq == nil || node == nil {
+		return
+	}
+	if node.AirQualityIndex == nil && aq.PmVocIdx != nil {
+		v := float64(aq.GetPmVocIdx())
+		node.AirQualityIndex = &v
+	}
 }
 
 func parseChatTarget(chatKey string) (to uint32, channel uint32, err error) {

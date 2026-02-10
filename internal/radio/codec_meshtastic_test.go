@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"math"
 	"testing"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -22,6 +23,117 @@ func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 	}
 	if !encoded.WantAck {
 		t.Fatalf("expected want_ack for direct message")
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T) {
+	codec := NewMeshtasticCodec()
+
+	telemetryPayload, err := proto.Marshal(&generated.Telemetry{
+		Variant: &generated.Telemetry_EnvironmentMetrics{
+			EnvironmentMetrics: &generated.EnvironmentMetrics{
+				Temperature:        proto.Float32(22.7),
+				RelativeHumidity:   proto.Float32(47.3),
+				BarometricPressure: proto.Float32(1008.6),
+				Iaq:                proto.Uint32(92),
+				Voltage:            proto.Float32(4.12),
+				Current:            proto.Float32(0.137),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal telemetry: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From:   0x1234abcd,
+				RxTime: 1_735_123_456,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_TELEMETRY_APP,
+						Payload: telemetryPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode telemetry packet: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	node := frame.NodeUpdate.Node
+	if node.NodeID != "!1234abcd" {
+		t.Fatalf("unexpected node id: %q", node.NodeID)
+	}
+	assertFloatPtr(t, node.Temperature, 22.7, "temperature")
+	assertFloatPtr(t, node.Humidity, 47.3, "humidity")
+	assertFloatPtr(t, node.Pressure, 1008.6, "pressure")
+	assertFloatPtr(t, node.AirQualityIndex, 92.0, "air quality index")
+	assertFloatPtr(t, node.PowerVoltage, 4.12, "power voltage")
+	assertFloatPtr(t, node.PowerCurrent, 0.137, "power current")
+}
+
+func TestMeshtasticCodec_DecodeFromRadioTelemetryPowerPacket(t *testing.T) {
+	codec := NewMeshtasticCodec()
+
+	telemetryPayload, err := proto.Marshal(&generated.Telemetry{
+		Variant: &generated.Telemetry_PowerMetrics{
+			PowerMetrics: &generated.PowerMetrics{
+				Ch1Voltage: proto.Float32(12.34),
+				Ch1Current: proto.Float32(1.25),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal telemetry: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From: 0x7654dcba,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_TELEMETRY_APP,
+						Payload: telemetryPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode telemetry packet: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	node := frame.NodeUpdate.Node
+	assertFloatPtr(t, node.PowerVoltage, 12.34, "power voltage")
+	assertFloatPtr(t, node.PowerCurrent, 1.25, "power current")
+	assertFloatPtr(t, node.Voltage, 12.34, "voltage")
+}
+
+func assertFloatPtr(t *testing.T, got *float64, want float64, field string) {
+	t.Helper()
+	if got == nil {
+		t.Fatalf("expected %s", field)
+	}
+	if math.Abs(*got-want) > 0.0001 {
+		t.Fatalf("unexpected %s value: got %v want %v", field, *got, want)
 	}
 }
 

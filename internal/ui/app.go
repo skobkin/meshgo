@@ -40,7 +40,7 @@ func Run(dep Dependencies) error {
 	)
 	nodesTab := newNodesTab(dep.NodeStore, DefaultNodeRowRenderer())
 	mapTab := disabledTab("Map is not implemented yet")
-	nodeSettingsTab := disabledTab("Node Settings is not implemented yet")
+	nodeSettingsTab := newNodeTab(dep.NodeStore, dep.LocalNodeID)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
 	tabContent := map[string]fyne.CanvasObject{
@@ -62,8 +62,7 @@ func Run(dep Dependencies) error {
 
 	navButtons := make(map[string]*widget.Button, len(order))
 	disabledTabs := map[string]bool{
-		"Map":  true,
-		"Node": true,
+		"Map": true,
 	}
 
 	updateNavSelection := func() {

@@ -78,6 +78,12 @@ type Node struct {
 	ShortName       string
 	BatteryLevel    *uint32
 	Voltage         *float64
+	Temperature     *float64
+	Humidity        *float64
+	Pressure        *float64
+	AirQualityIndex *float64
+	PowerVoltage    *float64
+	PowerCurrent    *float64
 	BoardModel      string
 	Role            string
 	IsUnmessageable *bool
