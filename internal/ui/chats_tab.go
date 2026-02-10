@@ -16,7 +16,7 @@ import (
 
 func newChatsTab(store *domain.ChatStore, sender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
-}, nodeNameByID func(string) string, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
+}, nodeNameByID func(string) string, localNodeID func() string, nodeChanges <-chan struct{}, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
 	selectedKey := strings.TrimSpace(initialSelectedKey)
@@ -88,7 +88,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
 			return container.NewVBox(
-				widget.NewLabel("message"),
+				widget.NewRichTextWithText("message"),
 				container.NewHBox(widget.NewLabel("meta"), layout.NewSpacer(), widget.NewLabel("status")),
 			)
 		},
@@ -99,7 +99,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			msg := messages[id]
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
 			box := obj.(*fyne.Container)
-			box.Objects[0].(*widget.Label).SetText(messageTextLine(msg, meta, hasMeta, nodeNameByID))
+			messageText := box.Objects[0].(*widget.RichText)
+			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
+			messageText.Refresh()
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaRow.Objects[0].(*widget.Label).SetText(messageMetaLine(msg, meta, hasMeta))
 			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
@@ -218,6 +220,17 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			})
 		}
 	}()
+	if nodeChanges != nil {
+		go func() {
+			for range nodeChanges {
+				fyne.Do(func() {
+					previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
+					chatList.Refresh()
+					messageList.Refresh()
+				})
+			}
+		}()
+	}
 
 	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
 		chatList.Select(selectedIndex)
@@ -337,25 +350,50 @@ func parseMessageMeta(raw string) (messageMeta, bool) {
 	return meta, true
 }
 
-func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string) string {
-	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID)
+func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) string {
+	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
 	if hasSender {
 		return fmt.Sprintf("%s %s: %s", prefix, sender, body)
 	}
 	return fmt.Sprintf("%s %s", prefix, body)
 }
 
-func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string) (prefix, sender, body string, hasSender bool) {
+func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) (prefix, sender, body string, hasSender bool) {
 	prefix = "<"
 	if m.Direction == domain.MessageDirectionOut {
 		prefix = ">"
+		if hasMeta {
+			if localID := normalizeNodeID(meta.From); localID != "" {
+				return prefix, displaySender(localID, nodeNameByID), m.Body, true
+			}
+		}
+		if localNodeID != nil {
+			if localID := normalizeNodeID(localNodeID()); localID != "" {
+				return prefix, displaySender(localID, nodeNameByID), m.Body, true
+			}
+		}
+		return prefix, "you", m.Body, true
 	}
-	if m.Direction == domain.MessageDirectionIn && hasMeta {
+	if hasMeta {
 		if sender := normalizeNodeID(meta.From); sender != "" {
 			return prefix, displaySender(sender, nodeNameByID), m.Body, true
 		}
 	}
 	return prefix, "", m.Body, false
+}
+
+func messageTextSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) []widget.RichTextSegment {
+	prefix, sender, body, hasSender := messageTextParts(m, meta, hasMeta, nodeNameByID, localNodeID)
+	if hasSender {
+		return []widget.RichTextSegment{
+			&widget.TextSegment{Text: prefix + " ", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: sender, Style: widget.RichTextStyleStrong},
+			&widget.TextSegment{Text: ": " + body, Style: widget.RichTextStyleInline},
+		}
+	}
+	return []widget.RichTextSegment{
+		&widget.TextSegment{Text: prefix + " " + body, Style: widget.RichTextStyleInline},
+	}
 }
 
 func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) string {

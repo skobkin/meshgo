@@ -33,6 +33,8 @@ func Run(dep Dependencies) error {
 		dep.ChatStore,
 		dep.Sender,
 		resolveNodeDisplayName(dep.NodeStore),
+		dep.LocalNodeID,
+		nodeChanges(dep.NodeStore),
 		dep.LastSelectedChat,
 		dep.OnChatSelected,
 	)
@@ -217,4 +219,11 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 		}
 		return ""
 	}
+}
+
+func nodeChanges(store *domain.NodeStore) <-chan struct{} {
+	if store == nil {
+		return nil
+	}
+	return store.Changes()
 }

@@ -3,6 +3,7 @@ package radio
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -37,6 +38,10 @@ type Service struct {
 
 	ackTrackMu sync.Mutex
 	ackTrack   map[string]struct{}
+}
+
+type localNodeIDCodec interface {
+	LocalNodeID() string
 }
 
 func NewService(logger *slog.Logger, b bus.MessageBus, tr transport.Transport, codec Codec) *Service {
@@ -76,6 +81,14 @@ func (s *Service) SendText(chatKey, text string) <-chan SendResult {
 
 	s.outbox <- sendRequest{chatKey: chatKey, text: text, result: resCh}
 	return resCh
+}
+
+func (s *Service) LocalNodeID() string {
+	codec, ok := s.codec.(localNodeIDCodec)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(codec.LocalNodeID())
 }
 
 func (s *Service) runConnector(ctx context.Context) {
@@ -229,6 +242,7 @@ func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
 		Body:            req.text,
 		Status:          initialStatus,
 		At:              now,
+		MetaJSON:        outgoingMessageMetaJSON(s.LocalNodeID()),
 	}
 
 	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
@@ -269,6 +283,20 @@ func sleepWithContext(ctx context.Context, d time.Duration) bool {
 	case <-time.After(d):
 		return true
 	}
+}
+
+func outgoingMessageMetaJSON(localNodeID string) string {
+	localNodeID = strings.TrimSpace(localNodeID)
+	if localNodeID == "" {
+		return ""
+	}
+	raw, err := json.Marshal(map[string]any{
+		"from": localNodeID,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(raw)
 }
 
 func (s *Service) markAckTracked(deviceMessageID string) {

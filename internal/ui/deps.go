@@ -17,6 +17,7 @@ type Dependencies struct {
 	Sender           interface {
 		SendText(chatKey, text string) <-chan radio.SendResult
 	}
+	LocalNodeID    func() string
 	IPTransport    *transport.IPTransport
 	OnSave         func(cfg config.AppConfig) error
 	OnChatSelected func(chatKey string)

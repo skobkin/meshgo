@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2/widget"
+
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
@@ -76,6 +78,7 @@ func TestMessageTextLine_IncomingShowsSender(t *testing.T) {
 		messageMeta{From: "!1234abcd"},
 		true,
 		nil,
+		nil,
 	)
 	if line != "< !1234abcd: hello" {
 		t.Fatalf("unexpected line: %q", line)
@@ -93,6 +96,7 @@ func TestMessageTextLine_IncomingPrefersResolvedSenderName(t *testing.T) {
 			}
 			return "Alice"
 		},
+		nil,
 	)
 	if line != "< Alice: hello" {
 		t.Fatalf("unexpected line: %q", line)
@@ -105,8 +109,27 @@ func TestMessageTextLine_OutgoingUsesArrow(t *testing.T) {
 		messageMeta{},
 		false,
 		nil,
+		nil,
 	)
-	if line != "> ping" {
+	if line != "> you: ping" {
+		t.Fatalf("unexpected line: %q", line)
+	}
+}
+
+func TestMessageTextLine_OutgoingUsesResolvedSenderName(t *testing.T) {
+	line := messageTextLine(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Body: "ping"},
+		messageMeta{From: "!1234abcd"},
+		true,
+		func(nodeID string) string {
+			if nodeID != "!1234abcd" {
+				t.Fatalf("unexpected node id: %q", nodeID)
+			}
+			return "Local Node"
+		},
+		nil,
+	)
+	if line != "> Local Node: ping" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
@@ -122,9 +145,51 @@ func TestMessageTextParts_IncomingWithSender(t *testing.T) {
 			}
 			return "Alice"
 		},
+		nil,
 	)
 	if prefix != "<" || sender != "Alice" || body != "hello" || !hasSender {
 		t.Fatalf("unexpected parts: prefix=%q sender=%q body=%q hasSender=%v", prefix, sender, body, hasSender)
+	}
+}
+
+func TestMessageTextSegments_SenderIsBold(t *testing.T) {
+	segs := messageTextSegments(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn, Body: "hello"},
+		messageMeta{From: "!1234abcd"},
+		true,
+		func(_ string) string { return "Alice" },
+		nil,
+	)
+	if len(segs) != 3 {
+		t.Fatalf("unexpected segment count: %d", len(segs))
+	}
+	sender, ok := segs[1].(*widget.TextSegment)
+	if !ok {
+		t.Fatalf("sender segment type mismatch: %T", segs[1])
+	}
+	if sender.Text != "Alice" {
+		t.Fatalf("unexpected sender text: %q", sender.Text)
+	}
+	if !sender.Style.TextStyle.Bold {
+		t.Fatalf("sender segment should be bold")
+	}
+}
+
+func TestMessageTextLine_OutgoingUsesLocalNodeResolver(t *testing.T) {
+	line := messageTextLine(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Body: "ping"},
+		messageMeta{},
+		false,
+		func(nodeID string) string {
+			if nodeID != "!1234abcd" {
+				t.Fatalf("unexpected node id: %q", nodeID)
+			}
+			return "Local Node"
+		},
+		func() string { return "!1234abcd" },
+	)
+	if line != "> Local Node: ping" {
+		t.Fatalf("unexpected line: %q", line)
 	}
 }
 

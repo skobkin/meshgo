@@ -32,6 +32,14 @@ func NewMeshtasticCodec() *MeshtasticCodec {
 	return c
 }
 
+func (c *MeshtasticCodec) LocalNodeID() string {
+	localNodeNum := c.localNodeNum.Load()
+	if localNodeNum == 0 {
+		return ""
+	}
+	return formatNodeNum(localNodeNum)
+}
+
 func (c *MeshtasticCodec) EncodeWantConfig() ([]byte, error) {
 	id := c.nextNonZeroID()
 	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_WantConfigId{WantConfigId: id}}
