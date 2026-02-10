@@ -18,8 +18,8 @@ import (
 
 func Run(dep Dependencies) error {
 	fyApp := app.NewWithID("meshgo")
-	icon := resources.TrayIconResource()
-	fyApp.SetIcon(icon)
+	initialVariant := fyApp.Settings().ThemeVariant()
+	fyApp.SetIcon(resources.AppIconResource(initialVariant))
 
 	initialStatus := initialConnStatus(dep)
 	window := fyApp.NewWindow(formatWindowTitle(initialStatus))
@@ -50,6 +50,13 @@ func Run(dep Dependencies) error {
 		"App":   settingsTab,
 	}
 	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
+	tabIcons := map[string]resources.UIIcon{
+		"Chats": resources.UIIconChats,
+		"Nodes": resources.UIIconNodes,
+		"Map":   resources.UIIconMap,
+		"Node":  resources.UIIconNodeSettings,
+		"App":   resources.UIIconAppSettings,
+	}
 
 	rightStack := container.NewStack()
 	for _, key := range order {
@@ -59,22 +66,14 @@ func Run(dep Dependencies) error {
 	active := "Chats"
 	tabContent[active].Show()
 
-	navButtons := make(map[string]*widget.Button, len(order))
+	navButtons := make(map[string]*iconNavButton, len(order))
 	disabledTabs := map[string]bool{
 		"Map": true,
 	}
 
 	updateNavSelection := func() {
 		for name, button := range navButtons {
-			if button.Disabled() {
-				continue
-			}
-			if name == active {
-				button.Importance = widget.HighImportance
-			} else {
-				button.Importance = widget.MediumImportance
-			}
-			button.Refresh()
+			button.SetSelected(name == active && !button.Disabled())
 		}
 	}
 
@@ -92,7 +91,7 @@ func Run(dep Dependencies) error {
 	left := container.NewVBox()
 	for _, name := range order {
 		nameCopy := name
-		button := widget.NewButton(nameCopy, func() {
+		button := newIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), 48, func() {
 			switchTab(nameCopy)
 		})
 		if disabledTabs[name] {
@@ -103,6 +102,20 @@ func Run(dep Dependencies) error {
 	}
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
+
+	setTrayIcon := func(_ fyne.ThemeVariant) {}
+	applyThemeResources := func(variant fyne.ThemeVariant) {
+		fyApp.SetIcon(resources.AppIconResource(variant))
+		setTrayIcon(variant)
+		for tabName, button := range navButtons {
+			icon := resources.UIIconResource(tabIcons[tabName], variant)
+			button.SetIcon(icon)
+		}
+	}
+
+	fyApp.Settings().AddListener(func(_ fyne.Settings) {
+		applyThemeResources(fyApp.Settings().ThemeVariant())
+	})
 
 	if dep.Bus != nil {
 		sub := dep.Bus.Subscribe(connectors.TopicConnStatus)
@@ -139,7 +152,10 @@ func Run(dep Dependencies) error {
 	})
 
 	if desk, ok := fyApp.(desktop.App); ok {
-		desk.SetSystemTrayIcon(icon)
+		setTrayIcon = func(variant fyne.ThemeVariant) {
+			desk.SetSystemTrayIcon(resources.TrayIconResource(variant))
+		}
+		setTrayIcon(initialVariant)
 		desk.SetSystemTrayMenu(fyne.NewMenu("meshgo",
 			fyne.NewMenuItem("Show", func() {
 				window.Show()
@@ -150,6 +166,7 @@ func Run(dep Dependencies) error {
 			}),
 		))
 	}
+	applyThemeResources(initialVariant)
 
 	window.Show()
 	fyApp.Run()
