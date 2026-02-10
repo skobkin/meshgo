@@ -1,6 +1,6 @@
 # MeshGo
 
-[![status-badge](https://ci.skobk.in/api/badges/5/status.svg)](https://ci.skobk.in/repos/5)
+[![build status](https://ci.skobk.in/api/badges/5/status.svg?events=push%2Ctag)](https://ci.skobk.in/repos/5)
 [![latest release](https://git.skobk.in/skobkin/meshgo/badges/release.svg)](https://git.skobk.in/skobkin/meshgo/releases)
 
 MeshGo is a desktop client for Meshtastic networks.
