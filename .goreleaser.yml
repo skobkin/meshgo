@@ -25,7 +25,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w
+      - -s -w -buildid=
 
   - id: meshgo-gui-windows
     main: ./cmd/gui
@@ -41,7 +41,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -H=windowsgui
+      - -s -w -H=windowsgui -buildid=
 
   - id: meshgo-debug
     skip: '{{ and (ne (index .Env "WITH_DEBUG_CMD") "true") (ne (index .Env "WITH_DEBUG_CMD") "1") }}'
@@ -57,7 +57,15 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w
+      - -s -w -buildid=
+
+upx:
+  - enabled: "{{ or (eq (index .Env \"WITH_UPX\") \"1\") (eq (index .Env \"WITH_UPX\") \"true\") }}"
+    ids:
+      - meshgo-gui-linux
+      - meshgo-gui-windows
+    compress: best
+    lzma: true
 
 archives:
   - formats:
