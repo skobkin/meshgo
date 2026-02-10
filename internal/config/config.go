@@ -26,9 +26,14 @@ type ConnectionConfig struct {
 	Host      string        `json:"host"`
 }
 
+type UIConfig struct {
+	LastSelectedChat string `json:"last_selected_chat"`
+}
+
 type AppConfig struct {
 	Connection ConnectionConfig `json:"connection"`
 	Logging    LoggingConfig    `json:"logging"`
+	UI         UIConfig         `json:"ui"`
 }
 
 func Default() AppConfig {
@@ -40,6 +45,9 @@ func Default() AppConfig {
 		Logging: LoggingConfig{
 			Level:     "info",
 			LogToFile: false,
+		},
+		UI: UIConfig{
+			LastSelectedChat: "",
 		},
 	}
 }

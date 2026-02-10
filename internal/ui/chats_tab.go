@@ -16,11 +16,14 @@ import (
 
 func newChatsTab(store *domain.ChatStore, sender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
-}, nodeNameByID func(string) string) fyne.CanvasObject {
+}, nodeNameByID func(string) string, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
-	selectedKey := ""
-	if len(chats) > 0 {
+	selectedKey := strings.TrimSpace(initialSelectedKey)
+	if selectedKey != "" && len(chats) > 0 && !hasChat(chats, selectedKey) {
+		selectedKey = ""
+	}
+	if selectedKey == "" && len(chats) > 0 {
 		selectedKey = chats[0].Key
 	}
 	messages := store.Messages(selectedKey)
@@ -64,6 +67,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			return
 		}
 		selectedKey = chats[id].Key
+		if onChatSelected != nil {
+			onChatSelected(selectedKey)
+		}
 		messages = store.Messages(selectedKey)
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
@@ -198,7 +204,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		}
 	}()
 
-	if len(chats) > 0 {
+	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
+		chatList.Select(selectedIndex)
+	} else if len(chats) > 0 {
 		chatList.Select(0)
 	}
 

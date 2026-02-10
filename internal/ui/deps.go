@@ -9,15 +9,17 @@ import (
 )
 
 type Dependencies struct {
-	Config    config.AppConfig
-	ChatStore *domain.ChatStore
-	NodeStore *domain.NodeStore
-	Bus       bus.MessageBus
-	Sender    interface {
+	Config           config.AppConfig
+	ChatStore        *domain.ChatStore
+	NodeStore        *domain.NodeStore
+	Bus              bus.MessageBus
+	LastSelectedChat string
+	Sender           interface {
 		SendText(chatKey, text string) <-chan radio.SendResult
 	}
-	IPTransport *transport.IPTransport
-	OnSave      func(cfg config.AppConfig) error
-	OnClearDB   func() error
-	OnQuit      func()
+	IPTransport    *transport.IPTransport
+	OnSave         func(cfg config.AppConfig) error
+	OnChatSelected func(chatKey string)
+	OnClearDB      func() error
+	OnQuit         func()
 }

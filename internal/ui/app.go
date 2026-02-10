@@ -29,7 +29,13 @@ func Run(dep Dependencies) error {
 	settingsConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
 
-	chatsTab := newChatsTab(dep.ChatStore, dep.Sender, resolveNodeDisplayName(dep.NodeStore))
+	chatsTab := newChatsTab(
+		dep.ChatStore,
+		dep.Sender,
+		resolveNodeDisplayName(dep.NodeStore),
+		dep.LastSelectedChat,
+		dep.OnChatSelected,
+	)
 	nodesTab := newNodesTab(dep.NodeStore, DefaultNodeRowRenderer())
 	mapTab := disabledTab("Map is not implemented yet")
 	nodeSettingsTab := disabledTab("Node Settings is not implemented yet")

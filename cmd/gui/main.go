@@ -31,14 +31,16 @@ func main() {
 	defer closeRuntime()
 
 	err = ui.Run(ui.Dependencies{
-		Config:      rt.Config,
-		ChatStore:   rt.ChatStore,
-		NodeStore:   rt.NodeStore,
-		Bus:         rt.Bus,
-		Sender:      rt.Radio,
-		IPTransport: rt.IPTransport,
-		OnSave:      rt.SaveAndApplyConfig,
-		OnClearDB:   rt.ClearDatabase,
+		Config:           rt.Config,
+		ChatStore:        rt.ChatStore,
+		NodeStore:        rt.NodeStore,
+		Bus:              rt.Bus,
+		LastSelectedChat: rt.Config.UI.LastSelectedChat,
+		Sender:           rt.Radio,
+		IPTransport:      rt.IPTransport,
+		OnSave:           rt.SaveAndApplyConfig,
+		OnChatSelected:   rt.RememberSelectedChat,
+		OnClearDB:        rt.ClearDatabase,
 		OnQuit: func() {
 			stop()
 			closeRuntime()

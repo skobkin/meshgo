@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -108,16 +109,19 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+
+	r.mu.Lock()
+	cfg.UI = r.Config.UI
 	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
+		r.mu.Unlock()
 		return err
 	}
+	r.Config = cfg
+	r.mu.Unlock()
+
 	if err := r.LogManager.Configure(cfg.Logging, r.Paths.LogFile); err != nil {
 		return err
 	}
-
-	r.mu.Lock()
-	r.Config = cfg
-	r.mu.Unlock()
 
 	if cfg.Connection.Connector == config.ConnectorIP {
 		r.IPTransport.SetHost(cfg.Connection.Host)
@@ -125,6 +129,25 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 
 	return nil
+}
+
+func (r *Runtime) RememberSelectedChat(chatKey string) {
+	normalized := strings.TrimSpace(chatKey)
+
+	r.mu.Lock()
+	if r.Config.UI.LastSelectedChat == normalized {
+		r.mu.Unlock()
+		return
+	}
+	cfg := r.Config
+	cfg.UI.LastSelectedChat = normalized
+	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
+		r.mu.Unlock()
+		slog.Warn("save selected chat", "error", err)
+		return
+	}
+	r.Config = cfg
+	r.mu.Unlock()
 }
 
 func (r *Runtime) ClearDatabase() error {
