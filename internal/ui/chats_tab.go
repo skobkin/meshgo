@@ -129,6 +129,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
 			metaParts.Refresh()
 			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
+
+			// Chat rows can have different heights (e.g. multiline message text),
+			// so we must update list item height per message.
+			messageList.SetItemHeight(id, rowContainer.MinSize().Height)
 			rowContainer.Refresh()
 		},
 	)
