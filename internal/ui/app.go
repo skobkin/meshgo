@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -12,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
 )
 
@@ -27,7 +29,7 @@ func Run(dep Dependencies) error {
 	sidebarConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
 	settingsConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
 
-	chatsTab := newChatsTab(dep.ChatStore, dep.Sender)
+	chatsTab := newChatsTab(dep.ChatStore, dep.Sender, resolveNodeDisplayName(dep.NodeStore))
 	nodesTab := newNodesTab(dep.NodeStore, DefaultNodeRowRenderer())
 	mapTab := disabledTab("Map is not implemented yet")
 	nodeSettingsTab := disabledTab("Node Settings is not implemented yet")
@@ -161,4 +163,23 @@ func formatConnStatus(status connectors.ConnStatus) string {
 		text += " (" + status.Err + ")"
 	}
 	return text
+}
+
+func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
+	if store == nil {
+		return nil
+	}
+	return func(nodeID string) string {
+		node, ok := store.Get(nodeID)
+		if !ok {
+			return ""
+		}
+		if v := strings.TrimSpace(node.LongName); v != "" {
+			return v
+		}
+		if v := strings.TrimSpace(node.ShortName); v != "" {
+			return v
+		}
+		return ""
+	}
 }

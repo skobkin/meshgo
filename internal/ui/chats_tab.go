@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 func newChatsTab(store *domain.ChatStore, sender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
-}) fyne.CanvasObject {
+}, nodeNameByID func(string) string) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	selectedKey := ""
 	if len(chats) > 0 {
@@ -66,9 +67,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 				return
 			}
 			msg := messages[id]
+			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
 			box := obj.(*fyne.Container)
-			box.Objects[0].(*widget.Label).SetText(msg.Body)
-			box.Objects[1].(*widget.Label).SetText(messageMetaLine(msg))
+			box.Objects[0].(*widget.Label).SetText(messageTextLine(msg, meta, hasMeta, nodeNameByID))
+			box.Objects[1].(*widget.Label).SetText(messageMetaLine(msg, meta, hasMeta))
 		},
 	)
 
@@ -190,12 +192,112 @@ func chatMetaLine(c domain.Chat) string {
 	return fmt.Sprintf("%s | last sent by me %s", typeLabel, c.LastSentByMeAt.Format(time.RFC3339))
 }
 
-func messageMetaLine(m domain.ChatMessage) string {
-	dir := "IN"
-	if m.Direction == domain.MessageDirectionOut {
-		dir = "OUT"
+type messageMeta struct {
+	From      string   `json:"from"`
+	To        string   `json:"to"`
+	Hops      *int     `json:"hops"`
+	HopStart  *uint32  `json:"hop_start"`
+	HopLimit  *uint32  `json:"hop_limit"`
+	RxRSSI    *int     `json:"rx_rssi"`
+	RxSNR     *float64 `json:"rx_snr"`
+	ViaMQTT   bool     `json:"via_mqtt"`
+	Transport string   `json:"transport"`
+}
+
+func parseMessageMeta(raw string) (messageMeta, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return messageMeta{}, false
 	}
-	return fmt.Sprintf("%s | %s", dir, m.At.Format(time.RFC3339))
+	var meta messageMeta
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return messageMeta{}, false
+	}
+	return meta, true
+}
+
+func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string) string {
+	prefix := "<"
+	if m.Direction == domain.MessageDirectionOut {
+		prefix = ">"
+	}
+	if m.Direction == domain.MessageDirectionIn && hasMeta {
+		if sender := normalizeNodeID(meta.From); sender != "" {
+			return fmt.Sprintf("%s %s: %s", prefix, displaySender(sender, nodeNameByID), m.Body)
+		}
+	}
+	return fmt.Sprintf("%s %s", prefix, m.Body)
+}
+
+func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) string {
+	hops, hopsKnown := messageHops(meta, hasMeta)
+	hopsLine := "hops: ?"
+	if hopsKnown {
+		hopsLine = fmt.Sprintf("hops: %d", hops)
+	}
+
+	parts := []string{hopsLine}
+	if isMessageFromMQTT(meta, hasMeta) {
+		parts = append(parts, "[MQTT]")
+		return strings.Join(parts, " | ")
+	}
+
+	if m.Direction == domain.MessageDirectionIn && hopsKnown && hops == 0 {
+		if meta.RxRSSI != nil {
+			parts = append(parts, fmt.Sprintf("RSSI: %d", *meta.RxRSSI))
+		}
+		if meta.RxSNR != nil {
+			parts = append(parts, fmt.Sprintf("SNR: %.2f", *meta.RxSNR))
+		}
+	}
+
+	return strings.Join(parts, " | ")
+}
+
+func messageHops(meta messageMeta, hasMeta bool) (int, bool) {
+	if !hasMeta {
+		return 0, false
+	}
+	if meta.Hops != nil {
+		return *meta.Hops, true
+	}
+	if meta.HopStart == nil || meta.HopLimit == nil {
+		return 0, false
+	}
+	if *meta.HopStart == 0 && *meta.HopLimit == 0 {
+		return 0, false
+	}
+	if *meta.HopStart < *meta.HopLimit {
+		return 0, false
+	}
+	return int(*meta.HopStart - *meta.HopLimit), true
+}
+
+func isMessageFromMQTT(meta messageMeta, hasMeta bool) bool {
+	if !hasMeta {
+		return false
+	}
+	if meta.ViaMQTT {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(meta.Transport), "TRANSPORT_MQTT")
+}
+
+func normalizeNodeID(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" || strings.EqualFold(v, "unknown") || v == "!ffffffff" {
+		return ""
+	}
+	return v
+}
+
+func displaySender(nodeID string, nodeNameByID func(string) string) string {
+	if nodeNameByID == nil {
+		return nodeID
+	}
+	if v := strings.TrimSpace(nodeNameByID(nodeID)); v != "" {
+		return v
+	}
+	return nodeID
 }
 
 func chatTitleByKey(chats []domain.Chat, key string) string {

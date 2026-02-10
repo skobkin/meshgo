@@ -100,6 +100,13 @@ func (s *NodeStore) SnapshotSorted() []Node {
 	return out
 }
 
+func (s *NodeStore) Get(nodeID string) (Node, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	node, ok := s.nodes[nodeID]
+	return node, ok
+}
+
 func (s *NodeStore) Changes() <-chan struct{} {
 	return s.changes
 }

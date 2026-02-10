@@ -305,12 +305,43 @@ func packetMetaJSON(port generated.PortNum, packet *generated.MeshPacket) string
 		"to":        formatNodeNum(packet.GetTo()),
 		"channel":   packet.GetChannel(),
 		"packet_id": packet.GetId(),
+		"transport": packet.GetTransportMechanism().String(),
+	}
+	if hops, ok := packetHops(packet); ok {
+		meta["hops"] = hops
+	}
+	if hopStart := packet.GetHopStart(); hopStart != 0 {
+		meta["hop_start"] = hopStart
+	}
+	if hopLimit := packet.GetHopLimit(); hopLimit != 0 {
+		meta["hop_limit"] = hopLimit
+	}
+	if rxRssi := packet.GetRxRssi(); rxRssi != 0 {
+		meta["rx_rssi"] = int(rxRssi)
+	}
+	if rxSnr := packet.GetRxSnr(); rxSnr != 0 {
+		meta["rx_snr"] = float64(rxSnr)
+	}
+	if packet.GetViaMqtt() {
+		meta["via_mqtt"] = true
 	}
 	raw, err := json.Marshal(meta)
 	if err != nil {
 		return ""
 	}
 	return string(raw)
+}
+
+func packetHops(packet *generated.MeshPacket) (int, bool) {
+	hopStart := packet.GetHopStart()
+	hopLimit := packet.GetHopLimit()
+	if hopStart == 0 && hopLimit == 0 {
+		return 0, false
+	}
+	if hopStart < hopLimit {
+		return 0, false
+	}
+	return int(hopStart - hopLimit), true
 }
 
 func (c *MeshtasticCodec) nextNonZeroID() uint32 {
