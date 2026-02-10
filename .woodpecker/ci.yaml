@@ -76,11 +76,7 @@ steps:
     image: golang:1.25-alpine
     environment:
       GITEA_TOKEN:
-        from_secret: FORGE_TOKEN
-      FORGE_API_URL:
-        from_secret: FORGE_API_URL
-      FORGE_DOWNLOAD_URL:
-        from_secret: FORGE_DOWNLOAD_URL
+        from_secret: GITEA_TOKEN
     commands:
       - export PATH=/usr/local/go/bin:/go/bin:$PATH
       - export CACHE_ROOT="$PWD/.ci-cache"
@@ -88,6 +84,9 @@ steps:
       - export GOCACHE="$CACHE_ROOT/gobuild"
       - export GOPATH="$CACHE_ROOT/gopath"
       - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin"
+      - test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
+      - test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
+      - test -n "$FORGE_DOWNLOAD_URL" || export FORGE_DOWNLOAD_URL="$CI_FORGE_URL"
       - apk add --no-cache git build-base pkgconf mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev mingw-w64-gcc
       - go install github.com/goreleaser/goreleaser/v2@v2.12.7
       - $GOPATH/bin/goreleaser release --clean
