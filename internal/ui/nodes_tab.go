@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -18,6 +19,8 @@ type NodeRowRenderer struct {
 	Create func() fyne.CanvasObject
 	Update func(obj fyne.CanvasObject, node domain.Node)
 }
+
+const nodeFilterDebounce = 500 * time.Millisecond
 
 func DefaultNodeRowRenderer() NodeRowRenderer {
 	return NodeRowRenderer{
@@ -144,7 +147,9 @@ func maxRounded(v float64) int {
 }
 
 func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasObject {
-	nodes := store.SnapshotSorted()
+	allNodes := store.SnapshotSorted()
+	appliedFilter := ""
+	nodes := filterNodesByName(allNodes, appliedFilter)
 
 	list := widget.NewList(
 		func() int { return len(nodes) },
@@ -157,14 +162,65 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 		},
 	)
 
+	filterEntry := widget.NewEntry()
+	filterEntry.SetPlaceHolder("Filter nodes")
+	filterSize := fyne.NewSize(260, filterEntry.MinSize().Height)
+	filterWidget := container.NewGridWrap(filterSize, filterEntry)
+	var filterDebounceSeq uint64
+
+	applyFilter := func(value string) {
+		appliedFilter = value
+		nodes = filterNodesByName(allNodes, appliedFilter)
+		list.Refresh()
+	}
+
+	filterEntry.OnChanged = func(text string) {
+		seq := atomic.AddUint64(&filterDebounceSeq, 1)
+		go func(localSeq uint64, localText string) {
+			time.Sleep(nodeFilterDebounce)
+			if atomic.LoadUint64(&filterDebounceSeq) != localSeq {
+				return
+			}
+			fyne.Do(func() {
+				applyFilter(localText)
+			})
+		}(seq, text)
+	}
+
+	filterEntry.OnSubmitted = func(text string) {
+		atomic.AddUint64(&filterDebounceSeq, 1)
+		applyFilter(text)
+	}
+
 	go func() {
 		for range store.Changes() {
 			fyne.Do(func() {
-				nodes = store.SnapshotSorted()
+				allNodes = store.SnapshotSorted()
+				nodes = filterNodesByName(allNodes, appliedFilter)
 				list.Refresh()
 			})
 		}
 	}()
 
-	return container.NewBorder(widget.NewLabel("Nodes"), nil, nil, nil, list)
+	header := container.NewHBox(widget.NewLabel("Nodes"), layout.NewSpacer(), filterWidget)
+	return container.NewBorder(header, nil, nil, nil, list)
+}
+
+func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {
+	needle := strings.ToLower(strings.TrimSpace(rawFilter))
+	if needle == "" {
+		out := make([]domain.Node, len(nodes))
+		copy(out, nodes)
+		return out
+	}
+
+	out := make([]domain.Node, 0, len(nodes))
+	for _, node := range nodes {
+		shortName := strings.ToLower(strings.TrimSpace(node.ShortName))
+		longName := strings.ToLower(strings.TrimSpace(node.LongName))
+		if strings.Contains(shortName, needle) || strings.Contains(longName, needle) {
+			out = append(out, node)
+		}
+	}
+	return out
 }

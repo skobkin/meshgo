@@ -117,3 +117,47 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 		t.Fatalf("role label should be center aligned")
 	}
 }
+
+func TestFilterNodesByName(t *testing.T) {
+	nodes := []domain.Node{
+		{NodeID: "!00000001", ShortName: "ABCD", LongName: "Alpha Bravo"},
+		{NodeID: "!00000002", ShortName: "EFGH", LongName: "Echo Foxtrot"},
+		{NodeID: "!00000003", ShortName: "", LongName: "Golf Hotel"},
+		{NodeID: "!00000004", ShortName: "IJKL", LongName: ""},
+	}
+
+	t.Run("empty filter keeps all", func(t *testing.T) {
+		filtered := filterNodesByName(nodes, "")
+		if len(filtered) != 4 {
+			t.Fatalf("expected all nodes, got %d", len(filtered))
+		}
+	})
+
+	t.Run("matches short name", func(t *testing.T) {
+		filtered := filterNodesByName(nodes, "ef")
+		if len(filtered) != 1 || filtered[0].NodeID != "!00000002" {
+			t.Fatalf("unexpected filtered result: %+v", filtered)
+		}
+	})
+
+	t.Run("matches long name case insensitive", func(t *testing.T) {
+		filtered := filterNodesByName(nodes, "golf")
+		if len(filtered) != 1 || filtered[0].NodeID != "!00000003" {
+			t.Fatalf("unexpected filtered result: %+v", filtered)
+		}
+	})
+
+	t.Run("trim spaces in filter", func(t *testing.T) {
+		filtered := filterNodesByName(nodes, "  bravo  ")
+		if len(filtered) != 1 || filtered[0].NodeID != "!00000001" {
+			t.Fatalf("unexpected filtered result: %+v", filtered)
+		}
+	})
+
+	t.Run("no match returns empty", func(t *testing.T) {
+		filtered := filterNodesByName(nodes, "zzz")
+		if len(filtered) != 0 {
+			t.Fatalf("expected empty result, got %d", len(filtered))
+		}
+	})
+}
