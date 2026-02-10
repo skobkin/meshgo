@@ -254,14 +254,39 @@ func TestMessageMetaSegments_UnknownSignalOmitsBars(t *testing.T) {
 	}
 }
 
-func TestMessageMetaLine_MQTTShowsMarker(t *testing.T) {
+func TestMessageMetaLine_MQTTShowsHopsOnly(t *testing.T) {
 	line := messageMetaLine(
 		domain.ChatMessage{Direction: domain.MessageDirectionIn},
 		messageMeta{Hops: ptrInt(2), ViaMQTT: true},
 		true,
 	)
-	if line != "② [MQTT]" {
+	if line != "②" {
 		t.Fatalf("unexpected line: %q", line)
+	}
+}
+
+func TestMessageTransportBadge(t *testing.T) {
+	tests := []struct {
+		name    string
+		meta    messageMeta
+		hasMeta bool
+		want    string
+		hint    string
+	}{
+		{name: "no meta", meta: messageMeta{}, hasMeta: false, want: "", hint: ""},
+		{name: "via mqtt", meta: messageMeta{ViaMQTT: true}, hasMeta: true, want: "☁", hint: "via MQTT"},
+		{name: "transport mqtt", meta: messageMeta{Transport: "TRANSPORT_MQTT"}, hasMeta: true, want: "☁", hint: "via MQTT"},
+		{name: "not mqtt", meta: messageMeta{Transport: "TRANSPORT_TCP"}, hasMeta: true, want: "", hint: ""},
+	}
+
+	for _, tc := range tests {
+		got, hint := messageTransportBadge(tc.meta, tc.hasMeta)
+		if got != tc.want {
+			t.Fatalf("%s: expected badge %q, got %q", tc.name, tc.want, got)
+		}
+		if hint != tc.hint {
+			t.Fatalf("%s: expected tooltip %q, got %q", tc.name, tc.hint, hint)
+		}
 	}
 }
 

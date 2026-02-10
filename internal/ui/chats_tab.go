@@ -88,9 +88,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
+			messageLine := container.NewBorder(nil, nil, nil, newTooltipLabel("", ""), widget.NewRichTextWithText("message"))
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
 			return container.NewVBox(
-				widget.NewRichTextWithText("message"),
+				messageLine,
 				container.NewHBox(metaParts, layout.NewSpacer(), widget.NewLabel("status")),
 			)
 		},
@@ -101,9 +102,12 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			msg := messages[id]
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
 			box := obj.(*fyne.Container)
-			messageText := box.Objects[0].(*widget.RichText)
+			messageLine := box.Objects[0].(*fyne.Container)
+			messageText := messageLine.Objects[0].(*widget.RichText)
+			messageBadge := messageLine.Objects[1].(*tooltipLabel)
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Refresh()
+			messageBadge.SetBadge(messageTransportBadge(meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
@@ -458,7 +462,6 @@ func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []m
 
 	parts := []messageMetaChunk{newMetaChunkInline(hopsLine)}
 	if isMessageFromMQTT(meta, hasMeta) {
-		parts = append(parts, newMetaChunkInline("[MQTT]"))
 		return parts
 	}
 
@@ -571,6 +574,14 @@ func isMessageFromMQTT(meta messageMeta, hasMeta bool) bool {
 		return true
 	}
 	return strings.EqualFold(strings.TrimSpace(meta.Transport), "TRANSPORT_MQTT")
+}
+
+func messageTransportBadge(meta messageMeta, hasMeta bool) (text, tooltip string) {
+	if isMessageFromMQTT(meta, hasMeta) {
+		return "☁", "via MQTT"
+	}
+
+	return "", ""
 }
 
 func normalizeNodeID(raw string) string {
