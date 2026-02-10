@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -19,6 +18,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
 }, nodeNameByID func(string) string) fyne.CanvasObject {
 	chats := store.ChatListSorted()
+	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
 	selectedKey := ""
 	if len(chats) > 0 {
 		selectedKey = chats[0].Key
@@ -30,16 +30,33 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	chatList := widget.NewList(
 		func() int { return len(chats) },
 		func() fyne.CanvasObject {
-			return container.NewVBox(widget.NewLabel("chat"), widget.NewLabel("meta"))
+			titleLabel := widget.NewLabel("chat")
+			titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+			typeLabel := widget.NewLabel("type")
+			previewLabel := widget.NewLabel("preview")
+			return container.NewVBox(
+				container.NewHBox(titleLabel, layout.NewSpacer(), typeLabel),
+				previewLabel,
+			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(chats) {
 				return
 			}
 			chat := chats[id]
-			box := obj.(*fyne.Container)
-			box.Objects[0].(*widget.Label).SetText(chat.Title)
-			box.Objects[1].(*widget.Label).SetText(chatMetaLine(chat))
+			root := obj.(*fyne.Container)
+			line1 := root.Objects[0].(*fyne.Container)
+			titleLabel := line1.Objects[0].(*widget.Label)
+			typeLabel := line1.Objects[2].(*widget.Label)
+			previewLabel := root.Objects[1].(*widget.Label)
+
+			titleLabel.SetText(chat.Title)
+			typeLabel.SetText(chatTypeLabel(chat))
+			if preview, ok := previewsByKey[chat.Key]; ok {
+				previewLabel.SetText(preview)
+			} else {
+				previewLabel.SetText("No messages yet")
+			}
 		},
 	)
 	chatList.OnSelected = func(id widget.ListItemID) {
@@ -151,6 +168,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	refreshFromStore := func() {
 		updatedChats := store.ChatListSorted()
 		chats = updatedChats
+		previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
 		if selectedKey == "" && len(chats) > 0 {
 			selectedKey = chats[0].Key
 		}
@@ -181,15 +199,67 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	return container.New(layout.NewStackLayout(), split)
 }
 
-func chatMetaLine(c domain.Chat) string {
-	typeLabel := "Channel"
+func chatTypeLabel(c domain.Chat) string {
 	if c.Type == domain.ChatTypeDM {
-		typeLabel = "DM"
+		return "DM"
 	}
-	if c.LastSentByMeAt.IsZero() {
-		return typeLabel
+	return "Channel"
+}
+
+func chatPreviewByKey(store *domain.ChatStore, chats []domain.Chat, nodeNameByID func(string) string) map[string]string {
+	previews := make(map[string]string, len(chats))
+	for _, chat := range chats {
+		previews[chat.Key] = chatPreviewLine(store.Messages(chat.Key), nodeNameByID)
 	}
-	return fmt.Sprintf("%s | last sent by me %s", typeLabel, c.LastSentByMeAt.Format(time.RFC3339))
+	return previews
+}
+
+func chatPreviewLine(messages []domain.ChatMessage, nodeNameByID func(string) string) string {
+	if len(messages) == 0 {
+		return "No messages yet"
+	}
+	last := messages[len(messages)-1]
+	body := compactWhitespace(last.Body)
+	if body == "" {
+		body = "(empty)"
+	}
+	return truncatePreview(fmt.Sprintf("%s: %s", previewSender(last, nodeNameByID), body), 72)
+}
+
+func previewSender(msg domain.ChatMessage, nodeNameByID func(string) string) string {
+	if msg.Direction == domain.MessageDirectionOut {
+		return "you"
+	}
+	meta, hasMeta := parseMessageMeta(msg.MetaJSON)
+	if !hasMeta {
+		return "someone"
+	}
+	if sender := normalizeNodeID(meta.From); sender != "" {
+		return displaySender(sender, nodeNameByID)
+	}
+	return "someone"
+}
+
+func compactWhitespace(s string) string {
+	parts := strings.Fields(strings.TrimSpace(s))
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ")
+}
+
+func truncatePreview(s string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
+	return string(runes[:limit-3]) + "..."
 }
 
 type messageMeta struct {
