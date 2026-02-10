@@ -1,0 +1,76 @@
+package persistence
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/skobkin/meshgo/internal/domain"
+)
+
+type NodeRepo struct {
+	db *sql.DB
+}
+
+func NewNodeRepo(db *sql.DB) *NodeRepo {
+	return &NodeRepo{db: db}
+}
+
+func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO nodes(node_id, long_name, short_name, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(node_id) DO UPDATE SET
+			long_name = excluded.long_name,
+			short_name = excluded.short_name,
+			last_heard_at = excluded.last_heard_at,
+			rssi = excluded.rssi,
+			snr = excluded.snr,
+			updated_at = excluded.updated_at
+	`, n.NodeID, n.LongName, n.ShortName, toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
+	if err != nil {
+		return fmt.Errorf("upsert node: %w", err)
+	}
+	return nil
+}
+
+func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT node_id, long_name, short_name, last_heard_at, rssi, snr, updated_at
+		FROM nodes
+		ORDER BY last_heard_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list nodes: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domain.Node
+	for rows.Next() {
+		var (
+			n       domain.Node
+			heardMs int64
+			updMs   int64
+			rssi    sql.NullInt64
+			snr     sql.NullFloat64
+		)
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &heardMs, &rssi, &snr, &updMs); err != nil {
+			return nil, fmt.Errorf("scan node: %w", err)
+		}
+		n.LastHeardAt = fromUnixMillis(heardMs)
+		n.UpdatedAt = fromUnixMillis(updMs)
+		if rssi.Valid {
+			v := int(rssi.Int64)
+			n.RSSI = &v
+		}
+		if snr.Valid {
+			v := snr.Float64
+			n.SNR = &v
+		}
+		out = append(out, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate nodes: %w", err)
+	}
+	return out, nil
+}

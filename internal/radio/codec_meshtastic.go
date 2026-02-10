@@ -1,0 +1,323 @@
+package radio
+
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/domain"
+	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
+	"google.golang.org/protobuf/proto"
+)
+
+const broadcastNodeNum = ^uint32(0)
+
+type MeshtasticCodec struct {
+	wantConfigID atomic.Uint32
+	packetID     atomic.Uint32
+	localNodeNum atomic.Uint32
+}
+
+func NewMeshtasticCodec() *MeshtasticCodec {
+	seed := uint32(time.Now().UnixNano())
+	if seed == 0 {
+		seed = 1
+	}
+	c := &MeshtasticCodec{}
+	c.packetID.Store(seed)
+	return c
+}
+
+func (c *MeshtasticCodec) EncodeWantConfig() ([]byte, error) {
+	id := c.nextNonZeroID()
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_WantConfigId{WantConfigId: id}}
+	payload, err := proto.Marshal(wire)
+	if err != nil {
+		return nil, err
+	}
+	c.wantConfigID.Store(id)
+	return payload, nil
+}
+
+func (c *MeshtasticCodec) EncodeHeartbeat() ([]byte, error) {
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Heartbeat{Heartbeat: &generated.Heartbeat{}}}
+	return proto.Marshal(wire)
+}
+
+func (c *MeshtasticCodec) EncodeText(chatKey, text string) ([]byte, error) {
+	to, channel, err := parseChatTarget(chatKey)
+	if err != nil {
+		return nil, err
+	}
+
+	packet := &generated.MeshPacket{
+		To:      to,
+		Channel: channel,
+		Id:      c.nextNonZeroID(),
+		WantAck: to != broadcastNodeNum,
+		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
+			Payload: []byte(text),
+		}},
+	}
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
+	return proto.Marshal(wire)
+}
+
+func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) {
+	out := DecodedFrame{Raw: payload}
+
+	var wire generated.FromRadio
+	if err := proto.Unmarshal(payload, &wire); err != nil {
+		return out, fmt.Errorf("decode fromradio protobuf: %w", err)
+	}
+
+	now := time.Now()
+	if my := wire.GetMyInfo(); my != nil && my.GetMyNodeNum() != 0 {
+		c.localNodeNum.Store(my.GetMyNodeNum())
+	}
+
+	if configID := wire.GetConfigCompleteId(); configID != 0 {
+		out.ConfigCompleteID = configID
+		expected := c.wantConfigID.Load()
+		if expected != 0 && configID == expected {
+			out.WantConfigReady = true
+		}
+	}
+
+	if nodeInfo := wire.GetNodeInfo(); nodeInfo != nil {
+		nodeUpdate := decodeNodeInfo(nodeInfo, now)
+		out.NodeUpdate = &nodeUpdate
+	}
+
+	if channelInfo := wire.GetChannel(); channelInfo != nil {
+		if channelList, snapshot, ok := decodeChannelInfo(channelInfo); ok {
+			out.Channels = &channelList
+			out.ConfigSnapshot = &snapshot
+		}
+	}
+
+	if packet := wire.GetPacket(); packet != nil {
+		decodePacket(packet, now, c.localNodeNum.Load(), &out)
+	}
+
+	return out, nil
+}
+
+func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32, out *DecodedFrame) {
+	decoded := packet.GetDecoded()
+	if decoded == nil {
+		return
+	}
+
+	switch decoded.GetPortnum() {
+	case generated.PortNum_TEXT_MESSAGE_APP, generated.PortNum_TEXT_MESSAGE_COMPRESSED_APP, generated.PortNum_DETECTION_SENSOR_APP, generated.PortNum_ALERT_APP:
+		text := strings.TrimSpace(string(decoded.GetPayload()))
+		if text == "" {
+			return
+		}
+
+		direction := domain.MessageDirectionIn
+		if localNode != 0 && packet.GetFrom() == localNode {
+			direction = domain.MessageDirectionOut
+		}
+
+		msg := domain.ChatMessage{
+			ChatKey:   chatKeyForPacket(packet, direction),
+			Direction: direction,
+			Body:      text,
+			Status:    domain.MessageStatusSent,
+			At:        packetTimestamp(packet.GetRxTime(), now),
+			MetaJSON:  packetMetaJSON(decoded.GetPortnum(), packet),
+		}
+		if packet.GetId() != 0 {
+			msg.DeviceMessageID = strconv.FormatUint(uint64(packet.GetId()), 10)
+		}
+		out.TextMessage = &msg
+	case generated.PortNum_NODEINFO_APP:
+		if nodeUpdate, ok := decodeNodeFromPacketPayload(packet, decoded.GetPayload(), now); ok {
+			out.NodeUpdate = &nodeUpdate
+		}
+	}
+}
+
+func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpdate {
+	node := domain.Node{
+		NodeID:      formatNodeNum(nodeInfo.GetNum()),
+		LongName:    strings.TrimSpace(nodeInfo.GetUser().GetLongName()),
+		ShortName:   strings.TrimSpace(nodeInfo.GetUser().GetShortName()),
+		LastHeardAt: packetTimestamp(nodeInfo.GetLastHeard(), now),
+		UpdatedAt:   now,
+	}
+
+	if snr := nodeInfo.GetSnr(); snr != 0 {
+		snrVal := float64(snr)
+		node.SNR = &snrVal
+	}
+
+	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}
+}
+
+func decodeChannelInfo(channelInfo *generated.Channel) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
+	if channelInfo.GetRole() == generated.Channel_DISABLED {
+		return domain.ChannelList{}, connectors.ConfigSnapshot{}, false
+	}
+	idx := int(channelInfo.GetIndex())
+	if idx < 0 {
+		return domain.ChannelList{}, connectors.ConfigSnapshot{}, false
+	}
+
+	title := strings.TrimSpace(channelInfo.GetSettings().GetName())
+	if title == "" {
+		title = fmt.Sprintf("Channel %d", idx)
+	}
+
+	list := domain.ChannelList{Items: []domain.ChannelInfo{{Index: idx, Title: title}}}
+	snapshot := connectors.ConfigSnapshot{ChannelTitles: []string{title}}
+	return list, snapshot, true
+}
+
+func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
+	if packet.GetFrom() == 0 {
+		return domain.NodeUpdate{}, false
+	}
+
+	var user generated.User
+	if err := proto.Unmarshal(payload, &user); err != nil {
+		return domain.NodeUpdate{}, false
+	}
+
+	node := domain.Node{
+		NodeID:      formatNodeNum(packet.GetFrom()),
+		LongName:    strings.TrimSpace(user.GetLongName()),
+		ShortName:   strings.TrimSpace(user.GetShortName()),
+		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
+		UpdatedAt:   now,
+	}
+	if rssi := packet.GetRxRssi(); rssi != 0 {
+		rssiVal := int(rssi)
+		node.RSSI = &rssiVal
+	}
+	if snr := packet.GetRxSnr(); snr != 0 {
+		snrVal := float64(snr)
+		node.SNR = &snrVal
+	}
+
+	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+}
+
+func parseChatTarget(chatKey string) (to uint32, channel uint32, err error) {
+	chatKey = strings.TrimSpace(chatKey)
+	switch {
+	case strings.HasPrefix(chatKey, "channel:"):
+		idx, parseErr := strconv.Atoi(strings.TrimPrefix(chatKey, "channel:"))
+		if parseErr != nil || idx < 0 {
+			return 0, 0, fmt.Errorf("invalid channel chat key: %q", chatKey)
+		}
+		return broadcastNodeNum, uint32(idx), nil
+	case strings.HasPrefix(chatKey, "dm:"):
+		nodeNum, parseErr := parseNodeNum(strings.TrimPrefix(chatKey, "dm:"))
+		if parseErr != nil {
+			return 0, 0, fmt.Errorf("invalid dm chat key: %q", chatKey)
+		}
+		return nodeNum, 0, nil
+	default:
+		return 0, 0, fmt.Errorf("unsupported chat key: %q", chatKey)
+	}
+}
+
+func parseNodeNum(raw string) (uint32, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, fmt.Errorf("node id is empty")
+	}
+	if strings.HasPrefix(raw, "!") {
+		v, err := strconv.ParseUint(strings.TrimPrefix(raw, "!"), 16, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(v), nil
+	}
+	if strings.HasPrefix(strings.ToLower(raw), "0x") {
+		v, err := strconv.ParseUint(raw, 0, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(v), nil
+	}
+	if strings.IndexFunc(raw, func(r rune) bool {
+		return (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+	}) >= 0 {
+		v, err := strconv.ParseUint(raw, 16, 32)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(v), nil
+	}
+	v, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint32(v), nil
+}
+
+func chatKeyForPacket(packet *generated.MeshPacket, direction domain.MessageDirection) string {
+	if packet.GetTo() == broadcastNodeNum {
+		return domain.ChatKeyForChannel(int(packet.GetChannel()))
+	}
+	if direction == domain.MessageDirectionOut {
+		if packet.GetTo() != 0 {
+			return domain.ChatKeyForDM(formatNodeNum(packet.GetTo()))
+		}
+	}
+	if packet.GetFrom() != 0 {
+		return domain.ChatKeyForDM(formatNodeNum(packet.GetFrom()))
+	}
+	if packet.GetTo() != 0 {
+		return domain.ChatKeyForDM(formatNodeNum(packet.GetTo()))
+	}
+	return domain.ChatKeyForDM("unknown")
+}
+
+func formatNodeNum(num uint32) string {
+	if num == 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("!%08x", num)
+}
+
+func packetTimestamp(epochSec uint32, fallback time.Time) time.Time {
+	if epochSec == 0 {
+		return fallback
+	}
+	return time.Unix(int64(epochSec), 0)
+}
+
+func packetMetaJSON(port generated.PortNum, packet *generated.MeshPacket) string {
+	meta := map[string]any{
+		"codec":     "meshtastic-proto",
+		"portnum":   port.String(),
+		"from":      formatNodeNum(packet.GetFrom()),
+		"to":        formatNodeNum(packet.GetTo()),
+		"channel":   packet.GetChannel(),
+		"packet_id": packet.GetId(),
+	}
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func (c *MeshtasticCodec) nextNonZeroID() uint32 {
+	for {
+		id := c.packetID.Add(1)
+		if id != 0 {
+			return id
+		}
+	}
+}

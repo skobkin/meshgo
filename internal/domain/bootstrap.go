@@ -1,0 +1,116 @@
+package domain
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/skobkin/meshgo/internal/bus"
+	"github.com/skobkin/meshgo/internal/connectors"
+)
+
+const defaultRecentMessagesLoad = 200
+
+func LoadStoresFromPersistence(ctx context.Context, nodes *NodeStore, chats *ChatStore, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) error {
+	nodeItems, err := nodeRepo.ListSortedByLastHeard(ctx)
+	if err != nil {
+		return fmt.Errorf("load nodes from db: %w", err)
+	}
+	chatItems, err := chatRepo.ListSortedByLastSentByMe(ctx)
+	if err != nil {
+		return fmt.Errorf("load chats from db: %w", err)
+	}
+	messageItems, err := msgRepo.LoadRecentPerChat(ctx, defaultRecentMessagesLoad)
+	if err != nil {
+		return fmt.Errorf("load messages from db: %w", err)
+	}
+
+	nodes.Load(nodeItems)
+	chats.Load(chatItems, messageItems)
+	return nil
+}
+
+type WriteQueue interface {
+	Enqueue(name string, fn func(context.Context) error)
+}
+
+func StartPersistenceSync(ctx context.Context, b bus.MessageBus, queue WriteQueue, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) {
+	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
+	channelSub := b.Subscribe(connectors.TopicChannels)
+	textSub := b.Subscribe(connectors.TopicTextMessage)
+
+	go func() {
+		defer b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-nodeSub:
+				if !ok {
+					return
+				}
+				update, ok := raw.(NodeUpdate)
+				if !ok {
+					continue
+				}
+				n := update.Node
+				queue.Enqueue("upsert_node", func(writeCtx context.Context) error {
+					return nodeRepo.Upsert(writeCtx, n)
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(channelSub, connectors.TopicChannels)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-channelSub:
+				if !ok {
+					return
+				}
+				channels, ok := raw.(ChannelList)
+				if !ok {
+					continue
+				}
+				for _, ch := range channels.Items {
+					chat := Chat{Key: ChatKeyForChannel(ch.Index), Title: ch.Title, Type: ChatTypeChannel}
+					queue.Enqueue("upsert_channel_chat", func(writeCtx context.Context) error {
+						return chatRepo.Upsert(writeCtx, chat)
+					})
+				}
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(textSub, connectors.TopicTextMessage)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-textSub:
+				if !ok {
+					return
+				}
+				msg, ok := raw.(ChatMessage)
+				if !ok {
+					continue
+				}
+				copyMsg := msg
+				queue.Enqueue("insert_message", func(writeCtx context.Context) error {
+					_, err := msgRepo.Insert(writeCtx, copyMsg)
+					if err != nil {
+						return err
+					}
+					chat := Chat{Key: copyMsg.ChatKey, Type: chatTypeForKey(copyMsg.ChatKey), Title: copyMsg.ChatKey, UpdatedAt: copyMsg.At}
+					if copyMsg.Direction == MessageDirectionOut {
+						chat.LastSentByMeAt = copyMsg.At
+					}
+					return chatRepo.Upsert(writeCtx, chat)
+				})
+			}
+		}
+	}()
+}
