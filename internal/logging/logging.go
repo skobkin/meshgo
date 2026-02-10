@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -39,7 +40,9 @@ func (m *Manager) Configure(cfg config.LoggingConfig, filePath string) error {
 
 	writer := io.Writer(os.Stdout)
 	if cfg.LogToFile {
-		file, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		cleanPath := filepath.Clean(filePath)
+		// #nosec G304 -- path is resolved by app runtime and points to user config dir.
+		file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
 			return fmt.Errorf("open log file: %w", err)
 		}

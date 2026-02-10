@@ -47,7 +47,9 @@ func (r *MessageRepo) ListRecentByChat(ctx context.Context, chatKey string, limi
 	if err != nil {
 		return nil, fmt.Errorf("list messages by chat: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.ChatMessage
 	for rows.Next() {
@@ -72,7 +74,9 @@ func (r *MessageRepo) LoadRecentPerChat(ctx context.Context, limit int) (map[str
 	if err != nil {
 		return nil, fmt.Errorf("list chat keys: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	result := make(map[string][]domain.ChatMessage)
 	for rows.Next() {
@@ -108,7 +112,9 @@ func (r *MessageRepo) UpdateStatusByDeviceMessageID(ctx context.Context, deviceM
 	if err != nil {
 		return fmt.Errorf("query messages by device id: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	type rowState struct {
 		id     int64

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register sqlite driver
 )
 
 const schemaVersion = 4
@@ -51,7 +51,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("begin migration tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	if version < 1 {
 		slog.Info("applying db migration", "from", version, "to", schemaVersion)

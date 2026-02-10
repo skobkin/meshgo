@@ -20,7 +20,7 @@ func ResolvePaths() (Paths, error) {
 	}
 
 	root := filepath.Join(cfgRoot, Name)
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, 0o750); err != nil {
 		return Paths{}, fmt.Errorf("create app config dir: %w", err)
 	}
 

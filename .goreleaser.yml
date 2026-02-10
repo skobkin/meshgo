@@ -1,0 +1,79 @@
+version: 2
+
+project_name: meshgo
+
+gitea_urls:
+  api: "{{ .Env.FORGE_API_URL }}"
+  download: "{{ .Env.FORGE_DOWNLOAD_URL }}"
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: meshgo-gui-linux
+    main: ./cmd/gui
+    binary: meshgo
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+      - CXX=g++
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+  - id: meshgo-gui-windows
+    main: ./cmd/gui
+    binary: meshgo
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+      - CXX=x86_64-w64-mingw32-g++
+    goos:
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -H=windowsgui
+
+  - id: meshgo-debug
+    skip: '{{ and (ne (index .Env "WITH_DEBUG_CMD") "true") (ne (index .Env "WITH_DEBUG_CMD") "1") }}'
+    main: ./cmd/debug
+    binary: meshgo-debug
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

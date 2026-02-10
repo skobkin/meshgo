@@ -70,7 +70,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {
-		rt.Close()
+		_ = rt.Close()
 		return nil, err
 	}
 	rt.DB = db
@@ -82,7 +82,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
 	if err := domain.LoadStoresFromPersistence(ctx, nodeStore, chatStore, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo); err != nil {
-		rt.Close()
+		_ = rt.Close()
 		return nil, err
 	}
 	rt.NodeStore = nodeStore
@@ -98,8 +98,14 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	rt.WriterQueue = writerQueue
 	domain.StartPersistenceSync(ctx, b, writerQueue, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo)
 
+	codec, err := radio.NewMeshtasticCodec()
+	if err != nil {
+		_ = rt.Close()
+		return nil, fmt.Errorf("initialize meshtastic codec: %w", err)
+	}
+
 	rt.IPTransport = transport.NewIPTransport(cfg.Connection.Host, DefaultIPPort)
-	rt.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.IPTransport, radio.NewMeshtasticCodec())
+	rt.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.IPTransport, codec)
 	rt.Radio.Start(ctx)
 
 	return rt, nil
@@ -162,7 +168,9 @@ func (r *Runtime) ClearDatabase() error {
 	if err != nil {
 		return fmt.Errorf("begin clear db tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	stmts := []string{
 		`DELETE FROM messages;`,

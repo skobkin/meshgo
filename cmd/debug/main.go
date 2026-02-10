@@ -28,6 +28,13 @@ const (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("run debug tool", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	connector := flag.String("connector", "ip", "connector type (draft: ip)")
 	host := flag.String("host", "", "ip/hostname")
 	noSubscribe := flag.Bool("no-subscribe", false, "exit after initial config download completes")
@@ -35,8 +42,7 @@ func main() {
 	flag.Parse()
 
 	if *connector != "ip" {
-		slog.Error("only ip connector is supported in draft", "connector", *connector)
-		os.Exit(1)
+		return fmt.Errorf("only ip connector is supported in draft: %s", *connector)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -44,37 +50,40 @@ func main() {
 
 	paths, err := app.ResolvePaths()
 	if err != nil {
-		slog.Error("resolve paths", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("resolve paths: %w", err)
 	}
 	cfg, err := config.Load(paths.ConfigFile)
 	if err != nil {
-		slog.Error("load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load config: %w", err)
 	}
 	if strings.TrimSpace(*host) != "" {
 		cfg.Connection.Host = strings.TrimSpace(*host)
 	}
 	if strings.TrimSpace(cfg.Connection.Host) == "" {
-		slog.Error("missing ip host: set --host or save connection host in config")
-		os.Exit(1)
+		return fmt.Errorf("missing ip host: set --host or save connection host in config")
 	}
 
 	logMgr := logging.NewManager()
 	cfg.Logging.LogToFile = false
 	if err := logMgr.Configure(cfg.Logging, paths.LogFile); err != nil {
-		slog.Error("configure logging", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("configure logging: %w", err)
 	}
-	defer logMgr.Close()
+	defer func() {
+		if closeErr := logMgr.Close(); closeErr != nil {
+			slog.Warn("close log manager", "error", closeErr)
+		}
+	}()
 	logger := logMgr.Logger("cli")
 
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {
-		logger.Error("open sqlite", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("open sqlite: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Warn("close sqlite", "error", closeErr)
+		}
+	}()
 
 	nodeRepo := persistence.NewNodeRepo(db)
 	chatRepo := persistence.NewChatRepo(db)
@@ -82,13 +91,11 @@ func main() {
 
 	nodes, err := nodeRepo.ListSortedByLastHeard(ctx)
 	if err != nil {
-		logger.Error("load cached nodes", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load cached nodes: %w", err)
 	}
 	chats, err := chatRepo.ListSortedByLastSentByMe(ctx)
 	if err != nil {
-		logger.Error("load cached chats", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load cached chats: %w", err)
 	}
 	logger.Info("cached state", "nodes", len(nodes), "chats", len(chats))
 
@@ -98,8 +105,7 @@ func main() {
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
 	if err := domain.LoadStoresFromPersistence(ctx, nodeStore, chatStore, nodeRepo, chatRepo, msgRepo); err != nil {
-		logger.Error("bootstrap stores", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("bootstrap stores: %w", err)
 	}
 	nodeStore.Start(ctx, b)
 	chatStore.Start(ctx, b)
@@ -108,8 +114,13 @@ func main() {
 	writer.Start(ctx)
 	domain.StartPersistenceSync(ctx, b, writer, nodeRepo, chatRepo, msgRepo)
 
+	codec, err := radio.NewMeshtasticCodec()
+	if err != nil {
+		return fmt.Errorf("initialize meshtastic codec: %w", err)
+	}
+
 	tr := transport.NewIPTransport(cfg.Connection.Host, app.DefaultIPPort)
-	radioSvc := radio.NewService(logMgr.Logger("radio"), b, tr, radio.NewMeshtasticCodec())
+	radioSvc := radio.NewService(logMgr.Logger("radio"), b, tr, codec)
 	initialDecodedSub := b.Subscribe(connectors.TopicRadioFrom)
 	initialConnSub := b.Subscribe(connectors.TopicConnStatus)
 	initialRawInSub := b.Subscribe(connectors.TopicRawFrameIn)
@@ -122,15 +133,14 @@ func main() {
 
 	logger.Info("waiting for initial config completion", "host", cfg.Connection.Host, "timeout", initialConfigWaitTimeout)
 	if err := waitForInitialConfig(ctx, logger, initialDecodedSub, initialConnSub, initialRawInSub, initialRawOutSub, initialConfigWaitTimeout); err != nil {
-		logger.Error("initial config did not complete", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("initial config did not complete: %w", err)
 	}
 	logger.Info("initial config completed")
 	logInitialSnapshot(logger, nodeStore, chatStore)
 
 	if *noSubscribe {
 		logger.Info("no-subscribe mode completed, exiting")
-		return
+		return nil
 	}
 
 	watch(ctx, b, logger)
@@ -141,11 +151,13 @@ func main() {
 		case <-ctx.Done():
 		case <-time.After(*listenFor):
 		}
-		return
+		return nil
 	}
 
 	logger.Info("listening until interrupt")
 	<-ctx.Done()
+
+	return nil
 }
 
 func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, connSub, rawInSub, rawOutSub bus.Subscription, timeout time.Duration) error {

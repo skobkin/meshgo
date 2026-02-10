@@ -54,7 +54,9 @@ func Default() AppConfig {
 
 func Load(path string) (AppConfig, error) {
 	cfg := Default()
-	raw, err := os.ReadFile(path)
+	cleanPath := filepath.Clean(path)
+	// #nosec G304 -- path is resolved by app runtime and points to user config dir.
+	raw, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return cfg, nil
@@ -93,7 +95,7 @@ func Save(path string, cfg AppConfig) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 

@@ -1,8 +1,11 @@
 package radio
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -22,14 +25,15 @@ type MeshtasticCodec struct {
 	localNodeNum atomic.Uint32
 }
 
-func NewMeshtasticCodec() *MeshtasticCodec {
-	seed := uint32(time.Now().UnixNano())
-	if seed == 0 {
-		seed = 1
+func NewMeshtasticCodec() (*MeshtasticCodec, error) {
+	var seedRaw [4]byte
+	if _, err := rand.Read(seedRaw[:]); err != nil {
+		return nil, fmt.Errorf("seed meshtastic codec packet id: %w", err)
 	}
+	seed := binary.BigEndian.Uint32(seedRaw[:])
 	c := &MeshtasticCodec{}
 	c.packetID.Store(seed)
-	return c
+	return c, nil
 }
 
 func (c *MeshtasticCodec) LocalNodeID() string {
@@ -428,8 +432,8 @@ func parseChatTarget(chatKey string) (to uint32, channel uint32, err error) {
 	chatKey = strings.TrimSpace(chatKey)
 	switch {
 	case strings.HasPrefix(chatKey, "channel:"):
-		idx, parseErr := strconv.Atoi(strings.TrimPrefix(chatKey, "channel:"))
-		if parseErr != nil || idx < 0 {
+		idx, parseErr := strconv.ParseUint(strings.TrimPrefix(chatKey, "channel:"), 10, 32)
+		if parseErr != nil || idx > math.MaxUint32 {
 			return 0, 0, fmt.Errorf("invalid channel chat key: %q", chatKey)
 		}
 		return broadcastNodeNum, uint32(idx), nil

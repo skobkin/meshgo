@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -120,7 +121,7 @@ func (t *IPTransport) WriteFrame(ctx context.Context, payload []byte) error {
 	if err != nil {
 		return err
 	}
-	if len(payload) > 65535 {
+	if len(payload) > math.MaxUint16 {
 		return fmt.Errorf("payload too large: %d", len(payload))
 	}
 	if deadline, ok := ctx.Deadline(); ok {
@@ -132,7 +133,9 @@ func (t *IPTransport) WriteFrame(ctx context.Context, payload []byte) error {
 	frame := make([]byte, 4+len(payload))
 	frame[0] = frameHeader[0]
 	frame[1] = frameHeader[1]
-	binary.BigEndian.PutUint16(frame[2:4], uint16(len(payload)))
+	// #nosec G115 -- length is bounded by math.MaxUint16 above.
+	payloadLen := uint16(len(payload))
+	binary.BigEndian.PutUint16(frame[2:4], payloadLen)
 	copy(frame[4:], payload)
 
 	t.writeMu.Lock()

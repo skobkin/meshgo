@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 
 	"github.com/skobkin/meshgo/internal/domain"
 )
@@ -114,7 +115,9 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 	if err != nil {
 		return nil, fmt.Errorf("list nodes: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Node
 	for rows.Next() {
@@ -141,7 +144,8 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 		}
 		n.LastHeardAt = fromUnixMillis(heardMs)
 		n.UpdatedAt = fromUnixMillis(updMs)
-		if battery.Valid {
+		if battery.Valid && battery.Int64 >= 0 && battery.Int64 <= math.MaxUint32 {
+			// #nosec G115 -- guarded by explicit int64 bounds check.
 			v := uint32(battery.Int64)
 			n.BatteryLevel = &v
 		}

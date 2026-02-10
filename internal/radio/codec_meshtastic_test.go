@@ -9,8 +9,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func mustNewMeshtasticCodec(t *testing.T) *MeshtasticCodec {
+	t.Helper()
+
+	codec, err := NewMeshtasticCodec()
+	if err != nil {
+		t.Fatalf("initialize codec: %v", err)
+	}
+
+	return codec
+}
+
 func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 	encoded, err := codec.EncodeText("dm:!1234abcd", "hello")
 	if err != nil {
 		t.Fatalf("encode text: %v", err)
@@ -27,7 +38,7 @@ func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	telemetryPayload, err := proto.Marshal(&generated.Telemetry{
 		Variant: &generated.Telemetry_EnvironmentMetrics{
@@ -83,7 +94,7 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 }
 
 func TestMeshtasticCodec_DecodeFromRadioTelemetryPowerPacket(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	telemetryPayload, err := proto.Marshal(&generated.Telemetry{
 		Variant: &generated.Telemetry_PowerMetrics{
@@ -138,7 +149,7 @@ func assertFloatPtr(t *testing.T, got *float64, want float64, field string) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioQueueStatusSuccess(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	wire := &generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_QueueStatus{
@@ -169,7 +180,7 @@ func TestMeshtasticCodec_DecodeFromRadioQueueStatusSuccess(t *testing.T) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioQueueStatusFailure(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	wire := &generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_QueueStatus{
@@ -203,7 +214,7 @@ func TestMeshtasticCodec_DecodeFromRadioQueueStatusFailure(t *testing.T) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioAckPacket(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	wire := &generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_Packet{
@@ -239,7 +250,7 @@ func TestMeshtasticCodec_DecodeFromRadioAckPacket(t *testing.T) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioRoutingError(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	routingPayload, err := proto.Marshal(&generated.Routing{
 		Variant: &generated.Routing_ErrorReason{ErrorReason: generated.Routing_NO_ROUTE},
@@ -285,7 +296,7 @@ func TestMeshtasticCodec_DecodeFromRadioRoutingError(t *testing.T) {
 }
 
 func TestMeshtasticCodec_DecodeFromRadioLocalEchoIsPendingWhenWantAck(t *testing.T) {
-	codec := NewMeshtasticCodec()
+	codec := mustNewMeshtasticCodec(t)
 
 	myInfoRaw, err := proto.Marshal(&generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_MyInfo{

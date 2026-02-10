@@ -31,6 +31,14 @@
 - Run focused tests during iteration, then `go test ./...` before opening a PR.
 - Coverage target is pragmatic: new logic paths should include tests, especially decode/migration/store behavior.
 
+## Completion Checklist
+- Before finishing work and saying it is done, run the same baseline checks as CI:
+  - `go fmt ./...` (and ensure changed files are formatted)
+  - `go vet ./...`
+  - `golangci-lint run ./...`
+  - `go test ./...`
+- Do not state that work is done if any of the checks above fail.
+
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits used in history: `feat(ui): ...`, `fix(ui): ...`, `chore: ...`.
 - Keep commits scoped and explain behavioral impact in the subject.

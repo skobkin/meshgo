@@ -48,7 +48,9 @@ func (r *ChatRepo) ListSortedByLastSentByMe(ctx context.Context) ([]domain.Chat,
 	if err != nil {
 		return nil, fmt.Errorf("list chats: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	out := make([]domain.Chat, 0)
 	for rows.Next() {

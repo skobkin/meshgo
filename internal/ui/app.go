@@ -52,7 +52,7 @@ func Run(dep Dependencies) error {
 	}
 	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
 
-	rightStack := container.NewMax()
+	rightStack := container.NewStack()
 	for _, key := range order {
 		rightStack.Add(tabContent[key])
 		tabContent[key].Hide()

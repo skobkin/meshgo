@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,13 +14,19 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("run gui app", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	rt, err := app.Initialize(ctx)
 	if err != nil {
-		slog.Error("initialize app runtime", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("initialize app runtime: %w", err)
 	}
 
 	var closeOnce sync.Once
@@ -48,7 +55,8 @@ func main() {
 		},
 	})
 	if err != nil {
-		slog.Error("run ui", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("run ui: %w", err)
 	}
+
+	return nil
 }
