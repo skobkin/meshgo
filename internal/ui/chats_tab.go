@@ -88,9 +88,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
+			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
 			return container.NewVBox(
 				widget.NewRichTextWithText("message"),
-				container.NewHBox(widget.NewRichTextWithText("meta"), layout.NewSpacer(), widget.NewLabel("status")),
+				container.NewHBox(metaParts, layout.NewSpacer(), widget.NewLabel("status")),
 			)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -104,9 +105,9 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Refresh()
 			metaRow := box.Objects[1].(*fyne.Container)
-			metaText := metaRow.Objects[0].(*widget.RichText)
-			metaText.Segments = messageMetaSegments(msg, meta, hasMeta)
-			metaText.Refresh()
+			metaParts := metaRow.Objects[0].(*fyne.Container)
+			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
+			metaParts.Refresh()
 			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
 		},
 	)
@@ -400,68 +401,104 @@ func messageTextSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool, n
 }
 
 func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) string {
-	fragments := messageMetaFragments(m, meta, hasMeta)
+	chunks := messageMetaChunks(m, meta, hasMeta)
 	var b strings.Builder
-	for _, f := range fragments {
-		b.WriteString(f.Text)
+	for i, chunk := range chunks {
+		if i > 0 {
+			b.WriteString(" ")
+		}
+		b.WriteString(chunk.PlainText)
 	}
 	return b.String()
 }
 
 func messageMetaSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool) []widget.RichTextSegment {
-	fragments := messageMetaFragments(m, meta, hasMeta)
-	segments := make([]widget.RichTextSegment, 0, len(fragments))
-	for _, f := range fragments {
-		segments = append(segments, &widget.TextSegment{Text: f.Text, Style: f.Style})
+	chunks := messageMetaChunks(m, meta, hasMeta)
+	segments := make([]widget.RichTextSegment, 0, len(chunks)*2)
+	for i, chunk := range chunks {
+		if i > 0 {
+			segments = append(segments, &widget.TextSegment{Text: " ", Style: widget.RichTextStyleInline})
+		}
+		segments = append(segments, chunk.Segments...)
 	}
 	return segments
 }
 
-type messageMetaFragment struct {
-	Text  string
-	Style widget.RichTextStyle
+func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool) []fyne.CanvasObject {
+	chunks := messageMetaChunks(m, meta, hasMeta)
+	widgets := make([]fyne.CanvasObject, 0, len(chunks))
+	for _, chunk := range chunks {
+		widgets = append(widgets, widget.NewRichText(chunk.Segments...))
+	}
+	return widgets
 }
 
 var hopBadges = [...]string{
 	"⓪", "①", "②", "③", "④", "⑤", "⑥", "⑦",
 }
 
-func messageMetaFragments(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaFragment {
+type messageMetaChunk struct {
+	PlainText string
+	Segments  []widget.RichTextSegment
+}
+
+func newMetaChunkInline(text string) messageMetaChunk {
+	return messageMetaChunk{
+		PlainText: text,
+		Segments:  []widget.RichTextSegment{&widget.TextSegment{Text: text, Style: widget.RichTextStyleInline}},
+	}
+}
+
+func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaChunk {
 	hops, hopsKnown := messageHops(meta, hasMeta)
 	hopsLine := "?"
 	if hopsKnown {
 		hopsLine = hopBadge(hops)
 	}
 
-	parts := []messageMetaFragment{{Text: hopsLine, Style: widget.RichTextStyleInline}}
+	parts := []messageMetaChunk{newMetaChunkInline(hopsLine)}
 	if isMessageFromMQTT(meta, hasMeta) {
-		parts = appendMetaSeparator(parts)
-		parts = append(parts, messageMetaFragment{Text: "[MQTT]", Style: widget.RichTextStyleInline})
+		parts = append(parts, newMetaChunkInline("[MQTT]"))
 		return parts
 	}
 
 	if m.Direction == domain.MessageDirectionIn && hopsKnown && hops == 0 {
 		if quality, ok := signalQualityFromMetrics(meta.RxRSSI, meta.RxSNR); ok {
-			parts = appendMetaSeparator(parts)
-			parts = append(parts, messageMetaFragment{
-				Text:  signalBarsForQuality(quality),
-				Style: signalRichTextStyle(signalThemeColorForQuality(quality), true),
+			bars := signalBarsForQuality(quality)
+			parts = append(parts, messageMetaChunk{
+				PlainText: bars,
+				Segments: []widget.RichTextSegment{
+					&widget.TextSegment{
+						Text:  bars,
+						Style: signalRichTextStyle(signalThemeColorForQuality(quality), true),
+					},
+				},
 			})
 		}
 		if meta.RxRSSI != nil {
-			parts = appendMetaSeparator(parts)
-			parts = append(parts, messageMetaFragment{Text: "RSSI: ", Style: widget.RichTextStyleInline})
-			parts = append(parts, messageMetaFragment{
-				Text:  fmt.Sprintf("%d", *meta.RxRSSI),
-				Style: signalRichTextStyle(signalThemeColorForRSSI(*meta.RxRSSI), false),
+			rssiText := fmt.Sprintf("%d", *meta.RxRSSI)
+			parts = append(parts, messageMetaChunk{
+				PlainText: fmt.Sprintf("RSSI: %s", rssiText),
+				Segments: []widget.RichTextSegment{
+					&widget.TextSegment{Text: "RSSI: ", Style: widget.RichTextStyleInline},
+					&widget.TextSegment{
+						Text:  rssiText,
+						Style: signalRichTextStyle(signalThemeColorForRSSI(*meta.RxRSSI), false),
+					},
+				},
 			})
 		}
 		if meta.RxSNR != nil {
-			parts = appendMetaSeparator(parts)
-			parts = append(parts, messageMetaFragment{Text: "SNR: ", Style: widget.RichTextStyleInline})
-			parts = append(parts, messageMetaFragment{
-				Text:  fmt.Sprintf("%.2f", *meta.RxSNR),
-				Style: signalRichTextStyle(signalThemeColorForSNR(*meta.RxSNR), false),
+			snrText := fmt.Sprintf("%.2f", *meta.RxSNR)
+			parts = append(parts, messageMetaChunk{
+				PlainText: fmt.Sprintf("SNR: %s", snrText),
+				Segments: []widget.RichTextSegment{
+					&widget.TextSegment{Text: "SNR: ", Style: widget.RichTextStyleInline},
+					&widget.TextSegment{
+						Text:  snrText,
+						Style: signalRichTextStyle(signalThemeColorForSNR(*meta.RxSNR), false),
+					},
+				},
 			})
 		}
 	}
@@ -478,10 +515,6 @@ func hopBadge(hops int) string {
 	}
 
 	return fmt.Sprintf("h%d", hops)
-}
-
-func appendMetaSeparator(parts []messageMetaFragment) []messageMetaFragment {
-	return append(parts, messageMetaFragment{Text: " | ", Style: widget.RichTextStyleInline})
 }
 
 func signalRichTextStyle(colorName fyne.ThemeColorName, monospace bool) widget.RichTextStyle {

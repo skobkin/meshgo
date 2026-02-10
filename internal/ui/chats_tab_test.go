@@ -202,7 +202,7 @@ func TestMessageMetaLine_DirectIncomingShowsRSSIAndSNR(t *testing.T) {
 		messageMeta{Hops: ptrInt(0), RxRSSI: &rssi, RxSNR: &snr},
 		true,
 	)
-	if line != "⓪ | ▂▄▆█ | RSSI: -67 | SNR: 4.25" {
+	if line != "⓪ ▂▄▆█ RSSI: -67 SNR: 4.25" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
@@ -217,7 +217,7 @@ func TestMessageMetaSegments_DirectIncomingSignalBarsAndValueColors(t *testing.T
 	)
 
 	line := richTextSegmentsText(segs)
-	if line != "⓪ | ▂▄▆  | RSSI: -125 | SNR: -14.00" {
+	if line != "⓪ ▂▄▆  RSSI: -125 SNR: -14.00" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 
@@ -246,7 +246,7 @@ func TestMessageMetaSegments_UnknownSignalOmitsBars(t *testing.T) {
 	)
 
 	line := richTextSegmentsText(segs)
-	if line != "⓪ | RSSI: -67" {
+	if line != "⓪ RSSI: -67" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 	if strings.Contains(line, "▂") || strings.Contains(line, "▄") {
@@ -260,7 +260,7 @@ func TestMessageMetaLine_MQTTShowsMarker(t *testing.T) {
 		messageMeta{Hops: ptrInt(2), ViaMQTT: true},
 		true,
 	)
-	if line != "② | [MQTT]" {
+	if line != "② [MQTT]" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
