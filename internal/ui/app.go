@@ -52,24 +52,50 @@ func Run(dep Dependencies) error {
 	active := "Chats"
 	tabContent[active].Show()
 
+	navButtons := make(map[string]*widget.Button, len(order))
+	disabledTabs := map[string]bool{
+		"Map":  true,
+		"Node": true,
+	}
+
+	updateNavSelection := func() {
+		for name, button := range navButtons {
+			if button.Disabled() {
+				continue
+			}
+			if name == active {
+				button.Importance = widget.HighImportance
+			} else {
+				button.Importance = widget.MediumImportance
+			}
+			button.Refresh()
+		}
+	}
+
 	switchTab := func(name string) {
+		if name == active {
+			return
+		}
 		tabContent[active].Hide()
 		active = name
 		tabContent[active].Show()
+		updateNavSelection()
 		rightStack.Refresh()
 	}
 
-	left := container.NewVBox(widget.NewLabel("Menu"))
+	left := container.NewVBox()
 	for _, name := range order {
 		nameCopy := name
 		button := widget.NewButton(nameCopy, func() {
 			switchTab(nameCopy)
 		})
-		if name == "Map" || name == "Node Settings" {
+		if disabledTabs[name] {
 			button.Disable()
 		}
+		navButtons[name] = button
 		left.Add(button)
 	}
+	updateNavSelection()
 	left.Add(layout.NewSpacer())
 
 	if dep.Bus != nil {
