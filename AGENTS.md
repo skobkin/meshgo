@@ -45,6 +45,9 @@
   - `go vet ./...`
   - `golangci-lint run ./...`
   - `go test ./...`
+- If `PLAN.md` exists in the repository root and is relevant to the current task, update implementation progress there before finishing:
+  - Mark completed items by checking relevant task checkboxes.
+  - And/or update the `Current Status` section at the beginning with a short written progress summary.
 - Do not state that work is done if any of the checks above fail.
 
 ## Commit & Pull Request Guidelines
