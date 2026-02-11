@@ -30,7 +30,7 @@ func (w *AutostartSyncWarning) Unwrap() error {
 }
 
 func (r *Runtime) syncAutostart(cfg config.AppConfig, trigger string) error {
-	if r.AutostartManager == nil {
+	if r.Core.AutostartManager == nil {
 		slog.Debug("skip autostart sync: manager is not initialized", "trigger", trigger)
 
 		return nil
@@ -42,7 +42,7 @@ func (r *Runtime) syncAutostart(cfg config.AppConfig, trigger string) error {
 	}
 	slog.Info("syncing autostart registration", "trigger", trigger, "enabled", cfg.UI.Autostart.Enabled, "mode", mode)
 
-	if err := r.AutostartManager.Sync(platform.AutostartConfig{
+	if err := r.Core.AutostartManager.Sync(platform.AutostartConfig{
 		Enabled: cfg.UI.Autostart.Enabled,
 		Mode:    platform.AutostartMode(cfg.UI.Autostart.Mode),
 	}); err != nil {

@@ -14,10 +14,16 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	cfg.UI.LastSelectedChat = "chat-1"
 
 	rt := &meshapp.Runtime{
-		Config:    cfg,
-		ChatStore: domain.NewChatStore(),
-		NodeStore: domain.NewNodeStore(),
-		Radio:     &radio.Service{},
+		Core: meshapp.RuntimeCore{
+			Config: cfg,
+		},
+		Domain: meshapp.RuntimeDomain{
+			ChatStore: domain.NewChatStore(),
+			NodeStore: domain.NewNodeStore(),
+		},
+		Connectivity: meshapp.RuntimeConnectivity{
+			Radio: &radio.Service{},
+		},
 	}
 
 	quitCalled := false
@@ -28,10 +34,10 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	if dep.Data.Config.UI.LastSelectedChat != "chat-1" {
 		t.Fatalf("expected last selected chat to be mapped")
 	}
-	if dep.Data.ChatStore != rt.ChatStore {
+	if dep.Data.ChatStore != rt.Domain.ChatStore {
 		t.Fatalf("expected chat store to be mapped")
 	}
-	if dep.Data.NodeStore != rt.NodeStore {
+	if dep.Data.NodeStore != rt.Domain.NodeStore {
 		t.Fatalf("expected node store to be mapped")
 	}
 	if dep.Data.LastSelectedChat != "chat-1" {

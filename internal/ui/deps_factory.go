@@ -22,11 +22,11 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	}
 
 	dep.Data = DataDependencies{
-		Config:            rt.Config,
-		ChatStore:         rt.ChatStore,
-		NodeStore:         rt.NodeStore,
-		Bus:               rt.Bus,
-		LastSelectedChat:  rt.Config.UI.LastSelectedChat,
+		Config:            rt.Core.Config,
+		ChatStore:         rt.Domain.ChatStore,
+		NodeStore:         rt.Domain.NodeStore,
+		Bus:               rt.Domain.Bus,
+		LastSelectedChat:  rt.Core.Config.UI.LastSelectedChat,
 		CurrentConnStatus: rt.CurrentConnStatus,
 	}
 
@@ -39,9 +39,9 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	dep.Actions.OnChatSelected = rt.RememberSelectedChat
 	dep.Actions.OnClearDB = rt.ClearDatabase
 
-	if rt.Radio != nil {
-		dep.Actions.Sender = rt.Radio
-		dep.Data.LocalNodeID = rt.Radio.LocalNodeID
+	if rt.Connectivity.Radio != nil {
+		dep.Actions.Sender = rt.Connectivity.Radio
+		dep.Data.LocalNodeID = rt.Connectivity.Radio.LocalNodeID
 	}
 
 	return dep

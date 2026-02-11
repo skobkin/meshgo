@@ -26,28 +26,44 @@ type Runtime struct {
 	Ctx    context.Context
 	cancel context.CancelFunc
 
-	Paths  Paths
-	Config config.AppConfig
-
-	LogManager *logging.Manager
-	Bus        *bus.PubSubBus
-	DB         *sql.DB
-
-	NodeRepo    *persistence.NodeRepo
-	ChatRepo    *persistence.ChatRepo
-	MessageRepo *persistence.MessageRepo
-	WriterQueue *persistence.WriterQueue
-
-	NodeStore *domain.NodeStore
-	ChatStore *domain.ChatStore
-
-	ConnectionTransport *SwitchableTransport
-	Radio               *radio.Service
-	AutostartManager    platform.AutostartManager
+	Core         RuntimeCore
+	Persistence  RuntimePersistence
+	Domain       RuntimeDomain
+	Connectivity RuntimeConnectivity
 
 	connStatusMu    sync.RWMutex
 	connStatus      connectors.ConnectionStatus
 	connStatusKnown bool
+}
+
+// RuntimeCore contains app-level configuration, paths, logging, and startup integrations.
+type RuntimeCore struct {
+	Paths            Paths
+	Config           config.AppConfig
+	LogManager       *logging.Manager
+	AutostartManager platform.AutostartManager
+}
+
+// RuntimePersistence contains database handles, repositories, and write projection queue.
+type RuntimePersistence struct {
+	DB          *sql.DB
+	NodeRepo    *persistence.NodeRepo
+	ChatRepo    *persistence.ChatRepo
+	MessageRepo *persistence.MessageRepo
+	WriterQueue *persistence.WriterQueue
+}
+
+// RuntimeDomain contains in-memory stores and message bus projections used by the app/UI.
+type RuntimeDomain struct {
+	Bus       *bus.PubSubBus
+	NodeStore *domain.NodeStore
+	ChatStore *domain.ChatStore
+}
+
+// RuntimeConnectivity contains transport and radio services used for device communication.
+type RuntimeConnectivity struct {
+	ConnectionTransport *SwitchableTransport
+	Radio               *radio.Service
 }
 
 func Initialize(parent context.Context) (*Runtime, error) {
@@ -64,10 +80,12 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	rt := &Runtime{
 		Ctx:    ctx,
 		cancel: cancel,
-		Paths:  paths,
-		Config: cfg,
+		Core: RuntimeCore{
+			Paths:            paths,
+			Config:           cfg,
+			AutostartManager: platform.NewAutostartManager(),
+		},
 	}
-	rt.AutostartManager = platform.NewAutostartManager()
 
 	logMgr := logging.NewManager()
 	if err := logMgr.Configure(cfg.Logging, paths.LogFile); err != nil {
@@ -76,7 +94,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 		return nil, fmt.Errorf("configure logging: %w", err)
 	}
-	rt.LogManager = logMgr
+	rt.Core.LogManager = logMgr
 	slog.Info("starting meshgo runtime", "version", BuildVersion(), "build_date", BuildDateYMD())
 	if err := rt.syncAutostart(cfg, "startup"); err != nil {
 		slog.Warn("sync autostart on startup", "error", err)
@@ -88,24 +106,31 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 		return nil, err
 	}
-	rt.DB = db
+	rt.Persistence.DB = db
 
-	rt.NodeRepo = persistence.NewNodeRepo(db)
-	rt.ChatRepo = persistence.NewChatRepo(db)
-	rt.MessageRepo = persistence.NewMessageRepo(db)
+	rt.Persistence.NodeRepo = persistence.NewNodeRepo(db)
+	rt.Persistence.ChatRepo = persistence.NewChatRepo(db)
+	rt.Persistence.MessageRepo = persistence.NewMessageRepo(db)
 
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
-	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo); err != nil {
+	if err := domain.LoadStoresFromRepositories(
+		ctx,
+		nodeStore,
+		chatStore,
+		rt.Persistence.NodeRepo,
+		rt.Persistence.ChatRepo,
+		rt.Persistence.MessageRepo,
+	); err != nil {
 		_ = rt.Close()
 
 		return nil, err
 	}
-	rt.NodeStore = nodeStore
-	rt.ChatStore = chatStore
+	rt.Domain.NodeStore = nodeStore
+	rt.Domain.ChatStore = chatStore
 
 	b := bus.New(logMgr.Logger("bus"))
-	rt.Bus = b
+	rt.Domain.Bus = b
 	connSub := b.Subscribe(connectors.TopicConnStatus)
 	go rt.captureConnStatus(ctx, connSub)
 	nodeStore.Start(ctx, b)
@@ -113,8 +138,15 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	writerQueue := persistence.NewWriterQueue(logMgr.Logger("persistence"), 512)
 	writerQueue.Start(ctx)
-	rt.WriterQueue = writerQueue
-	domain.StartPersistenceProjection(ctx, b, writerQueue, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo)
+	rt.Persistence.WriterQueue = writerQueue
+	domain.StartPersistenceProjection(
+		ctx,
+		b,
+		writerQueue,
+		rt.Persistence.NodeRepo,
+		rt.Persistence.ChatRepo,
+		rt.Persistence.MessageRepo,
+	)
 
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {
@@ -129,10 +161,10 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 		return nil, fmt.Errorf("initialize transport: %w", err)
 	}
-	rt.ConnectionTransport = connTransport
+	rt.Connectivity.ConnectionTransport = connTransport
 
-	rt.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.ConnectionTransport, codec)
-	rt.Radio.Start(ctx)
+	rt.Connectivity.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.Connectivity.ConnectionTransport, codec)
+	rt.Connectivity.Radio.Start(ctx)
 
 	return rt, nil
 }
@@ -178,21 +210,21 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 
 	r.mu.Lock()
-	cfg.UI.LastSelectedChat = r.Config.UI.LastSelectedChat
-	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
+	cfg.UI.LastSelectedChat = r.Core.Config.UI.LastSelectedChat
+	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 
 		return err
 	}
-	r.Config = cfg
+	r.Core.Config = cfg
 	r.mu.Unlock()
 
-	if err := r.LogManager.Configure(cfg.Logging, r.Paths.LogFile); err != nil {
+	if err := r.Core.LogManager.Configure(cfg.Logging, r.Core.Paths.LogFile); err != nil {
 		return err
 	}
 
-	if r.ConnectionTransport != nil {
-		if err := r.ConnectionTransport.Apply(cfg.Connection); err != nil {
+	if r.Connectivity.ConnectionTransport != nil {
+		if err := r.Connectivity.ConnectionTransport.Apply(cfg.Connection); err != nil {
 			return err
 		}
 	}
@@ -209,32 +241,32 @@ func (r *Runtime) RememberSelectedChat(chatKey string) {
 	normalized := strings.TrimSpace(chatKey)
 
 	r.mu.Lock()
-	if r.Config.UI.LastSelectedChat == normalized {
+	if r.Core.Config.UI.LastSelectedChat == normalized {
 		r.mu.Unlock()
 
 		return
 	}
-	cfg := r.Config
+	cfg := r.Core.Config
 	cfg.UI.LastSelectedChat = normalized
-	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
+	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 		slog.Warn("save selected chat", "error", err)
 
 		return
 	}
-	r.Config = cfg
+	r.Core.Config = cfg
 	r.mu.Unlock()
 }
 
 func (r *Runtime) ClearDatabase() error {
-	if r.DB == nil {
+	if r.Persistence.DB == nil {
 		return fmt.Errorf("database is not initialized")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tx, err := r.DB.BeginTx(ctx, nil)
+	tx, err := r.Persistence.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin clear db tx: %w", err)
 	}
@@ -257,11 +289,11 @@ func (r *Runtime) ClearDatabase() error {
 		return fmt.Errorf("commit clear db tx: %w", err)
 	}
 
-	if r.ChatStore != nil {
-		r.ChatStore.Reset()
+	if r.Domain.ChatStore != nil {
+		r.Domain.ChatStore.Reset()
 	}
-	if r.NodeStore != nil {
-		r.NodeStore.Reset()
+	if r.Domain.NodeStore != nil {
+		r.Domain.NodeStore.Reset()
 	}
 	slog.Info("database cleared")
 
@@ -272,17 +304,17 @@ func (r *Runtime) Close() error {
 	if r.cancel != nil {
 		r.cancel()
 	}
-	if r.Bus != nil {
-		r.Bus.Close()
+	if r.Domain.Bus != nil {
+		r.Domain.Bus.Close()
 	}
-	if r.ConnectionTransport != nil {
-		_ = r.ConnectionTransport.Close()
+	if r.Connectivity.ConnectionTransport != nil {
+		_ = r.Connectivity.ConnectionTransport.Close()
 	}
-	if r.DB != nil {
-		_ = r.DB.Close()
+	if r.Persistence.DB != nil {
+		_ = r.Persistence.DB.Close()
 	}
-	if r.LogManager != nil {
-		_ = r.LogManager.Close()
+	if r.Core.LogManager != nil {
+		_ = r.Core.LogManager.Close()
 	}
 
 	return nil
