@@ -19,6 +19,7 @@ const (
 	defaultBluetoothReadBufferSize = 4096
 	maxBluetoothDrainReads         = 256
 	defaultBluetoothDiscoverWait   = 12 * time.Second
+	defaultBluetoothSubscribeWait  = 8 * time.Second
 )
 
 type bluetoothConnState struct {
@@ -182,9 +183,10 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 		closed:    make(chan struct{}),
 	}
 
-	if err := state.fromNum.EnableNotifications(func(_ []byte) {
+	logger.Debug("subscribing to notifications")
+	if err := enableBluetoothNotificationsWithTimeout(ctx, device, *state.fromNum, func(_ []byte) {
 		t.requestDrain(state)
-	}); err != nil {
+	}, defaultBluetoothSubscribeWait); err != nil {
 		_ = device.Disconnect()
 		logger.Warn("subscribe to notifications failed", "error", err)
 		return fmt.Errorf("subscribe to FromNum notifications: %w", err)
@@ -539,4 +541,46 @@ func (s *bluetoothConnState) closeErr() error {
 	s.errMu.RLock()
 	defer s.errMu.RUnlock()
 	return s.asyncErr
+}
+
+func enableBluetoothNotificationsWithTimeout(
+	ctx context.Context,
+	device bluetooth.Device,
+	char bluetooth.DeviceCharacteristic,
+	callback func([]byte),
+	wait time.Duration,
+) error {
+	if wait <= 0 {
+		wait = defaultBluetoothSubscribeWait
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- char.EnableNotifications(callback)
+	}()
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		_ = device.Disconnect()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+		}
+		return ctx.Err()
+	case <-timer.C:
+		_ = device.Disconnect()
+		select {
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("timed out after %s (abort returned: %w)", wait, err)
+			}
+		case <-time.After(2 * time.Second):
+		}
+		return fmt.Errorf("timed out after %s", wait)
+	}
 }
