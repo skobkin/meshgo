@@ -2,10 +2,10 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -15,12 +15,15 @@ type tooltipRichText struct {
 	widget.RichText
 
 	tooltip []widget.RichTextSegment
-	popup   *widget.PopUp
+	manager *hoverTooltipManager
+	hovered bool
+	hide    *time.Timer
 }
 
-func newTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.RichTextSegment) *tooltipRichText {
+func newTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.RichTextSegment, manager *hoverTooltipManager) *tooltipRichText {
 	rt := &tooltipRichText{
 		tooltip: append([]widget.RichTextSegment(nil), tooltip...),
+		manager: manager,
 	}
 	rt.RichText = *widget.NewRichText(segments...)
 	rt.ExtendBaseWidget(rt)
@@ -35,32 +38,44 @@ func (rt *tooltipRichText) MouseIn(*desktop.MouseEvent) {
 	if strings.TrimSpace(richTextSegmentsPlainText(rt.Segments)) == "" {
 		return
 	}
-
-	canvas := fyne.CurrentApp().Driver().CanvasForObject(rt)
-	if canvas == nil {
-		return
-	}
-
-	rt.hideTooltip()
+	rt.hovered = true
+	rt.cancelHide()
 	tooltip := widget.NewRichText(rt.tooltip...)
-	rt.popup = widget.NewPopUp(tooltip, canvas)
-	rt.popup.ShowAtRelativePosition(fyne.NewPos(0, rt.Size().Height+theme.Padding()), rt)
+	rt.manager.Show(rt, tooltip)
 }
 
 func (rt *tooltipRichText) MouseMoved(*desktop.MouseEvent) {
 }
 
 func (rt *tooltipRichText) MouseOut() {
-	rt.hideTooltip()
+	rt.hovered = false
+	rt.scheduleHide()
 }
 
 func (rt *tooltipRichText) hideTooltip() {
-	if rt.popup == nil {
+	rt.cancelHide()
+	rt.manager.Hide(rt)
+}
+
+func (rt *tooltipRichText) scheduleHide() {
+	rt.cancelHide()
+	rt.hide = time.AfterFunc(tooltipHideDelay, func() {
+		fyne.Do(func() {
+			if rt.hovered {
+				return
+			}
+			rt.hideTooltip()
+		})
+	})
+}
+
+func (rt *tooltipRichText) cancelHide() {
+	if rt.hide == nil {
 		return
 	}
 
-	rt.popup.Hide()
-	rt.popup = nil
+	rt.hide.Stop()
+	rt.hide = nil
 }
 
 func richTextSegmentsPlainText(segs []widget.RichTextSegment) string {

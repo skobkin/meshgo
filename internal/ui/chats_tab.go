@@ -99,11 +99,13 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	if selectedKey != "" {
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
 	}
+	tooltipLayer := container.NewWithoutLayout()
+	tooltipManager := newHoverTooltipManager(tooltipLayer)
 
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
-			transportBadge := newTooltipLabel("", "")
+			transportBadge := newTooltipLabel("", "", tooltipManager)
 			messageLine := container.NewBorder(
 				nil,
 				nil,
@@ -112,7 +114,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 				widget.NewRichTextWithText("message"),
 			)
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
-			statusBadge := newTooltipLabel("", "")
+			statusBadge := newTooltipLabel("", "", tooltipManager)
 			timeLabel := widget.NewLabel("time")
 			row := container.NewVBox(
 				messageLine,
@@ -153,7 +155,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
-			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
+			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
 			metaRight.Objects[0].(*tooltipLabel).SetBadge(messageStatusBadge(msg))
@@ -307,7 +309,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		chatList.Select(0)
 	}
 
-	return container.New(layout.NewStackLayout(), split)
+	return container.New(layout.NewStackLayout(), split, tooltipLayer)
 }
 
 func focusEntry(entry *widget.Entry) {
@@ -507,12 +509,12 @@ func messageMetaSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool) [
 	return segments
 }
 
-func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool) []fyne.CanvasObject {
+func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool, tooltipManager *hoverTooltipManager) []fyne.CanvasObject {
 	chunks := messageMetaChunks(m, meta, hasMeta)
 	widgets := make([]fyne.CanvasObject, 0, len(chunks))
 	for _, chunk := range chunks {
 		if len(chunk.Tooltip) > 0 {
-			widgets = append(widgets, newTooltipRichText(chunk.Segments, chunk.Tooltip))
+			widgets = append(widgets, newTooltipRichText(chunk.Segments, chunk.Tooltip, tooltipManager))
 
 			continue
 		}
