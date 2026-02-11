@@ -177,6 +177,49 @@ func TestHideTooltipWidgets_RecursivelyHidesOwnedTooltip(t *testing.T) {
 	}
 }
 
+func TestHoverTooltipManagerShow_KeepsTooltipInsideLayerNearTopRight(t *testing.T) {
+	app := fynetest.NewApp()
+	t.Cleanup(app.Quit)
+
+	layer := container.NewWithoutLayout()
+	manager := newHoverTooltipManager(layer)
+	owner := newTooltipLabel("✓", "Sent", manager)
+
+	content := container.NewWithoutLayout(owner)
+	root := container.New(layout.NewStackLayout(), content, layer)
+
+	win := app.NewWindow("tooltip")
+	win.SetContent(root)
+	win.Resize(fyne.NewSize(320, 140))
+	win.Show()
+
+	owner.Resize(owner.MinSize())
+	owner.Move(fyne.NewPos(302, 2))
+	content.Refresh()
+	root.Refresh()
+
+	manager.Show(owner, widget.NewLabel("Failed: NO_ROUTE"))
+	if len(layer.Objects) != 1 {
+		t.Fatalf("expected tooltip to be visible, got %d objects", len(layer.Objects))
+	}
+
+	bubble := layer.Objects[0]
+	layerSize := layer.Size()
+	bubblePos := bubble.Position()
+	bubbleSize := bubble.Size()
+	epsilon := float32(0.5)
+
+	if bubblePos.X < -epsilon || bubblePos.Y < -epsilon {
+		t.Fatalf("tooltip placed outside top/left bounds: pos=%v", bubblePos)
+	}
+	if bubblePos.X+bubbleSize.Width > layerSize.Width+epsilon {
+		t.Fatalf("tooltip placed outside right bound: pos=%v size=%v layer=%v", bubblePos, bubbleSize, layerSize)
+	}
+	if bubblePos.Y+bubbleSize.Height > layerSize.Height+epsilon {
+		t.Fatalf("tooltip placed outside bottom bound: pos=%v size=%v layer=%v", bubblePos, bubbleSize, layerSize)
+	}
+}
+
 func TestCloneRichTextSegments_DeepCopy(t *testing.T) {
 	linkURL, err := url.Parse("https://example.org")
 	if err != nil {
