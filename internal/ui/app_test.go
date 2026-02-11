@@ -77,10 +77,12 @@ func TestTransportDisplayName(t *testing.T) {
 
 func TestInitialConnStatusBluetooth(t *testing.T) {
 	status := initialConnStatus(Dependencies{
-		Config: config.AppConfig{
-			Connection: config.ConnectionConfig{
-				Connector:        config.ConnectorBluetooth,
-				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
+		Data: DataDeps{
+			Config: config.AppConfig{
+				Connection: config.ConnectionConfig{
+					Connector:        config.ConnectorBluetooth,
+					BluetoothAddress: "AA:BB:CC:DD:EE:FF",
+				},
 			},
 		},
 	})
@@ -95,21 +97,23 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 
 func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 	dep := Dependencies{
-		Config: config.AppConfig{
-			Connection: config.ConnectionConfig{
-				Connector:        config.ConnectorSerial,
-				SerialPort:       "/dev/ttyACM0",
-				SerialBaud:       115200,
-				Host:             "",
-				BluetoothAddress: "",
+		Data: DataDeps{
+			Config: config.AppConfig{
+				Connection: config.ConnectionConfig{
+					Connector:        config.ConnectorSerial,
+					SerialPort:       "/dev/ttyACM0",
+					SerialBaud:       115200,
+					Host:             "",
+					BluetoothAddress: "",
+				},
 			},
-		},
-		CurrentConnStatus: func() (connectors.ConnStatus, bool) {
-			return connectors.ConnStatus{
-				State:         connectors.ConnectionStateConnected,
-				TransportName: "serial",
-				Target:        "",
-			}, true
+			CurrentConnStatus: func() (connectors.ConnStatus, bool) {
+				return connectors.ConnStatus{
+					State:         connectors.ConnectionStateConnected,
+					TransportName: "serial",
+					Target:        "",
+				}, true
+			},
 		},
 	}
 

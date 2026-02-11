@@ -35,17 +35,17 @@ func Run(dep Dependencies) error {
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
 
 	chatsTab := newChatsTab(
-		dep.ChatStore,
-		dep.Sender,
-		resolveNodeDisplayName(dep.NodeStore),
-		dep.LocalNodeID,
-		nodeChanges(dep.NodeStore),
-		dep.LastSelectedChat,
-		dep.OnChatSelected,
+		dep.Data.ChatStore,
+		dep.Actions.Sender,
+		resolveNodeDisplayName(dep.Data.NodeStore),
+		dep.Data.LocalNodeID,
+		nodeChanges(dep.Data.NodeStore),
+		dep.Data.LastSelectedChat,
+		dep.Actions.OnChatSelected,
 	)
-	nodesTab := newNodesTab(dep.NodeStore, DefaultNodeRowRenderer())
+	nodesTab := newNodesTab(dep.Data.NodeStore, DefaultNodeRowRenderer())
 	mapTab := disabledTab("Map is not implemented yet")
-	nodeSettingsTab := newNodeTab(dep.NodeStore, dep.LocalNodeID)
+	nodeSettingsTab := newNodeTab(dep.Data.NodeStore, dep.Data.LocalNodeID)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
 	tabContent := map[string]fyne.CanvasObject{
@@ -124,7 +124,7 @@ func Run(dep Dependencies) error {
 			sidebarConnIcon,
 			status,
 			fyApp.Settings().ThemeVariant(),
-			localNodeDisplayName(dep.LocalNodeID, dep.NodeStore),
+			localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore),
 		)
 	}
 	setConnStatus(initialStatus)
@@ -147,8 +147,8 @@ func Run(dep Dependencies) error {
 		applyThemeResources(fyApp.Settings().ThemeVariant())
 	})
 
-	if dep.Bus != nil {
-		sub := dep.Bus.Subscribe(connectors.TopicConnStatus)
+	if dep.Data.Bus != nil {
+		sub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
 		go func() {
 			for raw := range sub {
 				status, ok := raw.(connectors.ConnStatus)
@@ -161,7 +161,7 @@ func Run(dep Dependencies) error {
 			}
 		}()
 
-		nodeSub := dep.Bus.Subscribe(connectors.TopicNodeInfo)
+		nodeSub := dep.Data.Bus.Subscribe(connectors.TopicNodeInfo)
 		go func() {
 			for range nodeSub {
 				fyne.Do(func() {
@@ -183,8 +183,8 @@ func Run(dep Dependencies) error {
 	var shutdownOnce sync.Once
 	quit := func() {
 		shutdownOnce.Do(func() {
-			if dep.OnQuit != nil {
-				dep.OnQuit()
+			if dep.Actions.OnQuit != nil {
+				dep.Actions.OnQuit()
 			}
 			fyApp.Quit()
 		})
@@ -212,13 +212,13 @@ func Run(dep Dependencies) error {
 	applyThemeResources(initialVariant)
 
 	window.Show()
-	if dep.StartHidden {
+	if dep.Launch.StartHidden {
 		window.Hide()
 	}
 	fyApp.Run()
 	shutdownOnce.Do(func() {
-		if dep.OnQuit != nil {
-			dep.OnQuit()
+		if dep.Actions.OnQuit != nil {
+			dep.Actions.OnQuit()
 		}
 	})
 	return nil
@@ -229,7 +229,7 @@ func disabledTab(text string) fyne.CanvasObject {
 }
 
 func initialConnStatus(dep Dependencies) connectors.ConnStatus {
-	return meshapp.ConnectionStatusFromConfig(dep.Config.Connection)
+	return meshapp.ConnectionStatusFromConfig(dep.Data.Config.Connection)
 }
 
 func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
@@ -248,10 +248,10 @@ func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
 }
 
 func currentConnStatus(dep Dependencies) (connectors.ConnStatus, bool) {
-	if dep.CurrentConnStatus == nil {
+	if dep.Data.CurrentConnStatus == nil {
 		return connectors.ConnStatus{}, false
 	}
-	return dep.CurrentConnStatus()
+	return dep.Data.CurrentConnStatus()
 }
 
 func formatConnStatus(status connectors.ConnStatus, localShortName string) string {

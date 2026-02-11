@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/ui"
@@ -46,25 +45,12 @@ func run() error {
 	}
 	defer closeRuntime()
 
-	err = ui.Run(ui.Dependencies{
-		Config:            rt.Config,
-		ChatStore:         rt.ChatStore,
-		NodeStore:         rt.NodeStore,
-		Bus:               rt.Bus,
-		LastSelectedChat:  rt.Config.UI.LastSelectedChat,
-		BluetoothScanner:  ui.NewTinyGoBluetoothScanner(10 * time.Second),
-		Sender:            rt.Radio,
-		LocalNodeID:       rt.Radio.LocalNodeID,
-		CurrentConnStatus: rt.CurrentConnStatus,
-		OnSave:            rt.SaveAndApplyConfig,
-		OnChatSelected:    rt.RememberSelectedChat,
-		OnClearDB:         rt.ClearDatabase,
-		StartHidden:       opts.StartHidden,
-		OnQuit: func() {
-			stop()
-			closeRuntime()
-		},
+	deps := ui.NewDependenciesFromRuntime(rt, ui.LaunchOptions{StartHidden: opts.StartHidden}, func() {
+		stop()
+		closeRuntime()
 	})
+
+	err = ui.Run(deps)
 	if err != nil {
 		return fmt.Errorf("run ui: %w", err)
 	}

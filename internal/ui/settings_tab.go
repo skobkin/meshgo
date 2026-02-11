@@ -32,7 +32,7 @@ const (
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
 
 func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
-	current := dep.Config
+	current := dep.Data.Config
 	current.ApplyDefaults()
 
 	connectorSelect := widget.NewSelect([]string{
@@ -95,37 +95,37 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	bluetoothPairingHint := widget.NewLabel("Pair the node in OS Bluetooth settings before connecting.")
 	bluetoothPairingHint.Wrapping = fyne.TextWrapWord
 
-	bluetoothScanner := dep.BluetoothScanner
+	bluetoothScanner := dep.Platform.BluetoothScanner
 	if bluetoothScanner == nil {
 		bluetoothScanner = NewTinyGoBluetoothScanner(defaultBluetoothScanDuration)
 	}
-	openBluetoothSettingsFn := dep.OpenBluetoothSettings
+	openBluetoothSettingsFn := dep.Platform.OpenBluetoothSettings
 	if openBluetoothSettingsFn == nil {
 		openBluetoothSettingsFn = openBluetoothSettings
 	}
-	currentWindowFn := dep.CurrentWindow
+	currentWindowFn := dep.UIHooks.CurrentWindow
 	if currentWindowFn == nil {
 		currentWindowFn = currentWindow
 	}
-	runOnUI := dep.RunOnUI
+	runOnUI := dep.UIHooks.RunOnUI
 	if runOnUI == nil {
 		runOnUI = fyne.Do
 	}
-	runAsync := dep.RunAsync
+	runAsync := dep.UIHooks.RunAsync
 	if runAsync == nil {
 		runAsync = func(fn func()) {
 			go fn()
 		}
 	}
-	showScanDialogFn := dep.ShowBluetoothScanDialog
+	showScanDialogFn := dep.UIHooks.ShowBluetoothScanDialog
 	if showScanDialogFn == nil {
 		showScanDialogFn = showBluetoothScanDialog
 	}
-	showErrorDialogFn := dep.ShowErrorDialog
+	showErrorDialogFn := dep.UIHooks.ShowErrorDialog
 	if showErrorDialogFn == nil {
 		showErrorDialogFn = dialog.ShowError
 	}
-	showInfoDialogFn := dep.ShowInfoDialog
+	showInfoDialogFn := dep.UIHooks.ShowInfoDialog
 	if showInfoDialogFn == nil {
 		showInfoDialogFn = dialog.ShowInformation
 	}
@@ -298,16 +298,16 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 
 		saveConfig := func(clearDatabase bool) {
 			if clearDatabase {
-				if dep.OnClearDB == nil {
+				if dep.Actions.OnClearDB == nil {
 					status.SetText("Save failed: database clear is not available")
 					return
 				}
-				if err := dep.OnClearDB(); err != nil {
+				if err := dep.Actions.OnClearDB(); err != nil {
 					status.SetText("Save failed: database clear failed: " + err.Error())
 					return
 				}
 			}
-			if err := dep.OnSave(cfg); err != nil {
+			if err := dep.Actions.OnSave(cfg); err != nil {
 				var warning *app.AutostartSyncWarning
 				if errors.As(err, &warning) {
 					current = cfg
@@ -347,17 +347,17 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	saveButton.Importance = widget.HighImportance
 
 	clearDBButton := widget.NewButton("Clear database", func() {
-		if dep.OnClearDB == nil {
+		if dep.Actions.OnClearDB == nil {
 			status.SetText("Database clear is not available")
 			return
 		}
-		if err := dep.OnClearDB(); err != nil {
+		if err := dep.Actions.OnClearDB(); err != nil {
 			status.SetText("Database clear failed: " + err.Error())
 			return
 		}
 		status.SetText("Database cleared")
 	})
-	if dep.OnClearDB == nil {
+	if dep.Actions.OnClearDB == nil {
 		clearDBButton.Disable()
 	}
 

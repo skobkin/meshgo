@@ -7,31 +7,48 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
-	"github.com/skobkin/meshgo/internal/radio"
 )
 
-type Dependencies struct {
-	Config           config.AppConfig
-	ChatStore        *domain.ChatStore
-	NodeStore        *domain.NodeStore
-	Bus              bus.MessageBus
-	LastSelectedChat string
-	BluetoothScanner BluetoothScanner
-	Sender           interface {
-		SendText(chatKey, text string) <-chan radio.SendResult
-	}
-	LocalNodeID             func() string
-	CurrentConnStatus       func() (connectors.ConnStatus, bool)
-	OnSave                  func(cfg config.AppConfig) error
-	OnChatSelected          func(chatKey string)
-	OnClearDB               func() error
-	OpenBluetoothSettings   func() error
+type DataDeps struct {
+	Config            config.AppConfig
+	ChatStore         *domain.ChatStore
+	NodeStore         *domain.NodeStore
+	Bus               bus.MessageBus
+	LastSelectedChat  string
+	LocalNodeID       func() string
+	CurrentConnStatus func() (connectors.ConnStatus, bool)
+}
+
+type ActionDeps struct {
+	Sender         MessageSender
+	OnSave         func(cfg config.AppConfig) error
+	OnChatSelected func(chatKey string)
+	OnClearDB      func() error
+	OnQuit         func()
+}
+
+type PlatformDeps struct {
+	BluetoothScanner      BluetoothScanner
+	OpenBluetoothSettings func() error
+}
+
+type UIHooks struct {
 	CurrentWindow           func() fyne.Window
 	RunOnUI                 func(func())
 	RunAsync                func(func())
 	ShowBluetoothScanDialog func(window fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice))
 	ShowErrorDialog         func(err error, window fyne.Window)
 	ShowInfoDialog          func(title, message string, window fyne.Window)
-	StartHidden             bool
-	OnQuit                  func()
+}
+
+type LaunchOptions struct {
+	StartHidden bool
+}
+
+type Dependencies struct {
+	Data     DataDeps
+	Actions  ActionDeps
+	Platform PlatformDeps
+	UIHooks  UIHooks
+	Launch   LaunchOptions
 }

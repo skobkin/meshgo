@@ -27,24 +27,30 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 
 	var window fyne.Window
 	dep := Dependencies{
-		Config: cfg,
-		BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
-			return []BluetoothScanDevice{
-				{
-					Name:    "MeshNode",
-					Address: "AA:BB:CC:DD:EE:FF",
-					RSSI:    -64,
-				},
-			}, nil
-		}),
-		CurrentWindow: func() fyne.Window { return window },
-		RunOnUI:       func(fn func()) { fn() },
-		RunAsync:      func(fn func()) { fn() },
-		ShowBluetoothScanDialog: func(_ fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice)) {
-			onSelect(devices[0])
+		Data: DataDeps{
+			Config: cfg,
 		},
-		ShowErrorDialog: func(_ error, _ fyne.Window) {},
-		ShowInfoDialog:  func(_, _ string, _ fyne.Window) {},
+		Platform: PlatformDeps{
+			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
+				return []BluetoothScanDevice{
+					{
+						Name:    "MeshNode",
+						Address: "AA:BB:CC:DD:EE:FF",
+						RSSI:    -64,
+					},
+				}, nil
+			}),
+		},
+		UIHooks: UIHooks{
+			CurrentWindow: func() fyne.Window { return window },
+			RunOnUI:       func(fn func()) { fn() },
+			RunAsync:      func(fn func()) { fn() },
+			ShowBluetoothScanDialog: func(_ fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice)) {
+				onSelect(devices[0])
+			},
+			ShowErrorDialog: func(_ error, _ fyne.Window) {},
+			ShowInfoDialog:  func(_, _ string, _ fyne.Window) {},
+		},
 	}
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
@@ -74,18 +80,24 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 
 	var window fyne.Window
 	dep := Dependencies{
-		Config: cfg,
-		BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
-			close(started)
-			<-release
-			return nil, errors.New("scan failed")
-		}),
-		CurrentWindow:           func() fyne.Window { return window },
-		RunOnUI:                 func(fn func()) { fn() },
-		RunAsync:                func(fn func()) { go fn() },
-		ShowErrorDialog:         func(_ error, _ fyne.Window) {},
-		ShowInfoDialog:          func(_, _ string, _ fyne.Window) {},
-		ShowBluetoothScanDialog: func(_ fyne.Window, _ []BluetoothScanDevice, _ func(BluetoothScanDevice)) {},
+		Data: DataDeps{
+			Config: cfg,
+		},
+		Platform: PlatformDeps{
+			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
+				close(started)
+				<-release
+				return nil, errors.New("scan failed")
+			}),
+		},
+		UIHooks: UIHooks{
+			CurrentWindow:           func() fyne.Window { return window },
+			RunOnUI:                 func(fn func()) { fn() },
+			RunAsync:                func(fn func()) { go fn() },
+			ShowErrorDialog:         func(_ error, _ fyne.Window) {},
+			ShowInfoDialog:          func(_, _ string, _ fyne.Window) {},
+			ShowBluetoothScanDialog: func(_ fyne.Window, _ []BluetoothScanDevice, _ func(BluetoothScanDevice)) {},
+		},
 	}
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
@@ -127,11 +139,17 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 
 	var window fyne.Window
 	dep := Dependencies{
-		Config: cfg,
-		OpenBluetoothSettings: func() error {
-			return errors.New("boom")
+		Data: DataDeps{
+			Config: cfg,
 		},
-		CurrentWindow: func() fyne.Window { return window },
+		Platform: PlatformDeps{
+			OpenBluetoothSettings: func() error {
+				return errors.New("boom")
+			},
+		},
+		UIHooks: UIHooks{
+			CurrentWindow: func() fyne.Window { return window },
+		},
 	}
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
@@ -147,7 +165,7 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 }
 
 func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
-	tab := newSettingsTab(Dependencies{Config: config.Default()}, widget.NewLabel(""))
+	tab := newSettingsTab(Dependencies{Data: DataDeps{Config: config.Default()}}, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
 
 	modeSelect := mustFindSelectWithOption(t, tab, "Background tray")
@@ -163,10 +181,14 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 
 	var saved config.AppConfig
 	dep := Dependencies{
-		Config: cfg,
-		OnSave: func(next config.AppConfig) error {
-			saved = next
-			return &app.AutostartSyncWarning{Err: errors.New("registry denied")}
+		Data: DataDeps{
+			Config: cfg,
+		},
+		Actions: ActionDeps{
+			OnSave: func(next config.AppConfig) error {
+				saved = next
+				return &app.AutostartSyncWarning{Err: errors.New("registry denied")}
+			},
 		},
 	}
 
