@@ -189,7 +189,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 					return
 				}
 
-				showScanDialogFn(window, devices, func(device BluetoothScanDevice) {
+				showScanDialogFn(window, devices, func(device DiscoveredBluetoothDevice) {
 					bluetoothAddressEntry.SetText(device.Address)
 					status.SetText("Selected: " + device.Address)
 				})
@@ -433,7 +433,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	return container.NewVScroll(content)
 }
 
-func showBluetoothScanDialog(window fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice)) {
+func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice)) {
 	selected := 0
 
 	list := widget.NewList(

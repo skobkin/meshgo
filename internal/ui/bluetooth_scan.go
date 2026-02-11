@@ -15,8 +15,8 @@ import (
 
 const defaultBluetoothScanDuration = 10 * time.Second
 
-// BluetoothScanDevice represents a discovered BLE device entry for UI selection.
-type BluetoothScanDevice struct {
+// DiscoveredBluetoothDevice represents a discovered BLE device entry for UI selection.
+type DiscoveredBluetoothDevice struct {
 	Name                 string
 	Address              string
 	RSSI                 int
@@ -25,7 +25,7 @@ type BluetoothScanDevice struct {
 
 // BluetoothScanner scans nearby BLE devices and returns normalized results.
 type BluetoothScanner interface {
-	Scan(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error)
+	Scan(ctx context.Context, adapterID string) ([]DiscoveredBluetoothDevice, error)
 }
 
 // TinyGoBluetoothScanner is a BluetoothScanner backed by tinygo.org/x/bluetooth.
@@ -42,7 +42,7 @@ func NewTinyGoBluetoothScanner(scanDuration time.Duration) *TinyGoBluetoothScann
 	return &TinyGoBluetoothScanner{scanDuration: scanDuration}
 }
 
-func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error) {
+func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]DiscoveredBluetoothDevice, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -63,7 +63,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 
 	var (
 		mu      sync.Mutex
-		devices = make(map[string]BluetoothScanDevice)
+		devices = make(map[string]DiscoveredBluetoothDevice)
 	)
 	scanErrCh := make(chan error, 1)
 
@@ -91,7 +91,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	}
 
 	mu.Lock()
-	result := make([]BluetoothScanDevice, 0, len(devices))
+	result := make([]DiscoveredBluetoothDevice, 0, len(devices))
 	for _, device := range devices {
 		result = append(result, device)
 	}
@@ -145,8 +145,8 @@ func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanEr
 	}
 }
 
-func scanDeviceFromResult(result bluetooth.ScanResult) BluetoothScanDevice {
-	return BluetoothScanDevice{
+func scanDeviceFromResult(result bluetooth.ScanResult) DiscoveredBluetoothDevice {
+	return DiscoveredBluetoothDevice{
 		Name:                 strings.TrimSpace(result.LocalName()),
 		Address:              normalizeBluetoothAddress(result.Address.String()),
 		RSSI:                 int(result.RSSI),
@@ -154,7 +154,7 @@ func scanDeviceFromResult(result bluetooth.ScanResult) BluetoothScanDevice {
 	}
 }
 
-func mergeBluetoothScanDevice(existing, next BluetoothScanDevice) BluetoothScanDevice {
+func mergeBluetoothScanDevice(existing, next DiscoveredBluetoothDevice) DiscoveredBluetoothDevice {
 	merged := existing
 
 	if len(strings.TrimSpace(next.Name)) > len(strings.TrimSpace(merged.Name)) {
@@ -168,7 +168,7 @@ func mergeBluetoothScanDevice(existing, next BluetoothScanDevice) BluetoothScanD
 	return merged
 }
 
-func sortBluetoothScanDevices(devices []BluetoothScanDevice) {
+func sortBluetoothScanDevices(devices []DiscoveredBluetoothDevice) {
 	sort.Slice(devices, func(i, j int) bool {
 		if devices[i].HasMeshtasticService != devices[j].HasMeshtasticService {
 			return devices[i].HasMeshtasticService
@@ -187,7 +187,7 @@ func sortBluetoothScanDevices(devices []BluetoothScanDevice) {
 	})
 }
 
-func bluetoothScanDeviceTitle(device BluetoothScanDevice) string {
+func bluetoothScanDeviceTitle(device DiscoveredBluetoothDevice) string {
 	displayName := strings.TrimSpace(device.Name)
 	if displayName == "" {
 		displayName = "(unnamed)"
@@ -201,17 +201,17 @@ func bluetoothScanDeviceTitle(device BluetoothScanDevice) string {
 	return fmt.Sprintf("%s%s", displayName, marker)
 }
 
-func bluetoothScanDeviceDetails(device BluetoothScanDevice) string {
+func bluetoothScanDeviceDetails(device DiscoveredBluetoothDevice) string {
 	return fmt.Sprintf("%s RSSI: %d", device.Address, device.RSSI)
 }
 
-func formatBluetoothScanDevice(device BluetoothScanDevice) string {
+func formatBluetoothScanDevice(device DiscoveredBluetoothDevice) string {
 	return fmt.Sprintf("%s\n%s", bluetoothScanDeviceTitle(device), bluetoothScanDeviceDetails(device))
 }
 
-func bluetoothScanDeviceAt(devices []BluetoothScanDevice, index int) (BluetoothScanDevice, bool) {
+func bluetoothScanDeviceAt(devices []DiscoveredBluetoothDevice, index int) (DiscoveredBluetoothDevice, bool) {
 	if index < 0 || index >= len(devices) {
-		return BluetoothScanDevice{}, false
+		return DiscoveredBluetoothDevice{}, false
 	}
 
 	return devices[index], true

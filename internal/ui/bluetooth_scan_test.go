@@ -3,13 +3,13 @@ package ui
 import "testing"
 
 func TestMergeBluetoothScanDevice(t *testing.T) {
-	existing := BluetoothScanDevice{
+	existing := DiscoveredBluetoothDevice{
 		Name:                 "T",
 		Address:              "AA:BB:CC:DD:EE:FF",
 		RSSI:                 -80,
 		HasMeshtasticService: false,
 	}
-	next := BluetoothScanDevice{
+	next := DiscoveredBluetoothDevice{
 		Name:                 "T-Echo",
 		Address:              "AA:BB:CC:DD:EE:FF",
 		RSSI:                 -62,
@@ -29,7 +29,7 @@ func TestMergeBluetoothScanDevice(t *testing.T) {
 }
 
 func TestSortBluetoothScanDevices(t *testing.T) {
-	devices := []BluetoothScanDevice{
+	devices := []DiscoveredBluetoothDevice{
 		{Name: "Gamma", Address: "00:00:00:00:00:03", RSSI: -50, HasMeshtasticService: false},
 		{Name: "Beta", Address: "00:00:00:00:00:02", RSSI: -90, HasMeshtasticService: true},
 		{Name: "Alpha", Address: "00:00:00:00:00:01", RSSI: -60, HasMeshtasticService: true},
@@ -49,7 +49,7 @@ func TestSortBluetoothScanDevices(t *testing.T) {
 }
 
 func TestFormatBluetoothScanDevice(t *testing.T) {
-	formatted := formatBluetoothScanDevice(BluetoothScanDevice{
+	formatted := formatBluetoothScanDevice(DiscoveredBluetoothDevice{
 		Name:                 "T-Echo",
 		Address:              "AA:BB:CC:DD:EE:FF",
 		RSSI:                 -63,
@@ -62,7 +62,7 @@ func TestFormatBluetoothScanDevice(t *testing.T) {
 }
 
 func TestBluetoothScanDeviceAt(t *testing.T) {
-	devices := []BluetoothScanDevice{{Address: "A"}, {Address: "B"}}
+	devices := []DiscoveredBluetoothDevice{{Address: "A"}, {Address: "B"}}
 
 	if _, ok := bluetoothScanDeviceAt(devices, -1); ok {
 		t.Fatalf("expected invalid index for -1")

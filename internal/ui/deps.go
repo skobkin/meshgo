@@ -46,7 +46,7 @@ type UIHooks struct {
 	CurrentWindow           func() fyne.Window
 	RunOnUI                 func(func())
 	RunAsync                func(func())
-	ShowBluetoothScanDialog func(window fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice))
+	ShowBluetoothScanDialog func(window fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice))
 	ShowErrorDialog         func(err error, window fyne.Window)
 	ShowInfoDialog          func(title, message string, window fyne.Window)
 }

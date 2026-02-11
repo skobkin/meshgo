@@ -15,9 +15,9 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 )
 
-type bluetoothScannerFunc func(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error)
+type bluetoothScannerFunc func(ctx context.Context, adapterID string) ([]DiscoveredBluetoothDevice, error)
 
-func (f bluetoothScannerFunc) Scan(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error) {
+func (f bluetoothScannerFunc) Scan(ctx context.Context, adapterID string) ([]DiscoveredBluetoothDevice, error) {
 	return f(ctx, adapterID)
 }
 
@@ -31,8 +31,8 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 			Config: cfg,
 		},
 		Platform: PlatformDependencies{
-			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
-				return []BluetoothScanDevice{
+			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]DiscoveredBluetoothDevice, error) {
+				return []DiscoveredBluetoothDevice{
 					{
 						Name:    "MeshNode",
 						Address: "AA:BB:CC:DD:EE:FF",
@@ -45,7 +45,7 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 			CurrentWindow: func() fyne.Window { return window },
 			RunOnUI:       func(fn func()) { fn() },
 			RunAsync:      func(fn func()) { fn() },
-			ShowBluetoothScanDialog: func(_ fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice)) {
+			ShowBluetoothScanDialog: func(_ fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice)) {
 				onSelect(devices[0])
 			},
 			ShowErrorDialog: func(_ error, _ fyne.Window) {},
@@ -84,7 +84,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 			Config: cfg,
 		},
 		Platform: PlatformDependencies{
-			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
+			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]DiscoveredBluetoothDevice, error) {
 				close(started)
 				<-release
 
@@ -97,7 +97,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 			RunAsync:                func(fn func()) { go fn() },
 			ShowErrorDialog:         func(_ error, _ fyne.Window) {},
 			ShowInfoDialog:          func(_, _ string, _ fyne.Window) {},
-			ShowBluetoothScanDialog: func(_ fyne.Window, _ []BluetoothScanDevice, _ func(BluetoothScanDevice)) {},
+			ShowBluetoothScanDialog: func(_ fyne.Window, _ []DiscoveredBluetoothDevice, _ func(DiscoveredBluetoothDevice)) {},
 		},
 	}
 
