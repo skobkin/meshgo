@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/skobkin/meshgo/internal/bluetoothutil"
 	"tinygo.org/x/bluetooth"
 )
 
@@ -29,6 +30,7 @@ type BluetoothScanner interface {
 
 type TinyGoBluetoothScanner struct {
 	scanDuration time.Duration
+	mu           sync.Mutex
 }
 
 func NewTinyGoBluetoothScanner(scanDuration time.Duration) *TinyGoBluetoothScanner {
@@ -39,9 +41,15 @@ func NewTinyGoBluetoothScanner(scanDuration time.Duration) *TinyGoBluetoothScann
 }
 
 func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	adapter := resolveBluetoothScanAdapter(adapterID)
 	if err := adapter.Enable(); err != nil {
 		return nil, fmt.Errorf("enable bluetooth adapter: %w", err)
+	}
+	if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+		return nil, fmt.Errorf("reset bluetooth scan state: %w", err)
 	}
 
 	scanCtx := ctx
@@ -58,7 +66,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	scanErrCh := make(chan error, 1)
 
 	go func() {
-		scanErrCh <- adapter.Scan(func(_ *bluetooth.Adapter, result bluetooth.ScanResult) {
+		scanErrCh <- runBluetoothScan(adapter, func(_ *bluetooth.Adapter, result bluetooth.ScanResult) {
 			entry := scanDeviceFromResult(result)
 			if entry.Address == "" {
 				return
@@ -90,6 +98,24 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	return result, nil
 }
 
+func runBluetoothScan(adapter *bluetooth.Adapter, callback func(*bluetooth.Adapter, bluetooth.ScanResult)) error {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		err := adapter.Scan(callback)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !bluetoothutil.IsScanAlreadyInProgressError(err) {
+			return err
+		}
+		if stopErr := adapter.StopScan(); stopErr != nil && !bluetoothutil.IsBenignStopScanError(stopErr) {
+			return errors.Join(err, fmt.Errorf("stop stale bluetooth scan: %w", stopErr))
+		}
+	}
+	return lastErr
+}
+
 func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanErrCh <-chan error) error {
 	select {
 	case err := <-scanErrCh:
@@ -98,11 +124,11 @@ func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanEr
 		}
 		return nil
 	case <-ctx.Done():
-		if err := adapter.StopScan(); err != nil && !isBenignScanStopError(err) {
+		if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
 			return fmt.Errorf("stop bluetooth scan: %w", err)
 		}
 		err := <-scanErrCh
-		if err != nil && !isBenignScanStopError(err) {
+		if err != nil && !bluetoothutil.IsBenignStopScanError(err) {
 			return fmt.Errorf("scan bluetooth devices: %w", err)
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -110,14 +136,6 @@ func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanEr
 		}
 		return ctx.Err()
 	}
-}
-
-func isBenignScanStopError(err error) bool {
-	if err == nil {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "cancel") || strings.Contains(msg, "stopped") || strings.Contains(msg, "not scanning")
 }
 
 func scanDeviceFromResult(result bluetooth.ScanResult) BluetoothScanDevice {

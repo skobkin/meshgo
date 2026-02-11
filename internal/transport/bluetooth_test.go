@@ -1,6 +1,12 @@
 package transport
 
-import "testing"
+import (
+	"fmt"
+	"runtime"
+	"testing"
+
+	"github.com/godbus/dbus/v5"
+)
 
 func TestParseBluetoothAddress(t *testing.T) {
 	tests := []struct {
@@ -34,5 +40,16 @@ func TestResolveBluetoothAdapter(t *testing.T) {
 	}
 	if got := resolveBluetoothAdapter("hci1"); got == nil {
 		t.Fatalf("expected adapter for explicit id, got nil")
+	}
+}
+
+func TestShouldRetryBluetoothConnectWithDiscovery(t *testing.T) {
+	err := dbus.NewError("org.freedesktop.DBus.Error.UnknownMethod", []interface{}{
+		`Method "Get" with signature "ss" on interface "org.freedesktop.DBus.Properties" doesn't exist`,
+	})
+	got := shouldRetryBluetoothConnectWithDiscovery(fmt.Errorf("wrapped: %w", err))
+	want := runtime.GOOS == "linux"
+	if got != want {
+		t.Fatalf("unexpected retry decision: got=%v want=%v", got, want)
 	}
 }

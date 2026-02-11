@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/skobkin/meshgo/internal/bluetoothutil"
 	"tinygo.org/x/bluetooth"
 )
 
@@ -15,6 +18,7 @@ const (
 	defaultBluetoothFrameQueueSize = 128
 	defaultBluetoothReadBufferSize = 4096
 	maxBluetoothDrainReads         = 256
+	defaultBluetoothDiscoverWait   = 12 * time.Second
 )
 
 var (
@@ -102,6 +106,12 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 	}
 
 	device, err := adapter.Connect(addr, bluetooth.ConnectionParams{})
+	if err != nil && shouldRetryBluetoothConnectWithDiscovery(err) {
+		if discoverErr := discoverBluetoothDevice(ctx, adapter, addr); discoverErr != nil {
+			return fmt.Errorf("connect bluetooth device %q: %w", t.address, errors.Join(err, fmt.Errorf("discovery failed: %w", discoverErr)))
+		}
+		device, err = adapter.Connect(addr, bluetooth.ConnectionParams{})
+	}
 	if err != nil {
 		return fmt.Errorf("connect bluetooth device %q: %w", t.address, err)
 	}
@@ -358,4 +368,66 @@ func mustParseBluetoothUUID(raw string) bluetooth.UUID {
 		panic(fmt.Sprintf("invalid bluetooth UUID %q: %v", raw, err))
 	}
 	return uuid
+}
+
+func shouldRetryBluetoothConnectWithDiscovery(err error) bool {
+	if err == nil || runtime.GOOS != "linux" {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if bluetoothutil.IsDBusErrorName(err, "org.freedesktop.DBus.Error.UnknownMethod") {
+		return strings.Contains(msg, "org.freedesktop.dbus.properties") &&
+			strings.Contains(msg, "method \"get\"")
+	}
+
+	return strings.Contains(msg, "org.freedesktop.dbus.properties") &&
+		strings.Contains(msg, "method \"get\"") &&
+		strings.Contains(msg, "doesn't exist")
+}
+
+func discoverBluetoothDevice(ctx context.Context, adapter *bluetooth.Adapter, target bluetooth.Address) error {
+	if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+		return fmt.Errorf("reset bluetooth scan state: %w", err)
+	}
+
+	scanCtx := ctx
+	if _, hasDeadline := scanCtx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		scanCtx, cancel = context.WithTimeout(scanCtx, defaultBluetoothDiscoverWait)
+		defer cancel()
+	}
+
+	foundCh := make(chan struct{}, 1)
+	scanErrCh := make(chan error, 1)
+	go func() {
+		scanErrCh <- adapter.Scan(func(_ *bluetooth.Adapter, result bluetooth.ScanResult) {
+			if result.Address.MAC != target.MAC {
+				return
+			}
+			select {
+			case foundCh <- struct{}{}:
+			default:
+			}
+			_ = adapter.StopScan()
+		})
+	}()
+
+	found := false
+	select {
+	case <-foundCh:
+		found = true
+	case <-scanCtx.Done():
+		_ = adapter.StopScan()
+	}
+
+	scanErr := <-scanErrCh
+	if scanErr != nil && !bluetoothutil.IsBenignStopScanError(scanErr) {
+		return fmt.Errorf("scan bluetooth devices: %w", scanErr)
+	}
+
+	if !found {
+		return fmt.Errorf("device %q was not discovered; pair it in OS Bluetooth settings and keep it nearby", target.String())
+	}
+
+	return nil
 }

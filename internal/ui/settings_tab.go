@@ -92,31 +92,47 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	bluetoothActionRow := container.NewHBox(scanBluetoothButton, openBluetoothSettingsButton)
 
 	scanBluetoothButton.OnTapped = func() {
+		window := currentWindow()
+		if window == nil {
+			status.SetText("Bluetooth scan failed: active window is unavailable")
+			return
+		}
+
 		scanBluetoothButton.Disable()
 		openBluetoothSettingsButton.Disable()
 		status.SetText("Scanning...")
+		progressBar := widget.NewProgressBarInfinite()
+		progressBar.Start()
+		progress := dialog.NewCustomWithoutButtons(
+			"Bluetooth scan",
+			container.NewVBox(
+				widget.NewLabel("Scanning for nearby devices..."),
+				progressBar,
+			),
+			window,
+		)
+		progress.Show()
 
 		adapterID := strings.TrimSpace(bluetoothAdapterEntry.Text)
 		go func() {
 			devices, err := bluetoothScanner.Scan(context.Background(), adapterID)
 			fyne.Do(func() {
+				progressBar.Stop()
+				progress.Hide()
 				scanBluetoothButton.Enable()
 				openBluetoothSettingsButton.Enable()
 
 				if err != nil {
 					status.SetText("Bluetooth scan failed: " + err.Error())
+					dialog.ShowError(err, window)
 					return
 				}
 				if len(devices) == 0 {
 					status.SetText("No Bluetooth devices found")
+					dialog.ShowInformation("Bluetooth scan", "No Bluetooth devices found", window)
 					return
 				}
 
-				window := currentWindow()
-				if window == nil {
-					status.SetText("Bluetooth scan failed: active window is unavailable")
-					return
-				}
 				showBluetoothScanDialog(window, devices, func(device BluetoothScanDevice) {
 					bluetoothAddressEntry.SetText(device.Address)
 					status.SetText("Selected: " + device.Address)
