@@ -45,7 +45,7 @@ func Run(dep RuntimeDependencies) error {
 	)
 	nodesTab := newNodesTab(dep.Data.NodeStore, DefaultNodeRowRenderer())
 	mapTab := disabledTab("Map is not implemented yet")
-	nodeSettingsTab := newNodeTab(dep.Data.NodeStore, dep.Data.LocalNodeID)
+	nodeSettingsTab := newNodeTab(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
 	tabContent := map[string]fyne.CanvasObject{

@@ -42,6 +42,21 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	if rt.Connectivity.Radio != nil {
 		dep.Actions.Sender = rt.Connectivity.Radio
 		dep.Data.LocalNodeID = rt.Connectivity.Radio.LocalNodeID
+		if rt.Core.LogManager != nil {
+			dep.Actions.NodeSettings = meshapp.NewNodeSettingsService(
+				rt.Domain.Bus,
+				rt.Connectivity.Radio,
+				rt.CurrentConnStatus,
+				rt.Core.LogManager.Logger("node-settings"),
+			)
+		} else {
+			dep.Actions.NodeSettings = meshapp.NewNodeSettingsService(
+				rt.Domain.Bus,
+				rt.Connectivity.Radio,
+				rt.CurrentConnStatus,
+				nil,
+			)
+		}
 	}
 
 	return dep

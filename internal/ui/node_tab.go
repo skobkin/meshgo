@@ -1,209 +1,447 @@
 package ui
 
 import (
-	"fmt"
+	"context"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/skobkin/meshgo/internal/app"
+	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
-type nodeOverviewView struct {
-	statusLabel   *widget.Label
-	nodeIDLabel   *widget.Label
-	displayName   *widget.Label
-	longName      *widget.Label
-	shortName     *widget.Label
-	hardwareModel *widget.Label
-	role          *widget.Label
-	unmessageable *widget.Label
-	charge        *widget.Label
-	voltage       *widget.Label
-	temperature   *widget.Label
-	humidity      *widget.Label
-	pressure      *widget.Label
-	airQuality    *widget.Label
-	powerVoltage  *widget.Label
-	powerCurrent  *widget.Label
-	rssi          *widget.Label
-	snr           *widget.Label
-	lastHeard     *widget.Label
-	lastUpdated   *widget.Label
+const nodeSettingsOpTimeout = 12 * time.Second
+
+type nodeSettingsSaveGate struct {
+	mu   sync.Mutex
+	page string
 }
 
-type nodeUserView struct {
-	nodeIDLabel      *widget.Label
-	longNameEntry    *widget.Entry
-	shortNameEntry   *widget.Entry
-	hardwareModel    *widget.Label
-	unmessageableBox *widget.Check
-	hamLicensedBox   *widget.Check
-}
-
-func newNodeTab(store *domain.NodeStore, localNodeID func() string) fyne.CanvasObject {
-	overviewContent, overview := newNodeOverviewView()
-	userContent, user := newNodeUserView()
-
-	tabs := container.NewAppTabs(
-		container.NewTabItem("Overview", overviewContent),
-		container.NewTabItem("User", userContent),
-	)
-	tabs.SetTabLocation(container.TabLocationTop)
-
-	refresh := func() {
-		node, known := localNodeSnapshot(store, localNodeID)
-		overview.Update(node, known)
-		user.Update(node)
+func (g *nodeSettingsSaveGate) TryAcquire(page string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if strings.TrimSpace(g.page) != "" {
+		return false
 	}
-	refresh()
+	g.page = strings.TrimSpace(page)
 
-	if store != nil {
-		go func() {
-			for range store.Changes() {
-				fyne.Do(refresh)
+	return true
+}
+
+func (g *nodeSettingsSaveGate) Release(page string) {
+	g.mu.Lock()
+	if strings.TrimSpace(g.page) == strings.TrimSpace(page) {
+		g.page = ""
+	}
+	g.mu.Unlock()
+}
+
+func (g *nodeSettingsSaveGate) ActivePage() string {
+	g.mu.Lock()
+	active := g.page
+	g.mu.Unlock()
+
+	return active
+}
+
+func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
+	saveGate := &nodeSettingsSaveGate{}
+
+	radioTabs := container.NewAppTabs(
+		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
+		container.NewTabItem("Channels", newSettingsPlaceholderPage("Channels editor is planned.")),
+		container.NewTabItem("Security", newSettingsPlaceholderPage("Security settings editing is planned.")),
+	)
+	radioTabs.SetTabLocation(container.TabLocationTop)
+
+	deviceTabs := container.NewAppTabs(
+		container.NewTabItem("User", newNodeUserSettingsPage(dep, saveGate)),
+		container.NewTabItem("Device", newSettingsPlaceholderPage("Device settings editing is planned.")),
+		container.NewTabItem("Position", newSettingsPlaceholderPage("Position settings editing is planned.")),
+		container.NewTabItem("Power", newSettingsPlaceholderPage("Power settings editing is planned.")),
+		container.NewTabItem("Display", newSettingsPlaceholderPage("Display settings editing is planned.")),
+		container.NewTabItem("Bluetooth", newSettingsPlaceholderPage("Bluetooth settings editing is planned.")),
+	)
+	deviceTabs.SetTabLocation(container.TabLocationTop)
+
+	moduleTabs := container.NewAppTabs(
+		container.NewTabItem("MQTT", newSettingsPlaceholderPage("MQTT module settings editing is planned.")),
+		container.NewTabItem("Serial", newSettingsPlaceholderPage("Serial module settings editing is planned.")),
+		container.NewTabItem("External notification", newSettingsPlaceholderPage("External notification module settings editing is planned.")),
+		container.NewTabItem("Store & Forward", newSettingsPlaceholderPage("Store & Forward module settings editing is planned.")),
+		container.NewTabItem("Range test", newSettingsPlaceholderPage("Range test module settings editing is planned.")),
+		container.NewTabItem("Telemetry", newSettingsPlaceholderPage("Telemetry module settings editing is planned.")),
+		container.NewTabItem("Neighbor Info", newSettingsPlaceholderPage("Neighbor Info module settings editing is planned.")),
+		container.NewTabItem("Status Message", newSettingsPlaceholderPage("Status Message module settings editing is planned.")),
+	)
+	moduleTabs.SetTabLocation(container.TabLocationTop)
+
+	importExportTab := newDisabledTopLevelPage("Import/Export is planned and currently disabled.")
+	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
+
+	topTabs := container.NewAppTabs(
+		container.NewTabItem("Radio configuration", radioTabs),
+		container.NewTabItem("Device configuration", deviceTabs),
+		container.NewTabItem("Module configuration", moduleTabs),
+		container.NewTabItem("Import/Export", importExportTab),
+		container.NewTabItem("Maintenance", maintenanceTab),
+	)
+	topTabs.SetTabLocation(container.TabLocationTop)
+	topTabs.DisableIndex(3)
+	topTabs.DisableIndex(4)
+
+	return topTabs
+}
+
+func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) fyne.CanvasObject {
+	const pageID = "device.user"
+
+	status := widget.NewLabel("Loading local node user settings…")
+	status.Wrapping = fyne.TextWrapWord
+	connectionStateLabel := widget.NewLabel("")
+
+	nodeIDLabel := widget.NewLabel("unknown")
+	nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
+
+	longNameEntry := widget.NewEntry()
+	shortNameEntry := widget.NewEntry()
+	hamLicensedBox := widget.NewCheck("", nil)
+	unmessageableBox := widget.NewCheck("", nil)
+
+	saveButton := widget.NewButton("Save", nil)
+	cancelButton := widget.NewButton("Cancel", nil)
+	reloadButton := widget.NewButton("Reload", nil)
+
+	form := widget.NewForm(
+		widget.NewFormItem("Node ID", nodeIDLabel),
+		widget.NewFormItem("Long Name", longNameEntry),
+		widget.NewFormItem("Short Name", shortNameEntry),
+		widget.NewFormItem("Licensed amateur radio (HAM)", hamLicensedBox),
+		widget.NewFormItem("Unmessageable", unmessageableBox),
+	)
+
+	var (
+		current      app.NodeUserSettings
+		baseline     app.NodeUserSettings
+		dirty        bool
+		saving       bool
+		mu           sync.Mutex
+		applyingForm atomic.Bool
+	)
+
+	isConnected := func() bool {
+		if dep.Data.CurrentConnStatus == nil {
+			return false
+		}
+		status, known := dep.Data.CurrentConnStatus()
+		if !known {
+			return false
+		}
+
+		return status.State == connectors.ConnectionStateConnected
+	}
+
+	localTarget := func() (app.NodeSettingsTarget, bool) {
+		if dep.Data.LocalNodeID == nil {
+			return app.NodeSettingsTarget{}, false
+		}
+		nodeID := strings.TrimSpace(dep.Data.LocalNodeID())
+		if nodeID == "" {
+			return app.NodeSettingsTarget{}, false
+		}
+
+		return app.NodeSettingsTarget{NodeID: nodeID, IsLocal: true}, true
+	}
+
+	setForm := func(settings app.NodeUserSettings) {
+		nodeIDLabel.SetText(orUnknown(settings.NodeID))
+		longNameEntry.SetText(settings.LongName)
+		shortNameEntry.SetText(settings.ShortName)
+		hamLicensedBox.SetChecked(settings.HamLicensed)
+		unmessageableBox.SetChecked(settings.IsUnmessageable)
+	}
+
+	currentFromForm := func() app.NodeUserSettings {
+		return app.NodeUserSettings{
+			NodeID:          strings.TrimSpace(nodeIDLabel.Text),
+			LongName:        strings.TrimSpace(longNameEntry.Text),
+			ShortName:       strings.TrimSpace(shortNameEntry.Text),
+			HamLicensed:     hamLicensedBox.Checked,
+			IsUnmessageable: unmessageableBox.Checked,
+		}
+	}
+
+	applyForm := func(settings app.NodeUserSettings) {
+		applyingForm.Store(true)
+		setForm(settings)
+		applyingForm.Store(false)
+	}
+
+	updateConnectionLabel := func() {
+		if isConnected() {
+			connectionStateLabel.SetText("Device connection: connected")
+		} else {
+			connectionStateLabel.SetText("Device connection: disconnected")
+		}
+	}
+
+	updateButtons := func() {
+		mu.Lock()
+		activePage := ""
+		if saveGate != nil {
+			activePage = strings.TrimSpace(saveGate.ActivePage())
+		}
+		connected := isConnected()
+		canSave := dep.Actions.NodeSettings != nil && connected && !saving && dirty && (activePage == "" || activePage == pageID)
+		canCancel := !saving && dirty
+		mu.Unlock()
+
+		if canSave {
+			saveButton.Enable()
+		} else {
+			saveButton.Disable()
+		}
+		if canCancel {
+			cancelButton.Enable()
+		} else {
+			cancelButton.Disable()
+		}
+
+		if dep.Actions.NodeSettings == nil {
+			reloadButton.Disable()
+		} else {
+			reloadButton.Enable()
+		}
+	}
+
+	refreshFromLocalStore := func() {
+		target, ok := localTarget()
+		if !ok {
+			status.SetText("Local node ID is not available yet.")
+
+			return
+		}
+		next := app.NodeUserSettings{
+			NodeID: target.NodeID,
+		}
+		if dep.Data.NodeStore != nil {
+			node, known := localNodeSnapshot(dep.Data.NodeStore, dep.Data.LocalNodeID)
+			if known {
+				next.LongName = strings.TrimSpace(node.LongName)
+				next.ShortName = strings.TrimSpace(node.ShortName)
+				next.IsUnmessageable = node.IsUnmessageable != nil && *node.IsUnmessageable
 			}
+		}
+
+		shouldApply := false
+		mu.Lock()
+		if !dirty && !saving {
+			baseline = next
+			current = next
+			shouldApply = true
+		}
+		mu.Unlock()
+		if shouldApply {
+			applyForm(next)
+			status.SetText("Loaded local node user settings.")
+		}
+		updateConnectionLabel()
+		updateButtons()
+	}
+
+	markDirty := func() {
+		if applyingForm.Load() {
+			return
+		}
+		mu.Lock()
+		current = currentFromForm()
+		dirty = current != baseline
+		mu.Unlock()
+		updateButtons()
+	}
+
+	longNameEntry.OnChanged = func(_ string) { markDirty() }
+	shortNameEntry.OnChanged = func(_ string) { markDirty() }
+	hamLicensedBox.OnChanged = func(_ bool) { markDirty() }
+	unmessageableBox.OnChanged = func(_ bool) { markDirty() }
+
+	cancelButton.OnTapped = func() {
+		var settings app.NodeUserSettings
+		mu.Lock()
+		settings = baseline
+		current = settings
+		dirty = false
+		mu.Unlock()
+		applyForm(settings)
+		status.SetText("Local edits reverted.")
+		updateButtons()
+	}
+
+	saveButton.OnTapped = func() {
+		if dep.Actions.NodeSettings == nil {
+			status.SetText("Save is unavailable: node settings service is not configured.")
+
+			return
+		}
+		if !isConnected() {
+			status.SetText("Save is unavailable while disconnected.")
+			updateButtons()
+
+			return
+		}
+		target, ok := localTarget()
+		if !ok {
+			status.SetText("Save failed: local node ID is not known yet.")
+
+			return
+		}
+		if saveGate != nil && !saveGate.TryAcquire(pageID) {
+			status.SetText("Another settings save is in progress on a different page.")
+			updateButtons()
+
+			return
+		}
+
+		mu.Lock()
+		saving = true
+		current = currentFromForm()
+		next := current
+		mu.Unlock()
+		status.SetText("Saving user settings…")
+		updateButtons()
+
+		go func(settings app.NodeUserSettings) {
+			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
+			defer cancel()
+			err := dep.Actions.NodeSettings.SaveUserSettings(ctx, target, settings)
+			fyne.Do(func() {
+				mu.Lock()
+				saving = false
+				if saveGate != nil {
+					saveGate.Release(pageID)
+				}
+				if err != nil {
+					status.SetText("Save failed: " + err.Error())
+				} else {
+					baseline = settings
+					current = settings
+					dirty = false
+					status.SetText("Saved user settings.")
+				}
+				mu.Unlock()
+				updateConnectionLabel()
+				updateButtons()
+			})
+		}(next)
+	}
+
+	reloadButton.OnTapped = func() {
+		target, ok := localTarget()
+		if !ok {
+			status.SetText("Reload failed: local node ID is not known yet.")
+
+			return
+		}
+		if dep.Actions.NodeSettings == nil {
+			refreshFromLocalStore()
+
+			return
+		}
+		if !isConnected() {
+			status.SetText("Reload from device is unavailable while disconnected.")
+
+			return
+		}
+
+		status.SetText("Reloading user settings from device…")
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
+			defer cancel()
+			loaded, err := dep.Actions.NodeSettings.LoadUserSettings(ctx, target)
+			fyne.Do(func() {
+				if err != nil {
+					status.SetText("Reload failed: " + err.Error())
+					updateButtons()
+
+					return
+				}
+				var settings app.NodeUserSettings
+				mu.Lock()
+				baseline = loaded
+				current = loaded
+				dirty = false
+				settings = current
+				mu.Unlock()
+				applyForm(settings)
+				status.SetText("Reloaded user settings from device.")
+				updateButtons()
+			})
 		}()
 	}
 
-	return tabs
-}
+	refreshFromLocalStore()
 
-func newNodeOverviewView() (fyne.CanvasObject, *nodeOverviewView) {
-	view := &nodeOverviewView{
-		statusLabel:   widget.NewLabel("Local node is not known yet."),
-		nodeIDLabel:   widget.NewLabel("unknown"),
-		displayName:   widget.NewLabel("unknown"),
-		longName:      widget.NewLabel("unknown"),
-		shortName:     widget.NewLabel("unknown"),
-		hardwareModel: widget.NewLabel("unknown"),
-		role:          widget.NewLabel("unknown"),
-		unmessageable: widget.NewLabel("unknown"),
-		charge:        widget.NewLabel("unknown"),
-		voltage:       widget.NewLabel("unknown"),
-		temperature:   widget.NewLabel("unknown"),
-		humidity:      widget.NewLabel("unknown"),
-		pressure:      widget.NewLabel("unknown"),
-		airQuality:    widget.NewLabel("unknown"),
-		powerVoltage:  widget.NewLabel("unknown"),
-		powerCurrent:  widget.NewLabel("unknown"),
-		rssi:          widget.NewLabel("unknown"),
-		snr:           widget.NewLabel("unknown"),
-		lastHeard:     widget.NewLabel("unknown"),
-		lastUpdated:   widget.NewLabel("unknown"),
+	if dep.Data.NodeStore != nil {
+		go func() {
+			for range dep.Data.NodeStore.Changes() {
+				fyne.Do(func() {
+					refreshFromLocalStore()
+				})
+			}
+		}()
 	}
-	view.nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
-
-	content := container.NewVBox(
-		view.statusLabel,
-		widget.NewCard("Identity", "", widget.NewForm(
-			widget.NewFormItem("Node ID", view.nodeIDLabel),
-			widget.NewFormItem("Display Name", view.displayName),
-			widget.NewFormItem("Long Name", view.longName),
-			widget.NewFormItem("Short Name", view.shortName),
-			widget.NewFormItem("Hardware Model", view.hardwareModel),
-			widget.NewFormItem("Role", view.role),
-			widget.NewFormItem("Unmessageable", view.unmessageable),
-		)),
-		widget.NewCard("Telemetry", "", widget.NewForm(
-			widget.NewFormItem("Charge", view.charge),
-			widget.NewFormItem("Voltage", view.voltage),
-			widget.NewFormItem("Temperature", view.temperature),
-			widget.NewFormItem("Humidity", view.humidity),
-			widget.NewFormItem("Pressure", view.pressure),
-			widget.NewFormItem("Air Quality Index", view.airQuality),
-			widget.NewFormItem("Power Voltage", view.powerVoltage),
-			widget.NewFormItem("Power Current", view.powerCurrent),
-			widget.NewFormItem("RSSI", view.rssi),
-			widget.NewFormItem("SNR", view.snr),
-			widget.NewFormItem("Last Heard", view.lastHeard),
-			widget.NewFormItem("Updated", view.lastUpdated),
-		)),
-	)
-
-	return container.NewVScroll(content), view
-}
-
-func newNodeUserView() (fyne.CanvasObject, *nodeUserView) {
-	longNameEntry := widget.NewEntry()
-	longNameEntry.Disable()
-	shortNameEntry := widget.NewEntry()
-	shortNameEntry.Disable()
-
-	unmessageableBox := widget.NewCheck("", nil)
-	unmessageableBox.Disable()
-
-	hamLicensedBox := widget.NewCheck("", nil)
-	hamLicensedBox.Disable()
-
-	view := &nodeUserView{
-		nodeIDLabel:      widget.NewLabel("unknown"),
-		longNameEntry:    longNameEntry,
-		shortNameEntry:   shortNameEntry,
-		hardwareModel:    widget.NewLabel("unknown"),
-		unmessageableBox: unmessageableBox,
-		hamLicensedBox:   hamLicensedBox,
+	if dep.Data.Bus != nil {
+		connSub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
+		go func() {
+			for range connSub {
+				fyne.Do(func() {
+					updateConnectionLabel()
+					updateButtons()
+				})
+			}
+		}()
 	}
-	view.nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
-
-	form := widget.NewForm(
-		widget.NewFormItem("Node ID", view.nodeIDLabel),
-		widget.NewFormItem("Long Name", view.longNameEntry),
-		widget.NewFormItem("Short Name", view.shortNameEntry),
-		widget.NewFormItem("Hardware Model", view.hardwareModel),
-		widget.NewFormItem("Unmessageable", view.unmessageableBox),
-		widget.NewFormItem("Licensed amateur radio (HAM)", view.hamLicensedBox),
-	)
-
-	saveButton := widget.NewButton("Save", nil)
-	saveButton.Disable()
+	updateConnectionLabel()
+	updateButtons()
 
 	return container.NewVBox(
-		widget.NewLabel("Draft settings. Editing and saving are not implemented yet."),
+		widget.NewLabel("User settings can be edited and saved per page. Only one settings save can run at a time."),
+		connectionStateLabel,
+		status,
 		form,
-		saveButton,
-	), view
+		container.NewHBox(reloadButton, cancelButton, saveButton),
+	)
 }
 
-func (v *nodeOverviewView) Update(node domain.Node, known bool) {
-	if known {
-		v.statusLabel.SetText("Local node data loaded.")
-	} else {
-		v.statusLabel.SetText("Local node data is incomplete or not loaded yet.")
-	}
+func newSettingsPlaceholderPage(text string) fyne.CanvasObject {
+	status := widget.NewLabel(text)
+	status.Wrapping = fyne.TextWrapWord
+	saveButton := widget.NewButton("Save", nil)
+	saveButton.Disable()
+	cancelButton := widget.NewButton("Cancel", nil)
+	cancelButton.Disable()
 
-	v.nodeIDLabel.SetText(nodeIDOrUnknown(node.NodeID))
-	v.displayName.SetText(nodeDisplayNameOrUnknown(node))
-	v.longName.SetText(orUnknown(node.LongName))
-	v.shortName.SetText(orUnknown(node.ShortName))
-	v.hardwareModel.SetText(orUnknown(node.BoardModel))
-	v.role.SetText(orUnknown(node.Role))
-	v.unmessageable.SetText(boolPtrText(node.IsUnmessageable))
-	v.charge.SetText(chargeOrUnknown(node.BatteryLevel))
-	v.voltage.SetText(voltageOrUnknown(node.Voltage))
-	v.temperature.SetText(temperatureOrUnknown(node.Temperature))
-	v.humidity.SetText(humidityOrUnknown(node.Humidity))
-	v.pressure.SetText(pressureOrUnknown(node.Pressure))
-	v.airQuality.SetText(aqiOrUnknown(node.AirQualityIndex))
-	v.powerVoltage.SetText(voltageOrUnknown(node.PowerVoltage))
-	v.powerCurrent.SetText(currentOrUnknown(node.PowerCurrent))
-	v.rssi.SetText(intOrUnknown(node.RSSI))
-	v.snr.SetText(floatOrUnknown(node.SNR))
-	v.lastHeard.SetText(timeOrUnknown(node.LastHeardAt))
-	v.lastUpdated.SetText(timeOrUnknown(node.UpdatedAt))
+	return container.NewVBox(
+		widget.NewLabel("This settings page is scaffolded and will be implemented in a follow-up step."),
+		status,
+		container.NewHBox(cancelButton, saveButton),
+	)
 }
 
-func (v *nodeUserView) Update(node domain.Node) {
-	v.nodeIDLabel.SetText(nodeIDOrUnknown(node.NodeID))
-	v.longNameEntry.SetText(strings.TrimSpace(node.LongName))
-	v.shortNameEntry.SetText(strings.TrimSpace(node.ShortName))
-	v.hardwareModel.SetText(orUnknown(node.BoardModel))
-	v.unmessageableBox.SetChecked(node.IsUnmessageable != nil && *node.IsUnmessageable)
-	// HAM flag is not available in the current domain model yet.
-	v.hamLicensedBox.SetChecked(false)
+func newDisabledTopLevelPage(text string) fyne.CanvasObject {
+	label := widget.NewLabel(text)
+	label.Wrapping = fyne.TextWrapWord
+
+	return container.NewVBox(
+		widget.NewLabel("Disabled"),
+		label,
+	)
 }
 
 func localNodeSnapshot(store *domain.NodeStore, localNodeID func() string) (domain.Node, bool) {
@@ -229,22 +467,6 @@ func localNodeSnapshot(store *domain.NodeStore, localNodeID func() string) (doma
 	return node, true
 }
 
-func nodeIDOrUnknown(nodeID string) string {
-	if v := strings.TrimSpace(nodeID); v != "" {
-		return v
-	}
-
-	return "unknown"
-}
-
-func nodeDisplayNameOrUnknown(node domain.Node) string {
-	if v := strings.TrimSpace(nodeDisplayName(node)); v != "" {
-		return v
-	}
-
-	return "unknown"
-}
-
 func orUnknown(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
@@ -252,98 +474,4 @@ func orUnknown(v string) string {
 	}
 
 	return v
-}
-
-func boolPtrText(v *bool) string {
-	if v == nil {
-		return "unknown"
-	}
-	if *v {
-		return "yes"
-	}
-
-	return "no"
-}
-
-func chargeOrUnknown(level *uint32) string {
-	if level == nil {
-		return "unknown"
-	}
-	if *level > 100 {
-		return "external"
-	}
-
-	return fmt.Sprintf("%d%%", *level)
-}
-
-func voltageOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.2fV", *value)
-}
-
-func temperatureOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.1f C", *value)
-}
-
-func humidityOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.1f%%", *value)
-}
-
-func pressureOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.1f hPa", *value)
-}
-
-func aqiOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.1f", *value)
-}
-
-func currentOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.3fA", *value)
-}
-
-func intOrUnknown(value *int) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%d", *value)
-}
-
-func floatOrUnknown(value *float64) string {
-	if value == nil {
-		return "unknown"
-	}
-
-	return fmt.Sprintf("%.2f", *value)
-}
-
-func timeOrUnknown(v time.Time) string {
-	if v.IsZero() {
-		return "unknown"
-	}
-
-	return v.Local().Format("2006-01-02 15:04:05")
 }

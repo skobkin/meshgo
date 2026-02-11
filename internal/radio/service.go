@@ -15,6 +15,7 @@ import (
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"github.com/skobkin/meshgo/internal/transport"
 )
 
@@ -175,6 +176,9 @@ func (s *Service) runReader(ctx context.Context) error {
 		if decoded.TextMessage != nil {
 			s.bus.Publish(connectors.TopicTextMessage, *decoded.TextMessage)
 		}
+		if decoded.AdminMessage != nil {
+			s.bus.Publish(connectors.TopicAdminMessage, *decoded.AdminMessage)
+		}
 		if decoded.MessageStatus != nil {
 			status := *decoded.MessageStatus
 			if status.Status == domain.MessageStatusSent && s.isAckTracked(status.DeviceMessageID) {
@@ -275,6 +279,25 @@ func (s *Service) sendWantConfig(ctx context.Context) error {
 	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
 
 	return nil
+}
+
+func (s *Service) SendAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+	if payload == nil {
+		return "", fmt.Errorf("admin payload is required")
+	}
+	encoded, err := s.codec.EncodeAdmin(to, channel, wantResponse, payload)
+	if err != nil {
+		return "", fmt.Errorf("encode admin payload: %w", err)
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	err = s.transport.WriteFrame(writeCtx, encoded.Payload)
+	cancel()
+	if err != nil {
+		return "", fmt.Errorf("send admin frame: %w", err)
+	}
+	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+
+	return encoded.DeviceMessageID, nil
 }
 
 func (s *Service) publishConnStatus(state connectors.ConnectionState, err error) {

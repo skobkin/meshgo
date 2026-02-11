@@ -97,6 +97,44 @@ func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) 
 	}, nil
 }
 
+func (c *MeshtasticCodec) EncodeAdmin(
+	to uint32,
+	channel uint32,
+	wantResponse bool,
+	payload *generated.AdminMessage,
+) (EncodedAdmin, error) {
+	if payload == nil {
+		return EncodedAdmin{}, fmt.Errorf("admin payload is required")
+	}
+	encodedAdmin, err := proto.Marshal(payload)
+	if err != nil {
+		return EncodedAdmin{}, fmt.Errorf("marshal admin payload: %w", err)
+	}
+	packetID := c.nextNonZeroID()
+	packet := &generated.MeshPacket{
+		To:       to,
+		Channel:  channel,
+		Id:       packetID,
+		WantAck:  true,
+		Priority: generated.MeshPacket_RELIABLE,
+		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+			Portnum:      generated.PortNum_ADMIN_APP,
+			Payload:      encodedAdmin,
+			WantResponse: wantResponse,
+		}},
+	}
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
+	encoded, err := proto.Marshal(wire)
+	if err != nil {
+		return EncodedAdmin{}, fmt.Errorf("marshal admin packet: %w", err)
+	}
+
+	return EncodedAdmin{
+		Payload:         encoded,
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+	}, nil
+}
+
 func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) {
 	out := DecodedFrame{Raw: payload}
 
@@ -190,6 +228,19 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 	case generated.PortNum_TELEMETRY_APP:
 		if nodeUpdate, ok := decodeNodeTelemetryFromPacket(packet, decoded.GetPayload(), now); ok {
 			out.NodeUpdate = &nodeUpdate
+		}
+	case generated.PortNum_ADMIN_APP:
+		var admin generated.AdminMessage
+		if err := proto.Unmarshal(decoded.GetPayload(), &admin); err != nil {
+			return
+		}
+		out.AdminMessage = &AdminMessageEvent{
+			From:      packet.GetFrom(),
+			To:        packet.GetTo(),
+			PacketID:  packet.GetId(),
+			RequestID: decoded.GetRequestId(),
+			ReplyID:   decoded.GetReplyId(),
+			Message:   &admin,
 		}
 	}
 }

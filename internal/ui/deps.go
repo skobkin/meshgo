@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
 
+	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
@@ -33,6 +36,10 @@ type ActionDependencies struct {
 	OnChatSelected func(chatKey string)
 	OnClearDB      func() error
 	OnQuit         func()
+	NodeSettings   interface {
+		LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)
+		SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
+	}
 }
 
 // PlatformDependencies contains OS-specific helpers used by UI actions.
