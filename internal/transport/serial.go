@@ -67,28 +67,39 @@ func (t *SerialTransport) Connected() bool {
 func (t *SerialTransport) Connect(ctx context.Context) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	logger := transportLogger("serial", "port", t.portName, "baud", t.baudRate)
+
 	if t.port != nil {
+		logger.Debug("connect skipped: already connected")
 		return nil
 	}
 	if err := ctx.Err(); err != nil {
+		logger.Debug("connect canceled", "error", err)
 		return err
 	}
 	if t.portName == "" {
+		logger.Warn("connect failed: port is empty")
 		return errors.New("serial port is empty")
 	}
 	if t.baudRate <= 0 {
+		logger.Warn("connect failed: invalid baud rate", "baud", t.baudRate)
 		return fmt.Errorf("invalid serial baud rate: %d", t.baudRate)
 	}
 
+	logger.Info("connecting")
 	port, err := serial.Open(t.portName, &serial.Mode{BaudRate: t.baudRate})
 	if err != nil {
+		logger.Warn("open port failed", "error", err)
 		return fmt.Errorf("open serial port %q: %w", t.portName, err)
 	}
 	if err := port.SetReadTimeout(defaultSerialReadTimeout); err != nil {
 		_ = port.Close()
+		logger.Warn("set read timeout failed", "timeout", defaultSerialReadTimeout, "error", err)
 		return fmt.Errorf("set serial read timeout: %w", err)
 	}
 	t.port = port
+	logger.Info("connected")
 
 	return nil
 }
@@ -96,17 +107,26 @@ func (t *SerialTransport) Connect(ctx context.Context) error {
 func (t *SerialTransport) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	logger := transportLogger("serial", "port", t.portName, "baud", t.baudRate)
 	if t.port == nil {
+		logger.Debug("close skipped: not connected")
 		return nil
 	}
 	err := t.port.Close()
 	t.port = nil
+	if err != nil {
+		logger.Warn("close failed", "error", err)
+		return err
+	}
+	logger.Info("closed")
 	return err
 }
 
 func (t *SerialTransport) ReadFrame(ctx context.Context) ([]byte, error) {
+	logger := transportLogger("serial")
 	port, err := t.currentPort()
 	if err != nil {
+		logger.Debug("read frame failed: not connected", "error", err)
 		return nil, err
 	}
 
@@ -114,19 +134,24 @@ func (t *SerialTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 		return t.readFull(ctx, port, buf)
 	})
 	if err != nil {
+		logger.Debug("read frame failed", "error", err)
 		return nil, err
 	}
+	logger.Debug("read frame", "len", len(payload))
 	return payload, nil
 }
 
 func (t *SerialTransport) WriteFrame(ctx context.Context, payload []byte) error {
+	logger := transportLogger("serial")
 	port, err := t.currentPort()
 	if err != nil {
+		logger.Debug("write frame failed: not connected", "error", err)
 		return err
 	}
 
 	frame, err := encodeFrame(payload)
 	if err != nil {
+		logger.Warn("encode frame failed", "payload_len", len(payload), "error", err)
 		return err
 	}
 
@@ -134,8 +159,10 @@ func (t *SerialTransport) WriteFrame(ctx context.Context, payload []byte) error 
 	defer t.writeMu.Unlock()
 
 	if err := writeFull(ctx, port, frame); err != nil {
+		logger.Warn("write frame failed", "payload_len", len(payload), "frame_len", len(frame), "error", err)
 		return fmt.Errorf("write frame: %w", err)
 	}
+	logger.Debug("write frame", "payload_len", len(payload), "frame_len", len(frame))
 	return nil
 }
 
