@@ -5,6 +5,7 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
+	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
 )
@@ -20,6 +21,7 @@ type Dependencies struct {
 		SendText(chatKey, text string) <-chan radio.SendResult
 	}
 	LocalNodeID             func() string
+	CurrentConnStatus       func() (connectors.ConnStatus, bool)
 	OnSave                  func(cfg config.AppConfig) error
 	OnChatSelected          func(chatKey string)
 	OnClearDB               func() error

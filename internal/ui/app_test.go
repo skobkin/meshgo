@@ -60,6 +60,34 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 	}
 }
 
+func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
+	dep := Dependencies{
+		Config: config.AppConfig{
+			Connection: config.ConnectionConfig{
+				Connector:        config.ConnectorSerial,
+				SerialPort:       "/dev/ttyACM0",
+				SerialBaud:       115200,
+				Host:             "",
+				BluetoothAddress: "",
+			},
+		},
+		CurrentConnStatus: func() (connectors.ConnStatus, bool) {
+			return connectors.ConnStatus{
+				State:         connectors.ConnectionStateConnected,
+				TransportName: "serial",
+			}, true
+		},
+	}
+
+	status := resolveInitialConnStatus(dep)
+	if status.State != connectors.ConnectionStateConnected {
+		t.Fatalf("expected cached connected status, got %q", status.State)
+	}
+	if status.TransportName != "serial" {
+		t.Fatalf("expected serial transport, got %q", status.TransportName)
+	}
+}
+
 func TestSidebarStatusIcon(t *testing.T) {
 	connected := sidebarStatusIcon(connectors.ConnStatus{
 		State: connectors.ConnectionStateConnected,

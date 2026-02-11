@@ -39,17 +39,18 @@ func run() error {
 	defer closeRuntime()
 
 	err = ui.Run(ui.Dependencies{
-		Config:           rt.Config,
-		ChatStore:        rt.ChatStore,
-		NodeStore:        rt.NodeStore,
-		Bus:              rt.Bus,
-		LastSelectedChat: rt.Config.UI.LastSelectedChat,
-		BluetoothScanner: ui.NewTinyGoBluetoothScanner(10 * time.Second),
-		Sender:           rt.Radio,
-		LocalNodeID:      rt.Radio.LocalNodeID,
-		OnSave:           rt.SaveAndApplyConfig,
-		OnChatSelected:   rt.RememberSelectedChat,
-		OnClearDB:        rt.ClearDatabase,
+		Config:            rt.Config,
+		ChatStore:         rt.ChatStore,
+		NodeStore:         rt.NodeStore,
+		Bus:               rt.Bus,
+		LastSelectedChat:  rt.Config.UI.LastSelectedChat,
+		BluetoothScanner:  ui.NewTinyGoBluetoothScanner(10 * time.Second),
+		Sender:            rt.Radio,
+		LocalNodeID:       rt.Radio.LocalNodeID,
+		CurrentConnStatus: rt.CurrentConnStatus,
+		OnSave:            rt.SaveAndApplyConfig,
+		OnChatSelected:    rt.RememberSelectedChat,
+		OnClearDB:         rt.ClearDatabase,
 		OnQuit: func() {
 			stop()
 			closeRuntime()

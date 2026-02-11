@@ -17,12 +17,14 @@ import (
 	"github.com/skobkin/meshgo/internal/resources"
 )
 
+const sidebarConnIconSize float32 = 32
+
 func Run(dep Dependencies) error {
 	fyApp := app.NewWithID("meshgo")
 	initialVariant := fyApp.Settings().ThemeVariant()
 	fyApp.SetIcon(resources.AppIconResource(initialVariant))
 
-	initialStatus := initialConnStatus(dep)
+	initialStatus := resolveInitialConnStatus(dep)
 	currentStatus := initialStatus
 	var connStatusMu sync.RWMutex
 	window := fyApp.NewWindow("")
@@ -106,7 +108,10 @@ func Run(dep Dependencies) error {
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
 	sidebarConnIcon := widget.NewIcon(resources.UIIconResource(sidebarStatusIcon(currentStatus), initialVariant))
-	left.Add(container.NewCenter(sidebarConnIcon))
+	left.Add(container.NewCenter(container.NewGridWrap(
+		fyne.NewSquareSize(sidebarConnIconSize),
+		sidebarConnIcon,
+	)))
 
 	setConnStatus := func(status connectors.ConnStatus) {
 		connStatusMu.Lock()
@@ -114,6 +119,7 @@ func Run(dep Dependencies) error {
 		connStatusMu.Unlock()
 		applyConnStatusUI(window, settingsConnStatus, sidebarConnIcon, status, fyApp.Settings().ThemeVariant())
 	}
+	setConnStatus(initialStatus)
 
 	setTrayIcon := func(_ fyne.ThemeVariant) {}
 	applyThemeResources := func(variant fyne.ThemeVariant) {
@@ -146,6 +152,9 @@ func Run(dep Dependencies) error {
 				})
 			}
 		}()
+	}
+	if status, ok := currentConnStatus(dep); ok {
+		setConnStatus(status)
 	}
 
 	content := container.NewBorder(nil, nil, left, nil, rightStack)
@@ -180,7 +189,6 @@ func Run(dep Dependencies) error {
 			}),
 		))
 	}
-	setConnStatus(initialStatus)
 	applyThemeResources(initialVariant)
 
 	window.Show()
@@ -222,6 +230,25 @@ func initialConnStatus(dep Dependencies) connectors.ConnStatus {
 		status.TransportName = string(dep.Config.Connection.Connector)
 	}
 	return status
+}
+
+func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
+	fallback := initialConnStatus(dep)
+	status, ok := currentConnStatus(dep)
+	if !ok || status.State == "" {
+		return fallback
+	}
+	if strings.TrimSpace(status.TransportName) == "" {
+		status.TransportName = fallback.TransportName
+	}
+	return status
+}
+
+func currentConnStatus(dep Dependencies) (connectors.ConnStatus, bool) {
+	if dep.CurrentConnStatus == nil {
+		return connectors.ConnStatus{}, false
+	}
+	return dep.CurrentConnStatus()
 }
 
 func formatConnStatus(status connectors.ConnStatus) string {

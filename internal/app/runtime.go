@@ -11,6 +11,7 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
+	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
@@ -40,6 +41,10 @@ type Runtime struct {
 
 	ConnectionTransport *ConnectionTransport
 	Radio               *radio.Service
+
+	connStatusMu    sync.RWMutex
+	connStatus      connectors.ConnStatus
+	connStatusKnown bool
 }
 
 func Initialize(parent context.Context) (*Runtime, error) {
@@ -91,6 +96,8 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	b := bus.New(logMgr.Logger("bus"))
 	rt.Bus = b
+	connSub := b.Subscribe(connectors.TopicConnStatus)
+	go rt.captureConnStatus(ctx, connSub)
 	nodeStore.Start(ctx, b)
 	chatStore.Start(ctx, b)
 
@@ -116,6 +123,39 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	rt.Radio.Start(ctx)
 
 	return rt, nil
+}
+
+func (r *Runtime) captureConnStatus(ctx context.Context, sub bus.Subscription) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case raw, ok := <-sub:
+			if !ok {
+				return
+			}
+			status, ok := raw.(connectors.ConnStatus)
+			if !ok {
+				continue
+			}
+			r.setConnStatus(status)
+		}
+	}
+}
+
+func (r *Runtime) setConnStatus(status connectors.ConnStatus) {
+	r.connStatusMu.Lock()
+	r.connStatus = status
+	r.connStatusKnown = true
+	r.connStatusMu.Unlock()
+}
+
+func (r *Runtime) CurrentConnStatus() (connectors.ConnStatus, bool) {
+	r.connStatusMu.RLock()
+	status := r.connStatus
+	known := r.connStatusKnown
+	r.connStatusMu.RUnlock()
+	return status, known
 }
 
 func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
