@@ -62,6 +62,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	logMgr := logging.NewManager()
 	if err := logMgr.Configure(cfg.Logging, paths.LogFile); err != nil {
+		_ = logMgr.Close()
 		cancel()
 		return nil, fmt.Errorf("configure logging: %w", err)
 	}
