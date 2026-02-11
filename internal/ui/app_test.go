@@ -26,8 +26,8 @@ func TestResolveNodeDisplayName_Priority(t *testing.T) {
 	if got := resolve("!22222222"); got != "ShortOnly" {
 		t.Fatalf("expected short name, got %q", got)
 	}
-	if got := resolve("!33333333"); got != "" {
-		t.Fatalf("expected empty fallback for id-only node, got %q", got)
+	if got := resolve("!33333333"); got != "!33333333" {
+		t.Fatalf("expected node id fallback for id-only node, got %q", got)
 	}
 }
 

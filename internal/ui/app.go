@@ -5,12 +5,13 @@ import (
 	"sync"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
+	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
@@ -20,7 +21,7 @@ import (
 const sidebarConnIconSize float32 = 32
 
 func Run(dep Dependencies) error {
-	fyApp := app.NewWithID("meshgo")
+	fyApp := fyneapp.NewWithID("meshgo")
 	initialVariant := fyApp.Settings().ThemeVariant()
 	fyApp.SetIcon(resources.AppIconResource(initialVariant))
 
@@ -225,33 +226,7 @@ func disabledTab(text string) fyne.CanvasObject {
 }
 
 func initialConnStatus(dep Dependencies) connectors.ConnStatus {
-	status := connectors.ConnStatus{
-		State:         connectors.ConnectionStateDisconnected,
-		TransportName: "unknown",
-	}
-	switch dep.Config.Connection.Connector {
-	case config.ConnectorIP:
-		status.TransportName = "ip"
-		status.Target = strings.TrimSpace(dep.Config.Connection.Host)
-		if strings.TrimSpace(dep.Config.Connection.Host) != "" {
-			status.State = connectors.ConnectionStateConnecting
-		}
-	case config.ConnectorSerial:
-		status.TransportName = "serial"
-		status.Target = strings.TrimSpace(dep.Config.Connection.SerialPort)
-		if strings.TrimSpace(dep.Config.Connection.SerialPort) != "" {
-			status.State = connectors.ConnectionStateConnecting
-		}
-	case config.ConnectorBluetooth:
-		status.TransportName = "bluetooth"
-		status.Target = strings.TrimSpace(dep.Config.Connection.BluetoothAddress)
-		if strings.TrimSpace(dep.Config.Connection.BluetoothAddress) != "" {
-			status.State = connectors.ConnectionStateConnecting
-		}
-	default:
-		status.TransportName = string(dep.Config.Connection.Connector)
-	}
-	return status
+	return meshapp.ConnectionStatusFromConfig(dep.Config.Connection)
 }
 
 func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
@@ -298,13 +273,10 @@ func formatConnStatus(status connectors.ConnStatus, localShortName string) strin
 }
 
 func transportDisplayName(name string) string {
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case string(config.ConnectorIP):
-		return connectorOptionIP
-	case string(config.ConnectorSerial):
-		return connectorOptionSerial
-	case string(config.ConnectorBluetooth):
-		return connectorOptionBluetooth
+	normalized := config.ConnectorType(strings.ToLower(strings.TrimSpace(name)))
+	switch normalized {
+	case config.ConnectorIP, config.ConnectorSerial, config.ConnectorBluetooth:
+		return connectorOptionFromType(normalized)
 	default:
 		return strings.TrimSpace(name)
 	}
@@ -347,13 +319,7 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 		if !ok {
 			return ""
 		}
-		if v := strings.TrimSpace(node.LongName); v != "" {
-			return v
-		}
-		if v := strings.TrimSpace(node.ShortName); v != "" {
-			return v
-		}
-		return ""
+		return domain.NodeDisplayName(node)
 	}
 }
 
@@ -372,13 +338,7 @@ func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) st
 	if !ok {
 		return nodeID
 	}
-	if v := strings.TrimSpace(node.LongName); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(node.ShortName); v != "" {
-		return v
-	}
-	return nodeID
+	return domain.NodeDisplayName(node)
 }
 
 func nodeChanges(store *domain.NodeStore) <-chan struct{} {

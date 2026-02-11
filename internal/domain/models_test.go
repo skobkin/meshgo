@@ -23,3 +23,22 @@ func TestShouldTransitionMessageStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeDisplayName(t *testing.T) {
+	tests := []struct {
+		name string
+		node Node
+		want string
+	}{
+		{name: "long name preferred", node: Node{NodeID: "!11111111", LongName: "Long", ShortName: "Short"}, want: "Long"},
+		{name: "short name fallback", node: Node{NodeID: "!11111111", ShortName: "Short"}, want: "Short"},
+		{name: "node id fallback", node: Node{NodeID: "!11111111"}, want: "!11111111"},
+		{name: "empty when all empty", node: Node{}, want: ""},
+	}
+
+	for _, tc := range tests {
+		if got := NodeDisplayName(tc.node); got != tc.want {
+			t.Fatalf("%s: expected %q, got %q", tc.name, tc.want, got)
+		}
+	}
+}

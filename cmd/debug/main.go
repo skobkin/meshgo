@@ -289,7 +289,7 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 				}
 			case raw := <-nodeSub:
 				if node, ok := raw.(domain.NodeUpdate); ok {
-					logger.Info("node", "id", node.Node.NodeID, "name", node.Node.LongName)
+					logger.Info("node", "id", node.Node.NodeID, "name", domain.NodeDisplayName(node.Node))
 				}
 			case raw := <-textSub:
 				if msg, ok := raw.(domain.ChatMessage); ok {
@@ -324,10 +324,7 @@ func logInitialSnapshot(logger *slog.Logger, nodeStore *domain.NodeStore, chatSt
 			logger.Info("node summary truncated", "remaining", len(nodes)-i)
 			break
 		}
-		name := strings.TrimSpace(node.LongName)
-		if name == "" {
-			name = node.NodeID
-		}
+		name := domain.NodeDisplayName(node)
 		logger.Info("node item", "id", node.NodeID, "name", name, "heard", node.LastHeardAt.Format(time.RFC3339))
 	}
 
@@ -351,16 +348,21 @@ func previewHex(hex string) string {
 }
 
 func connectionTarget(connection config.ConnectionConfig) string {
+	baseTarget := app.ConnectionTarget(connection)
+
 	switch connection.Connector {
-	case config.ConnectorIP:
-		return connection.Host
 	case config.ConnectorSerial:
-		return fmt.Sprintf("%s@%d", connection.SerialPort, connection.SerialBaud)
+		return fmt.Sprintf("%s@%d", baseTarget, connection.SerialBaud)
 	case config.ConnectorBluetooth:
-		if adapter := strings.TrimSpace(connection.BluetoothAdapter); adapter != "" {
-			return fmt.Sprintf("%s (%s)", connection.BluetoothAddress, adapter)
+		if baseTarget == "" {
+			return ""
 		}
-		return connection.BluetoothAddress
+		if adapter := strings.TrimSpace(connection.BluetoothAdapter); adapter != "" {
+			return fmt.Sprintf("%s (%s)", baseTarget, adapter)
+		}
+		return baseTarget
+	case config.ConnectorIP:
+		return baseTarget
 	default:
 		return string(connection.Connector)
 	}

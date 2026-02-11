@@ -69,16 +69,7 @@ func (t *ConnectionTransport) StatusTarget() string {
 		}
 	}
 
-	switch cfg.Connector {
-	case config.ConnectorIP:
-		return strings.TrimSpace(cfg.Host)
-	case config.ConnectorSerial:
-		return strings.TrimSpace(cfg.SerialPort)
-	case config.ConnectorBluetooth:
-		return strings.TrimSpace(cfg.BluetoothAddress)
-	default:
-		return ""
-	}
+	return ConnectionTarget(cfg)
 }
 
 func (t *ConnectionTransport) Connect(ctx context.Context) error {
