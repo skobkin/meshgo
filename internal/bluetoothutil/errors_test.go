@@ -59,6 +59,20 @@ func TestIsScanAlreadyInProgressError(t *testing.T) {
 	}
 }
 
+func TestNormalizeScanError(t *testing.T) {
+	if got := NormalizeScanError(nil); got != nil {
+		t.Fatalf("expected nil for nil error, got %v", got)
+	}
+	benign := dbus.NewError("org.bluez.Error.NotReady", nil)
+	if got := NormalizeScanError(benign); got != nil {
+		t.Fatalf("expected nil for benign error, got %v", got)
+	}
+	serious := testErr("serious scan error")
+	if got := NormalizeScanError(serious); got == nil || got.Error() != serious.Error() {
+		t.Fatalf("expected serious error passthrough, got %v", got)
+	}
+}
+
 type testErr string
 
 func (e testErr) Error() string {

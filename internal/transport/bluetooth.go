@@ -21,13 +21,6 @@ const (
 	defaultBluetoothDiscoverWait   = 12 * time.Second
 )
 
-var (
-	meshtasticServiceUUID   = mustParseBluetoothUUID("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
-	meshtasticToRadioUUID   = mustParseBluetoothUUID("f75c76d2-129e-4dad-a1dd-7866124401e7")
-	meshtasticFromRadioUUID = mustParseBluetoothUUID("2c55e69e-4993-11ed-b878-0242ac120002")
-	meshtasticFromNumUUID   = mustParseBluetoothUUID("ed9da18c-a800-4f66-a670-aa7547e34453")
-)
-
 type bluetoothConnState struct {
 	device    bluetooth.Device
 	toRadio   bluetooth.DeviceCharacteristic
@@ -120,7 +113,7 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 		return fmt.Errorf("connect bluetooth device %q: %w", t.address, err)
 	}
 
-	services, err := device.DiscoverServices([]bluetooth.UUID{meshtasticServiceUUID})
+	services, err := device.DiscoverServices([]bluetooth.UUID{bluetoothutil.MeshtasticServiceUUID()})
 	if err != nil {
 		_ = device.Disconnect()
 		return fmt.Errorf("discover meshtastic service: %w", err)
@@ -131,9 +124,9 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 	}
 
 	chars, err := services[0].DiscoverCharacteristics([]bluetooth.UUID{
-		meshtasticToRadioUUID,
-		meshtasticFromRadioUUID,
-		meshtasticFromNumUUID,
+		bluetoothutil.MeshtasticToRadioUUID(),
+		bluetoothutil.MeshtasticFromRadioUUID(),
+		bluetoothutil.MeshtasticFromNumUUID(),
 	})
 	if err != nil {
 		_ = device.Disconnect()
@@ -387,14 +380,6 @@ func parseBluetoothAddress(raw string) (bluetooth.Address, error) {
 	return bluetooth.Address{MACAddress: bluetooth.MACAddress{MAC: mac}}, nil
 }
 
-func mustParseBluetoothUUID(raw string) bluetooth.UUID {
-	uuid, err := bluetooth.ParseUUID(strings.TrimSpace(raw))
-	if err != nil {
-		panic(fmt.Sprintf("invalid bluetooth UUID %q: %v", raw, err))
-	}
-	return uuid
-}
-
 func shouldRetryBluetoothConnectWithDiscovery(err error) bool {
 	if err == nil || runtime.GOOS != "linux" {
 		return false
@@ -411,7 +396,7 @@ func shouldRetryBluetoothConnectWithDiscovery(err error) bool {
 }
 
 func discoverBluetoothDevice(ctx context.Context, adapter *bluetooth.Adapter, target bluetooth.Address) error {
-	if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+	if err := bluetoothutil.StopScan(adapter); err != nil {
 		return fmt.Errorf("reset bluetooth scan state: %w", err)
 	}
 
@@ -442,11 +427,11 @@ func discoverBluetoothDevice(ctx context.Context, adapter *bluetooth.Adapter, ta
 	case <-foundCh:
 		found = true
 	case <-scanCtx.Done():
-		_ = adapter.StopScan()
+		_ = bluetoothutil.StopScan(adapter)
 	}
 
 	scanErr := <-scanErrCh
-	if scanErr != nil && !bluetoothutil.IsBenignStopScanError(scanErr) {
+	if scanErr = bluetoothutil.NormalizeScanError(scanErr); scanErr != nil {
 		return fmt.Errorf("scan bluetooth devices: %w", scanErr)
 	}
 

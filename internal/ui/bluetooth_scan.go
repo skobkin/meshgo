@@ -15,8 +15,6 @@ import (
 
 const defaultBluetoothScanDuration = 10 * time.Second
 
-var meshtasticScanServiceUUID = mustParseBluetoothScanUUID("6ba1b218-15a8-461f-9fa8-5dcae273eafd")
-
 type BluetoothScanDevice struct {
 	Name                 string
 	Address              string
@@ -48,7 +46,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	if err := adapter.Enable(); err != nil {
 		return nil, fmt.Errorf("enable bluetooth adapter: %w", err)
 	}
-	if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+	if err := bluetoothutil.StopScan(adapter); err != nil {
 		return nil, fmt.Errorf("reset bluetooth scan state: %w", err)
 	}
 
@@ -109,7 +107,7 @@ func runBluetoothScan(adapter *bluetooth.Adapter, callback func(*bluetooth.Adapt
 		if !bluetoothutil.IsScanAlreadyInProgressError(err) {
 			return err
 		}
-		if stopErr := adapter.StopScan(); stopErr != nil && !bluetoothutil.IsBenignStopScanError(stopErr) {
+		if stopErr := bluetoothutil.StopScan(adapter); stopErr != nil {
 			return errors.Join(err, fmt.Errorf("stop stale bluetooth scan: %w", stopErr))
 		}
 	}
@@ -119,16 +117,16 @@ func runBluetoothScan(adapter *bluetooth.Adapter, callback func(*bluetooth.Adapt
 func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanErrCh <-chan error) error {
 	select {
 	case err := <-scanErrCh:
-		if err != nil {
+		if err = bluetoothutil.NormalizeScanError(err); err != nil {
 			return fmt.Errorf("scan bluetooth devices: %w", err)
 		}
 		return nil
 	case <-ctx.Done():
-		if err := adapter.StopScan(); err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+		if err := bluetoothutil.StopScan(adapter); err != nil {
 			return fmt.Errorf("stop bluetooth scan: %w", err)
 		}
 		err := <-scanErrCh
-		if err != nil && !bluetoothutil.IsBenignStopScanError(err) {
+		if err = bluetoothutil.NormalizeScanError(err); err != nil {
 			return fmt.Errorf("scan bluetooth devices: %w", err)
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -143,7 +141,7 @@ func scanDeviceFromResult(result bluetooth.ScanResult) BluetoothScanDevice {
 		Name:                 strings.TrimSpace(result.LocalName()),
 		Address:              normalizeBluetoothAddress(result.Address.String()),
 		RSSI:                 int(result.RSSI),
-		HasMeshtasticService: result.HasServiceUUID(meshtasticScanServiceUUID),
+		HasMeshtasticService: result.HasServiceUUID(bluetoothutil.MeshtasticServiceUUID()),
 	}
 }
 
@@ -203,12 +201,4 @@ func bluetoothScanDeviceAt(devices []BluetoothScanDevice, index int) (BluetoothS
 
 func normalizeBluetoothAddress(address string) string {
 	return strings.ToUpper(strings.TrimSpace(address))
-}
-
-func mustParseBluetoothScanUUID(raw string) bluetooth.UUID {
-	uuid, err := bluetooth.ParseUUID(strings.TrimSpace(raw))
-	if err != nil {
-		panic(fmt.Sprintf("invalid bluetooth UUID %q: %v", raw, err))
-	}
-	return uuid
 }
