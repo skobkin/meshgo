@@ -258,6 +258,7 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 	allNodes := store.SnapshotSorted()
 	appliedFilter := ""
 	nodes := filterNodesByName(allNodes, appliedFilter)
+	title := widget.NewLabel(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 
 	list := widget.NewList(
 		func() int { return len(nodes) },
@@ -279,6 +280,7 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 	applyFilter := func(value string) {
 		appliedFilter = value
 		nodes = filterNodesByName(allNodes, appliedFilter)
+		title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 		list.Refresh()
 	}
 
@@ -305,13 +307,21 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 			fyne.Do(func() {
 				allNodes = store.SnapshotSorted()
 				nodes = filterNodesByName(allNodes, appliedFilter)
+				title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 				list.Refresh()
 			})
 		}
 	}()
 
-	header := container.NewHBox(widget.NewLabel("Nodes"), layout.NewSpacer(), filterWidget)
+	header := container.NewHBox(title, layout.NewSpacer(), filterWidget)
 	return container.NewBorder(header, nil, nil, nil, list)
+}
+
+func nodeCountLabelText(total int, visible int, rawFilter string) string {
+	if strings.TrimSpace(rawFilter) == "" {
+		return fmt.Sprintf("Nodes (%d)", total)
+	}
+	return fmt.Sprintf("Nodes (%d/%d)", visible, total)
 }
 
 func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {

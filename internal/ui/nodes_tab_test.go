@@ -201,3 +201,24 @@ func TestFilterNodesByName(t *testing.T) {
 		}
 	})
 }
+
+func TestNodeCountLabelText(t *testing.T) {
+	tests := []struct {
+		name     string
+		total    int
+		visible  int
+		filter   string
+		expected string
+	}{
+		{name: "no filter shows total", total: 52, visible: 52, filter: "", expected: "Nodes (52)"},
+		{name: "whitespace filter counts as empty", total: 52, visible: 52, filter: "  ", expected: "Nodes (52)"},
+		{name: "active filter shows visible over total", total: 52, visible: 7, filter: "abc", expected: "Nodes (7/52)"},
+	}
+
+	for _, tt := range tests {
+		got := nodeCountLabelText(tt.total, tt.visible, tt.filter)
+		if got != tt.expected {
+			t.Fatalf("%s: got %q want %q", tt.name, got, tt.expected)
+		}
+	}
+}
