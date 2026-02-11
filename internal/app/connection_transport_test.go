@@ -32,11 +32,12 @@ func TestNewTransportForConnection(t *testing.T) {
 			want: "serial",
 		},
 		{
-			name: "bluetooth unsupported",
+			name: "bluetooth",
 			cfg: config.ConnectionConfig{
-				Connector: config.ConnectorBluetooth,
+				Connector:        config.ConnectorBluetooth,
+				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
 			},
-			wantErr: true,
+			want: "bluetooth",
 		},
 	}
 
@@ -100,10 +101,10 @@ func TestConnectionTransportApplyKeepsCurrentOnError(t *testing.T) {
 	}
 
 	err = connTr.Apply(config.ConnectionConfig{
-		Connector: config.ConnectorBluetooth,
+		Connector: config.ConnectorType("usb"),
 	})
 	if err == nil {
-		t.Fatalf("expected apply error for unsupported connector")
+		t.Fatalf("expected apply error for unknown connector")
 	}
 	if connTr.Name() != "ip" {
 		t.Fatalf("expected transport to remain ip after failed apply, got %q", connTr.Name())

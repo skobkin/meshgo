@@ -73,7 +73,16 @@ func TestAppConfigValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "bluetooth unsupported",
+			name: "valid bluetooth",
+			cfg: AppConfig{
+				Connection: ConnectionConfig{
+					Connector:        ConnectorBluetooth,
+					BluetoothAddress: "AA:BB:CC:DD:EE:FF",
+				},
+			},
+		},
+		{
+			name: "invalid bluetooth without address",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
 					Connector: ConnectorBluetooth,

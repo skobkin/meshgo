@@ -34,10 +34,12 @@ func main() {
 }
 
 func run() error {
-	connector := flag.String("connector", "", "connector type (ip|serial); defaults to config value")
+	connector := flag.String("connector", "", "connector type (ip|serial|bluetooth); defaults to config value")
 	host := flag.String("host", "", "ip/hostname")
 	serialPort := flag.String("serial-port", "", "serial port path/name (example: /dev/ttyACM0, COM3)")
 	serialBaud := flag.Int("serial-baud", 0, "serial baud rate (example: 115200)")
+	bluetoothAddress := flag.String("bluetooth-address", "", "bluetooth device address (example: AA:BB:CC:DD:EE:FF)")
+	bluetoothAdapter := flag.String("bluetooth-adapter", "", "bluetooth adapter id (example: hci0)")
 	noSubscribe := flag.Bool("no-subscribe", false, "exit after initial config download completes")
 	listenFor := flag.Duration("listen-for", 0, "listen duration, e.g. 30s")
 	flag.Parse()
@@ -67,6 +69,12 @@ func run() error {
 	}
 	if *serialBaud > 0 {
 		cfg.Connection.SerialBaud = *serialBaud
+	}
+	if strings.TrimSpace(*bluetoothAddress) != "" {
+		cfg.Connection.BluetoothAddress = strings.TrimSpace(*bluetoothAddress)
+	}
+	if strings.TrimSpace(*bluetoothAdapter) != "" {
+		cfg.Connection.BluetoothAdapter = strings.TrimSpace(*bluetoothAdapter)
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -348,6 +356,11 @@ func connectionTarget(connection config.ConnectionConfig) string {
 		return connection.Host
 	case config.ConnectorSerial:
 		return fmt.Sprintf("%s@%d", connection.SerialPort, connection.SerialBaud)
+	case config.ConnectorBluetooth:
+		if adapter := strings.TrimSpace(connection.BluetoothAdapter); adapter != "" {
+			return fmt.Sprintf("%s (%s)", connection.BluetoothAddress, adapter)
+		}
+		return connection.BluetoothAddress
 	default:
 		return string(connection.Connector)
 	}

@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 )
@@ -37,5 +38,23 @@ func TestFormatWindowTitle(t *testing.T) {
 	want := "MeshGo - connected via ip"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestInitialConnStatusBluetooth(t *testing.T) {
+	status := initialConnStatus(Dependencies{
+		Config: config.AppConfig{
+			Connection: config.ConnectionConfig{
+				Connector:        config.ConnectorBluetooth,
+				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
+			},
+		},
+	})
+
+	if status.TransportName != "bluetooth" {
+		t.Fatalf("expected bluetooth transport, got %q", status.TransportName)
+	}
+	if status.State != connectors.ConnectionStateConnecting {
+		t.Fatalf("expected connecting state, got %q", status.State)
 	}
 }

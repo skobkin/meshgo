@@ -201,6 +201,9 @@ func initialConnStatus(dep Dependencies) connectors.ConnStatus {
 		}
 	case config.ConnectorBluetooth:
 		status.TransportName = "bluetooth"
+		if strings.TrimSpace(dep.Config.Connection.BluetoothAddress) != "" {
+			status.State = connectors.ConnectionStateConnecting
+		}
 	default:
 		status.TransportName = string(dep.Config.Connection.Connector)
 	}

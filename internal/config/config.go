@@ -24,10 +24,12 @@ type LoggingConfig struct {
 }
 
 type ConnectionConfig struct {
-	Connector  ConnectorType `json:"connector"`
-	Host       string        `json:"host"`
-	SerialPort string        `json:"serial_port"`
-	SerialBaud int           `json:"serial_baud"`
+	Connector        ConnectorType `json:"connector"`
+	Host             string        `json:"host"`
+	SerialPort       string        `json:"serial_port"`
+	SerialBaud       int           `json:"serial_baud"`
+	BluetoothAddress string        `json:"bluetooth_address"`
+	BluetoothAdapter string        `json:"bluetooth_adapter"`
 }
 
 type UIConfig struct {
@@ -43,10 +45,12 @@ type AppConfig struct {
 func Default() AppConfig {
 	return AppConfig{
 		Connection: ConnectionConfig{
-			Connector:  ConnectorIP,
-			Host:       "",
-			SerialPort: "",
-			SerialBaud: DefaultSerialBaud,
+			Connector:        ConnectorIP,
+			Host:             "",
+			SerialPort:       "",
+			SerialBaud:       DefaultSerialBaud,
+			BluetoothAddress: "",
+			BluetoothAdapter: "",
 		},
 		Logging: LoggingConfig{
 			Level:     "info",
@@ -104,7 +108,9 @@ func (c AppConfig) Validate() error {
 			return errors.New("serial baud must be positive")
 		}
 	case ConnectorBluetooth:
-		return errors.New("bluetooth connector is not implemented")
+		if strings.TrimSpace(c.Connection.BluetoothAddress) == "" {
+			return errors.New("bluetooth address is required")
+		}
 	default:
 		return fmt.Errorf("unknown connector: %s", c.Connection.Connector)
 	}

@@ -110,7 +110,7 @@ func newTransportForConnection(cfg config.ConnectionConfig) (transport.Transport
 	case config.ConnectorSerial:
 		return transport.NewSerialTransport(cfg.SerialPort, cfg.SerialBaud), nil
 	case config.ConnectorBluetooth:
-		return nil, fmt.Errorf("connector %q is not implemented", cfg.Connector)
+		return transport.NewBluetoothTransport(cfg.BluetoothAddress, cfg.BluetoothAdapter), nil
 	default:
 		return nil, fmt.Errorf("unknown connector: %q", cfg.Connector)
 	}

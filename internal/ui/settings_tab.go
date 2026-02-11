@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"go.bug.st/serial"
@@ -19,9 +20,9 @@ import (
 )
 
 const (
-	connectorOptionIP                = "IP"
-	connectorOptionSerial            = "Serial"
-	connectorOptionBluetoothDisabled = "Bluetooth (disabled)"
+	connectorOptionIP        = "IP"
+	connectorOptionSerial    = "Serial"
+	connectorOptionBluetooth = "Bluetooth"
 )
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
@@ -33,7 +34,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	connectorSelect := widget.NewSelect([]string{
 		connectorOptionIP,
 		connectorOptionSerial,
-		connectorOptionBluetoothDisabled,
+		connectorOptionBluetooth,
 	}, nil)
 	connectorSelect.SetSelected(connectorOptionFromType(current.Connection.Connector))
 
@@ -58,6 +59,17 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 
 	serialBaudSelect := widget.NewSelect(uniqueValues(append(defaultSerialBaudOptions, strconv.Itoa(current.Connection.SerialBaud))), nil)
 	serialBaudSelect.SetSelected(strconv.Itoa(current.Connection.SerialBaud))
+
+	bluetoothAddressEntry := widget.NewEntry()
+	bluetoothAddressEntry.SetText(current.Connection.BluetoothAddress)
+	bluetoothAddressEntry.SetPlaceHolder("AA:BB:CC:DD:EE:FF")
+
+	bluetoothAdapterEntry := widget.NewEntry()
+	bluetoothAdapterEntry.SetText(current.Connection.BluetoothAdapter)
+	bluetoothAdapterEntry.SetPlaceHolder("hci0 (optional)")
+
+	bluetoothPairingHint := widget.NewLabel("Pair the node in OS Bluetooth settings before connecting.")
+	bluetoothPairingHint.Wrapping = fyne.TextWrapWord
 
 	refreshPorts := func() {
 		selectedPort := strings.TrimSpace(serialPortSelect.Selected)
@@ -97,33 +109,39 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	ipHostLabel := widget.NewLabel("IP Host")
 	serialPortLabel := widget.NewLabel("Serial Port")
 	serialBaudLabel := widget.NewLabel("Serial Baud")
+	bluetoothAddressLabel := widget.NewLabel("Bluetooth Address")
+	bluetoothAdapterLabel := widget.NewLabel("Bluetooth Adapter")
+	bluetoothHintLabel := widget.NewLabel("")
 
 	connectionFields := container.New(layout.NewFormLayout(),
 		connectorLabel, connectorSelect,
 		ipHostLabel, hostEntry,
 		serialPortLabel, serialPortRow,
 		serialBaudLabel, serialBaudSelect,
+		bluetoothAddressLabel, bluetoothAddressEntry,
+		bluetoothAdapterLabel, bluetoothAdapterEntry,
+		bluetoothHintLabel, bluetoothPairingHint,
 	)
 
 	setConnectorFields := func(connector config.ConnectorType) {
 		showIP := connector == config.ConnectorIP
 		showSerial := connector == config.ConnectorSerial
+		showBluetooth := connector == config.ConnectorBluetooth
 
 		setVisible(showIP, ipHostLabel, hostEntry)
 		setVisible(showSerial, serialPortLabel, serialPortRow, serialBaudLabel, serialBaudSelect)
+		setVisible(showBluetooth, bluetoothAddressLabel, bluetoothAddressEntry, bluetoothAdapterLabel, bluetoothAdapterEntry, bluetoothHintLabel, bluetoothPairingHint)
 	}
 
 	connectorSelect.OnChanged = func(value string) {
 		next := connectorTypeFromOption(value)
-		if next == config.ConnectorBluetooth {
-			status.SetText("Bluetooth connector is not implemented")
-			connectorSelect.SetSelected(connectorOptionFromType(current.Connection.Connector))
-			return
-		}
-
 		setConnectorFields(next)
 		if next == config.ConnectorSerial {
 			refreshPorts()
+		}
+		if next == config.ConnectorBluetooth {
+			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
+			return
 		}
 		status.SetText("")
 	}
@@ -134,10 +152,6 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 
 	saveButton := widget.NewButton("Save", func() {
 		connector := connectorTypeFromOption(connectorSelect.Selected)
-		if connector == config.ConnectorBluetooth {
-			status.SetText("Bluetooth connector is not implemented")
-			return
-		}
 
 		baud := current.Connection.SerialBaud
 		if connector == config.ConnectorSerial {
@@ -154,15 +168,52 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		cfg.Connection.Host = strings.TrimSpace(hostEntry.Text)
 		cfg.Connection.SerialPort = strings.TrimSpace(serialPortSelect.Selected)
 		cfg.Connection.SerialBaud = baud
+		cfg.Connection.BluetoothAddress = strings.TrimSpace(bluetoothAddressEntry.Text)
+		cfg.Connection.BluetoothAdapter = strings.TrimSpace(bluetoothAdapterEntry.Text)
 		cfg.Logging.Level = levelSelect.Selected
 		cfg.Logging.LogToFile = logToFile.Checked
 
-		if err := dep.OnSave(cfg); err != nil {
-			status.SetText("Save failed: " + err.Error())
+		saveConfig := func(clearDatabase bool) {
+			if clearDatabase {
+				if dep.OnClearDB == nil {
+					status.SetText("Save failed: database clear is not available")
+					return
+				}
+				if err := dep.OnClearDB(); err != nil {
+					status.SetText("Save failed: database clear failed: " + err.Error())
+					return
+				}
+			}
+			if err := dep.OnSave(cfg); err != nil {
+				status.SetText("Save failed: " + err.Error())
+				return
+			}
+			current = cfg
+			status.SetText("Saved")
+		}
+
+		if connector != current.Connection.Connector {
+			window := currentWindow()
+			if window == nil {
+				status.SetText("Save failed: active window is unavailable")
+				return
+			}
+			dialog.ShowConfirm(
+				"Switch transport?",
+				"Changing transport will clear the local database before reconnecting. Continue?",
+				func(ok bool) {
+					if !ok {
+						status.SetText("Save canceled")
+						return
+					}
+					saveConfig(true)
+				},
+				window,
+			)
 			return
 		}
-		current = cfg
-		status.SetText("Saved")
+
+		saveConfig(false)
 	})
 	saveButton.Importance = widget.HighImportance
 
@@ -278,6 +329,18 @@ func uniqueValues(values []string) []string {
 	return unique
 }
 
+func currentWindow() fyne.Window {
+	currentApp := fyne.CurrentApp()
+	if currentApp == nil || currentApp.Driver() == nil {
+		return nil
+	}
+	windows := currentApp.Driver().AllWindows()
+	if len(windows) == 0 {
+		return nil
+	}
+	return windows[0]
+}
+
 func connectorOptionFromType(connector config.ConnectorType) string {
 	switch connector {
 	case config.ConnectorIP:
@@ -285,7 +348,7 @@ func connectorOptionFromType(connector config.ConnectorType) string {
 	case config.ConnectorSerial:
 		return connectorOptionSerial
 	case config.ConnectorBluetooth:
-		return connectorOptionBluetoothDisabled
+		return connectorOptionBluetooth
 	default:
 		return connectorOptionIP
 	}
@@ -297,7 +360,7 @@ func connectorTypeFromOption(value string) config.ConnectorType {
 		return config.ConnectorIP
 	case connectorOptionSerial:
 		return config.ConnectorSerial
-	case connectorOptionBluetoothDisabled:
+	case connectorOptionBluetooth:
 		return config.ConnectorBluetooth
 	default:
 		return config.ConnectorIP
