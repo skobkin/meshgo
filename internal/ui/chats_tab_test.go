@@ -1,15 +1,25 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
+	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio"
 )
+
+type sendTextFunc func(chatKey string, text string) <-chan radio.SendResult
+
+func (f sendTextFunc) SendText(chatKey string, text string) <-chan radio.SendResult {
+	return f(chatKey, text)
+}
 
 func TestChatTypeLabel(t *testing.T) {
 	if v := chatTypeLabel(domain.Chat{Type: domain.ChatTypeChannel}); v != "Channel" {
@@ -446,6 +456,97 @@ func TestMessageStatusLine_IncomingHidden(t *testing.T) {
 	}
 }
 
+func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
+	store := domain.NewChatStore()
+	store.Load(
+		[]domain.Chat{{Key: "ch:general", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: time.Now()}},
+		map[string][]domain.ChatMessage{},
+	)
+
+	tab := newChatsTab(
+		store,
+		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+			result := make(chan radio.SendResult, 1)
+			result <- radio.SendResult{Err: errors.New("send failed")}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		"ch:general",
+		nil,
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	entry := mustFindEntryByPlaceholder(t, tab, "Type message (max 200 bytes)")
+	sendButton := mustFindButtonByText(t, tab, "Send")
+	entry.SetText("hello from test")
+
+	fynetest.Tap(sendButton)
+
+	waitForCondition(t, func() bool {
+		label := findLabelByPrefix(tab, "Send failed: ")
+
+		return label != nil && strings.TrimSpace(label.Text) == "Send failed: send failed"
+	})
+
+	if got := entry.Text; got != "hello from test" {
+		t.Fatalf("entry text should stay unchanged after send failure, got %q", got)
+	}
+}
+
+func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
+	store := domain.NewChatStore()
+	store.Load(
+		[]domain.Chat{{Key: "ch:general", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: time.Now()}},
+		map[string][]domain.ChatMessage{},
+	)
+
+	sendAttempt := 0
+	tab := newChatsTab(
+		store,
+		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+			sendAttempt++
+			result := make(chan radio.SendResult, 1)
+			if sendAttempt == 1 {
+				result <- radio.SendResult{Err: errors.New("send failed")}
+			} else {
+				result <- radio.SendResult{}
+			}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		"ch:general",
+		nil,
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	entry := mustFindEntryByPlaceholder(t, tab, "Type message (max 200 bytes)")
+	sendButton := mustFindButtonByText(t, tab, "Send")
+	entry.SetText("first")
+	fynetest.Tap(sendButton)
+
+	var statusLabel *widget.Label
+	waitForCondition(t, func() bool {
+		statusLabel = findLabelByPrefix(tab, "Send failed: ")
+
+		return statusLabel != nil
+	})
+
+	entry.SetText("second")
+	fynetest.Tap(sendButton)
+
+	waitForCondition(t, func() bool {
+		return statusLabel.Text == "" && entry.Text == ""
+	})
+}
+
 func ptrInt(v int) *int {
 	return &v
 }
@@ -475,6 +576,20 @@ func findTextSegmentByContent(t *testing.T, segs []widget.RichTextSegment, conte
 		}
 	}
 	t.Fatalf("segment with text %q not found", content)
+
+	return nil
+}
+
+func findLabelByPrefix(root fyne.CanvasObject, prefix string) *widget.Label {
+	for _, object := range fynetest.LaidOutObjects(root) {
+		label, ok := object.(*widget.Label)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(label.Text), prefix) {
+			return label
+		}
+	}
 
 	return nil
 }

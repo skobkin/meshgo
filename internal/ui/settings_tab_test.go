@@ -124,7 +124,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 
 	close(release)
 
-	waitForCondition(t, time.Second, func() bool {
+	waitForCondition(t, func() bool {
 		return !scanButton.Disabled() && !openSettingsButton.Disabled()
 	})
 
@@ -213,6 +213,29 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 	}
 }
 
+func TestNewSafeHyperlinkInvalidURLUsesFallbackButton(t *testing.T) {
+	status := widget.NewLabel("")
+	link := newSafeHyperlink("Source", "://not-a-url", status)
+	button, ok := link.(*widget.Button)
+	if !ok {
+		t.Fatalf("expected fallback button for invalid URL, got %T", link)
+	}
+	_ = fynetest.NewTempWindow(t, button)
+
+	fynetest.Tap(button)
+
+	if !strings.HasPrefix(status.Text, "Source link is unavailable:") {
+		t.Fatalf("unexpected fallback status text: %q", status.Text)
+	}
+}
+
+func TestNewSafeHyperlinkValidURLReturnsHyperlink(t *testing.T) {
+	link := newSafeHyperlink("Source", "https://example.com", widget.NewLabel(""))
+	if _, ok := link.(*widget.Hyperlink); !ok {
+		t.Fatalf("expected hyperlink for valid URL, got %T", link)
+	}
+}
+
 func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *widget.Button {
 	t.Helper()
 	for _, object := range fynetest.LaidOutObjects(root) {
@@ -279,9 +302,9 @@ func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option strin
 	return nil
 }
 
-func waitForCondition(t *testing.T, timeout time.Duration, check func() bool) {
+func waitForCondition(t *testing.T, check func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		if check() {
 			return

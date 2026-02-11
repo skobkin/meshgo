@@ -406,8 +406,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		}
 	})
 
-	sourceLink := widget.NewHyperlink("Source", mustParseURL(app.SourceURL))
-	meshtasticLink := widget.NewHyperlink("Meshtastic", mustParseURL(app.MeshtasticURL))
+	sourceLink := newSafeHyperlink("Source", app.SourceURL, status)
+	meshtasticLink := newSafeHyperlink("Meshtastic", app.MeshtasticURL, status)
 	poweredByRow := container.NewHBox(
 		widget.NewLabel("Powered by "),
 		meshtasticLink,
@@ -499,9 +499,9 @@ func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDe
 }
 
 func openExternalURL(rawURL string) error {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	parsed, err := parseExternalURL(rawURL)
 	if err != nil {
-		return fmt.Errorf("parse url: %w", err)
+		return err
 	}
 
 	currentApp := fyne.CurrentApp()
@@ -515,13 +515,33 @@ func openExternalURL(rawURL string) error {
 	return nil
 }
 
-func mustParseURL(rawURL string) *url.URL {
+func parseExternalURL(rawURL string) (*url.URL, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		panic(fmt.Sprintf("invalid url %q: %v", rawURL, err))
+		return nil, fmt.Errorf("parse url: %w", err)
+	}
+	if strings.TrimSpace(parsed.Scheme) == "" || strings.TrimSpace(parsed.Host) == "" {
+		return nil, fmt.Errorf("invalid url %q: expected absolute URL", rawURL)
 	}
 
-	return parsed
+	return parsed, nil
+}
+
+func newSafeHyperlink(label string, rawURL string, status *widget.Label) fyne.CanvasObject {
+	parsed, err := parseExternalURL(rawURL)
+	if err == nil {
+		return widget.NewHyperlink(label, parsed)
+	}
+
+	fallback := widget.NewButton(label, func() {
+		if status == nil {
+			return
+		}
+		status.SetText(fmt.Sprintf("%s link is unavailable: %v", label, err))
+	})
+	fallback.Importance = widget.LowImportance
+
+	return fallback
 }
 
 func setVisible(visible bool, objects ...fyne.CanvasObject) {

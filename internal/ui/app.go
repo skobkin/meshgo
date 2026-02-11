@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
+	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
@@ -147,32 +148,22 @@ func Run(dep RuntimeDependencies) error {
 		applyThemeResources(fyApp.Settings().ThemeVariant())
 	})
 
-	if dep.Data.Bus != nil {
-		sub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
-		go func() {
-			for raw := range sub {
-				status, ok := raw.(connectors.ConnectionStatus)
-				if !ok {
-					continue
-				}
-				fyne.Do(func() {
-					setConnStatus(status)
-				})
-			}
-		}()
-
-		nodeSub := dep.Data.Bus.Subscribe(connectors.TopicNodeInfo)
-		go func() {
-			for range nodeSub {
-				fyne.Do(func() {
-					connStatusMu.RLock()
-					status := currentStatus
-					connStatusMu.RUnlock()
-					setConnStatus(status)
-				})
-			}
-		}()
-	}
+	stopUIListeners := startUIEventListeners(
+		dep.Data.Bus,
+		func(status connectors.ConnectionStatus) {
+			fyne.Do(func() {
+				setConnStatus(status)
+			})
+		},
+		func() {
+			fyne.Do(func() {
+				connStatusMu.RLock()
+				status := currentStatus
+				connStatusMu.RUnlock()
+				setConnStatus(status)
+			})
+		},
+	)
 	if status, ok := currentConnStatus(dep); ok {
 		setConnStatus(status)
 	}
@@ -183,6 +174,7 @@ func Run(dep RuntimeDependencies) error {
 	var shutdownOnce sync.Once
 	quit := func() {
 		shutdownOnce.Do(func() {
+			stopUIListeners()
 			if dep.Actions.OnQuit != nil {
 				dep.Actions.OnQuit()
 			}
@@ -217,12 +209,82 @@ func Run(dep RuntimeDependencies) error {
 	}
 	fyApp.Run()
 	shutdownOnce.Do(func() {
+		stopUIListeners()
 		if dep.Actions.OnQuit != nil {
 			dep.Actions.OnQuit()
 		}
 	})
 
 	return nil
+}
+
+func startUIEventListeners(
+	messageBus bus.MessageBus,
+	onConnStatus func(connectors.ConnectionStatus),
+	onNodeInfo func(),
+) func() {
+	if messageBus == nil {
+		return func() {}
+	}
+
+	connSub := messageBus.Subscribe(connectors.TopicConnStatus)
+	nodeSub := messageBus.Subscribe(connectors.TopicNodeInfo)
+	done := make(chan struct{})
+	var stopOnce sync.Once
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case raw, ok := <-connSub:
+				if !ok {
+					return
+				}
+				status, ok := raw.(connectors.ConnectionStatus)
+				if !ok {
+					continue
+				}
+				select {
+				case <-done:
+					return
+				default:
+				}
+				if onConnStatus != nil {
+					onConnStatus(status)
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case _, ok := <-nodeSub:
+				if !ok {
+					return
+				}
+				select {
+				case <-done:
+					return
+				default:
+				}
+				if onNodeInfo != nil {
+					onNodeInfo()
+				}
+			}
+		}
+	}()
+
+	return func() {
+		stopOnce.Do(func() {
+			close(done)
+			messageBus.Unsubscribe(connSub, connectors.TopicConnStatus)
+			messageBus.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
+		})
+	}
 }
 
 func disabledTab(text string) fyne.CanvasObject {

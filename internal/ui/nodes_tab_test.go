@@ -1,13 +1,28 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	fynetest "fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
 )
+
+func TestNewNodesTabNilStoreShowsPlaceholder(t *testing.T) {
+	tab := newNodesTab(nil, DefaultNodeRowRenderer())
+	_ = fynetest.NewTempWindow(t, tab)
+
+	if !hasLabelText(tab, "Nodes are unavailable") {
+		t.Fatalf("expected placeholder message for nil node store")
+	}
+	if !hasLabelText(tab, "Nodes (0)") {
+		t.Fatalf("expected empty nodes title for nil node store")
+	}
+}
 
 func TestNodeDisplayName(t *testing.T) {
 	tests := []struct {
@@ -223,4 +238,19 @@ func TestNodeCountLabelText(t *testing.T) {
 			t.Fatalf("%s: got %q want %q", tt.name, got, tt.expected)
 		}
 	}
+}
+
+func hasLabelText(root fyne.CanvasObject, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	for _, object := range fynetest.LaidOutObjects(root) {
+		label, ok := object.(*widget.Label)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(label.Text) == expected {
+			return true
+		}
+	}
+
+	return false
 }

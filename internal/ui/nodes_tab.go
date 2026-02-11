@@ -267,6 +267,20 @@ func maxRounded(v float64) int {
 }
 
 func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasObject {
+	if store == nil {
+		title := widget.NewLabel("Nodes (0)")
+		filterEntry := widget.NewEntry()
+		filterEntry.SetPlaceHolder("Filter nodes")
+		filterEntry.Disable()
+		filterSize := fyne.NewSize(260, filterEntry.MinSize().Height)
+		filterWidget := container.NewGridWrap(filterSize, filterEntry)
+		header := container.NewHBox(title, layout.NewSpacer(), filterWidget)
+		placeholder := widget.NewLabel("Nodes are unavailable")
+		placeholder.Wrapping = fyne.TextWrapWord
+
+		return container.NewBorder(header, nil, nil, nil, container.NewCenter(placeholder))
+	}
+
 	allNodes := store.SnapshotSorted()
 	appliedFilter := ""
 	nodes := filterNodesByName(allNodes, appliedFilter)

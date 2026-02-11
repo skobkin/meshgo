@@ -1,8 +1,13 @@
 package ui
 
 import (
+	"io"
+	"log/slog"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
@@ -179,4 +184,50 @@ func TestLocalNodeDisplayName(t *testing.T) {
 	if got := localNodeDisplayName(func() string { return "!11111111" }, nil); got != "!11111111" {
 		t.Fatalf("expected node id fallback for nil store, got %q", got)
 	}
+}
+
+func TestStartUIEventListenersStopPreventsFurtherCallbacks(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	var connEvents atomic.Int64
+	var nodeEvents atomic.Int64
+	stop := startUIEventListeners(
+		messageBus,
+		func(_ connectors.ConnectionStatus) {
+			connEvents.Add(1)
+		},
+		func() {
+			nodeEvents.Add(1)
+		},
+	)
+
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{State: connectors.ConnectionStateConnected})
+	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{})
+
+	waitForCondition(t, func() bool {
+		return connEvents.Load() == 1 && nodeEvents.Load() == 1
+	})
+
+	stop()
+
+	connBefore := connEvents.Load()
+	nodeBefore := nodeEvents.Load()
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{State: connectors.ConnectionStateDisconnected})
+	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{})
+	time.Sleep(100 * time.Millisecond)
+
+	if connEvents.Load() != connBefore {
+		t.Fatalf("expected no new connection callbacks after stop: before=%d after=%d", connBefore, connEvents.Load())
+	}
+	if nodeEvents.Load() != nodeBefore {
+		t.Fatalf("expected no new node callbacks after stop: before=%d after=%d", nodeBefore, nodeEvents.Load())
+	}
+}
+
+func TestStartUIEventListenersNilBusReturnsNoopStop(t *testing.T) {
+	stop := startUIEventListeners(nil, nil, nil)
+	stop()
+	stop()
 }

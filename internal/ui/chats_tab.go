@@ -153,6 +153,8 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	entry = widget.NewEntry()
 	entry.SetPlaceHolder("Type message (max 200 bytes)")
 	counterLabel := widget.NewLabel("0/200 bytes")
+	sendStatusLabel := widget.NewLabel("")
+	sendStatusLabel.Wrapping = fyne.TextWrapWord
 	sendButton := widget.NewButton("Send", nil)
 
 	updateCounter := func(text string) {
@@ -186,6 +188,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 
 		pendingScrollChatKey = selectedKey
 		pendingScrollMinCount = len(messages) + 1
+		sendStatusLabel.SetText("")
 		setSending(true)
 		go func(chatKey, body string) {
 			res := <-sender.SendText(chatKey, body)
@@ -195,12 +198,14 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 						pendingScrollChatKey = ""
 						pendingScrollMinCount = 0
 					}
+					sendStatusLabel.SetText("Send failed: " + res.Err.Error())
 					setSending(false)
 				})
 
 				return
 			}
 			fyne.Do(func() {
+				sendStatusLabel.SetText("")
 				entry.SetText("")
 				setSending(false)
 			})
@@ -213,7 +218,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	composer := container.NewBorder(nil, nil, nil, sendButton, entry)
 	right := container.NewBorder(
 		chatTitle,
-		container.NewVBox(counterLabel, composer),
+		container.NewVBox(counterLabel, sendStatusLabel, composer),
 		nil,
 		nil,
 		messageList,
