@@ -154,7 +154,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	entry.SetPlaceHolder("Type message (max 200 bytes)")
 	counterLabel := widget.NewLabel("0/200 bytes")
 	sendStatusLabel := widget.NewLabel("")
-	sendStatusLabel.Wrapping = fyne.TextWrapWord
+	sendStatusLabel.Truncation = fyne.TextTruncateEllipsis
 	sendButton := widget.NewButton("Send", nil)
 
 	updateCounter := func(text string) {
@@ -216,9 +216,10 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	sendButton.OnTapped = sendCurrent
 
 	composer := container.NewBorder(nil, nil, nil, sendButton, entry)
+	composerStatusRow := container.NewHBox(counterLabel, layout.NewSpacer(), sendStatusLabel)
 	right := container.NewBorder(
 		chatTitle,
-		container.NewVBox(counterLabel, sendStatusLabel, composer),
+		container.NewVBox(composerStatusRow, composer),
 		nil,
 		nil,
 		messageList,
