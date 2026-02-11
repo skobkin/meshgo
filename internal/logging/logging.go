@@ -47,7 +47,7 @@ func (m *Manager) Configure(cfg config.LoggingConfig, filePath string) error {
 			return fmt.Errorf("open log file: %w", err)
 		}
 		m.file = file
-		writer = io.MultiWriter(os.Stdout, file)
+		writer = newFanoutWriter(os.Stdout, file)
 	}
 
 	h := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: level})
@@ -87,4 +87,50 @@ func parseLevel(raw string) (slog.Leveler, error) {
 	default:
 		return nil, fmt.Errorf("unsupported log level: %q", raw)
 	}
+}
+
+type fanoutWriter struct {
+	writers []io.Writer
+}
+
+func newFanoutWriter(writers ...io.Writer) io.Writer {
+	filtered := make([]io.Writer, 0, len(writers))
+	for _, w := range writers {
+		if w != nil {
+			filtered = append(filtered, w)
+		}
+	}
+	return &fanoutWriter{writers: filtered}
+}
+
+func (w *fanoutWriter) Write(p []byte) (int, error) {
+	var (
+		wroteAny bool
+		firstErr error
+	)
+
+	for _, dst := range w.writers {
+		n, err := dst.Write(p)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if n != len(p) {
+			if firstErr == nil {
+				firstErr = io.ErrShortWrite
+			}
+			continue
+		}
+		wroteAny = true
+	}
+
+	if wroteAny {
+		return len(p), nil
+	}
+	if firstErr != nil {
+		return 0, firstErr
+	}
+	return len(p), nil
 }
