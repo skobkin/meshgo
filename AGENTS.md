@@ -30,6 +30,7 @@
 - Package names are short lowercase nouns (`ui`, `domain`, `persistence`).
 - Exported identifiers: `PascalCase`; internal helpers: `camelCase`.
 - Keep UI updates on Fyne’s UI thread (`fyne.Do`/`fyne.DoAndWait`) when triggered from goroutines.
+- Use structured logging (`slog`) for runtime/platform operations and failures; include actionable context fields (for example operation trigger, mode, target path/key).
 
 ## Testing Guidelines
 - Place tests next to code using `*_test.go` (example: `internal/ui/chats_tab_test.go`).
