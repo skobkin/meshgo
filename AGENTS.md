@@ -31,6 +31,7 @@
 - Exported identifiers: `PascalCase`; internal helpers: `camelCase`.
 - Keep UI updates on Fyne’s UI thread (`fyne.Do`/`fyne.DoAndWait`) when triggered from goroutines.
 - Use structured logging (`slog`) for runtime/platform operations and failures; include actionable context fields (for example operation trigger, mode, target path/key).
+- Proactively suggest refactoring when code shows weak technical depth, poor readability, or unclear structure; call out concrete improvement options.
 
 ## Testing Guidelines
 - Place tests next to code using `*_test.go` (example: `internal/ui/chats_tab_test.go`).
