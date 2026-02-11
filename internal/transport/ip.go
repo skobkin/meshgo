@@ -43,6 +43,15 @@ func (t *IPTransport) Host() string {
 	return t.host
 }
 
+func (t *IPTransport) StatusTarget() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.host == "" {
+		return ""
+	}
+	return net.JoinHostPort(t.host, fmt.Sprintf("%d", t.port))
+}
+
 func (t *IPTransport) Connected() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()

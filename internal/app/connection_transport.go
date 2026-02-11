@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/skobkin/meshgo/internal/config"
@@ -53,6 +54,31 @@ func (t *ConnectionTransport) Name() string {
 		return "unknown"
 	}
 	return tr.Name()
+}
+
+func (t *ConnectionTransport) StatusTarget() string {
+	t.mu.RLock()
+	tr := t.transport
+	cfg := t.cfg
+	t.mu.RUnlock()
+
+	if provider, ok := tr.(transport.StatusTargetProvider); ok {
+		target := strings.TrimSpace(provider.StatusTarget())
+		if target != "" {
+			return target
+		}
+	}
+
+	switch cfg.Connector {
+	case config.ConnectorIP:
+		return strings.TrimSpace(cfg.Host)
+	case config.ConnectorSerial:
+		return strings.TrimSpace(cfg.SerialPort)
+	case config.ConnectorBluetooth:
+		return strings.TrimSpace(cfg.BluetoothAddress)
+	default:
+		return ""
+	}
 }
 
 func (t *ConnectionTransport) Connect(ctx context.Context) error {

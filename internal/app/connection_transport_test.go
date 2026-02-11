@@ -123,3 +123,47 @@ func TestConnectionTransportImplementsTransportInterface(t *testing.T) {
 
 	var _ transport.Transport = connTr
 }
+
+func TestConnectionTransportStatusTarget(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  config.ConnectionConfig
+		want string
+	}{
+		{
+			name: "ip",
+			cfg: config.ConnectionConfig{
+				Connector: config.ConnectorIP,
+				Host:      "192.168.1.10",
+			},
+			want: "192.168.1.10:4403",
+		},
+		{
+			name: "serial",
+			cfg: config.ConnectionConfig{
+				Connector:  config.ConnectorSerial,
+				SerialPort: "/dev/ttyACM0",
+				SerialBaud: 115200,
+			},
+			want: "/dev/ttyACM0",
+		},
+		{
+			name: "bluetooth",
+			cfg: config.ConnectionConfig{
+				Connector:        config.ConnectorBluetooth,
+				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
+			},
+			want: "AA:BB:CC:DD:EE:FF",
+		},
+	}
+
+	for _, tc := range tests {
+		connTr, err := NewConnectionTransport(tc.cfg)
+		if err != nil {
+			t.Fatalf("%s: new connection transport: %v", tc.name, err)
+		}
+		if got := connTr.StatusTarget(); got != tc.want {
+			t.Fatalf("%s: expected status target %q, got %q", tc.name, tc.want, got)
+		}
+	}
+}

@@ -69,6 +69,12 @@ func (t *BluetoothTransport) Address() string {
 	return t.address
 }
 
+func (t *BluetoothTransport) StatusTarget() string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.address
+}
+
 func (t *BluetoothTransport) AdapterID() string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

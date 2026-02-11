@@ -35,10 +35,43 @@ func TestFormatWindowTitle(t *testing.T) {
 	got := formatWindowTitle(connectors.ConnStatus{
 		State:         connectors.ConnectionStateConnected,
 		TransportName: "ip",
-	})
-	want := "MeshGo - connected via ip"
+	}, "")
+	want := "MeshGo - IP connected"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestFormatConnStatus_WithTargetAndLocalNodeName(t *testing.T) {
+	got := formatConnStatus(connectors.ConnStatus{
+		State:         connectors.ConnectionStateConnected,
+		TransportName: "serial",
+		Target:        "/dev/ttyACM2",
+	}, "ABCD")
+	want := "Serial connected (/dev/ttyACM2, ABCD)"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestTransportDisplayName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "ip", in: "ip", want: "IP"},
+		{name: "serial", in: "serial", want: "Serial"},
+		{name: "bluetooth", in: "bluetooth", want: "Bluetooth LE (unstable)"},
+		{name: "fallback", in: "custom", want: "custom"},
+		{name: "empty", in: " ", want: ""},
+	}
+
+	for _, tt := range tests {
+		got := transportDisplayName(tt.in)
+		if got != tt.want {
+			t.Fatalf("%s: expected %q, got %q", tt.name, tt.want, got)
+		}
 	}
 }
 
@@ -75,6 +108,7 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 			return connectors.ConnStatus{
 				State:         connectors.ConnectionStateConnected,
 				TransportName: "serial",
+				Target:        "",
 			}, true
 		},
 	}
@@ -85,6 +119,9 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 	}
 	if status.TransportName != "serial" {
 		t.Fatalf("expected serial transport, got %q", status.TransportName)
+	}
+	if status.Target != "/dev/ttyACM0" {
+		t.Fatalf("expected serial target fallback, got %q", status.Target)
 	}
 }
 
@@ -108,5 +145,34 @@ func TestSidebarStatusIcon(t *testing.T) {
 	})
 	if connecting != resources.UIIconDisconnected {
 		t.Fatalf("expected disconnected icon for connecting state, got %q", connecting)
+	}
+}
+
+func TestLocalNodeDisplayName(t *testing.T) {
+	store := domain.NewNodeStore()
+	store.Upsert(domain.Node{NodeID: "!11111111", ShortName: "ABCD", LongName: "Alpha Bravo"})
+	store.Upsert(domain.Node{NodeID: "!22222222", ShortName: "EFGH"})
+	store.Upsert(domain.Node{NodeID: "!33333333"})
+
+	if got := localNodeDisplayName(func() string { return "!11111111" }, store); got != "Alpha Bravo" {
+		t.Fatalf("expected long name, got %q", got)
+	}
+	if got := localNodeDisplayName(func() string { return "!22222222" }, store); got != "EFGH" {
+		t.Fatalf("expected short name fallback, got %q", got)
+	}
+	if got := localNodeDisplayName(func() string { return "!33333333" }, store); got != "!33333333" {
+		t.Fatalf("expected node id fallback, got %q", got)
+	}
+	if got := localNodeDisplayName(func() string { return "!44444444" }, store); got != "!44444444" {
+		t.Fatalf("expected unknown node id fallback, got %q", got)
+	}
+	if got := localNodeDisplayName(func() string { return "" }, store); got != "" {
+		t.Fatalf("expected empty for empty node id, got %q", got)
+	}
+	if got := localNodeDisplayName(nil, store); got != "" {
+		t.Fatalf("expected empty for nil localNodeID, got %q", got)
+	}
+	if got := localNodeDisplayName(func() string { return "!11111111" }, nil); got != "!11111111" {
+		t.Fatalf("expected node id fallback for nil store, got %q", got)
 	}
 }

@@ -117,7 +117,14 @@ func Run(dep Dependencies) error {
 		connStatusMu.Lock()
 		currentStatus = status
 		connStatusMu.Unlock()
-		applyConnStatusUI(window, settingsConnStatus, sidebarConnIcon, status, fyApp.Settings().ThemeVariant())
+		applyConnStatusUI(
+			window,
+			settingsConnStatus,
+			sidebarConnIcon,
+			status,
+			fyApp.Settings().ThemeVariant(),
+			localNodeDisplayName(dep.LocalNodeID, dep.NodeStore),
+		)
 	}
 	setConnStatus(initialStatus)
 
@@ -148,6 +155,18 @@ func Run(dep Dependencies) error {
 					continue
 				}
 				fyne.Do(func() {
+					setConnStatus(status)
+				})
+			}
+		}()
+
+		nodeSub := dep.Bus.Subscribe(connectors.TopicNodeInfo)
+		go func() {
+			for range nodeSub {
+				fyne.Do(func() {
+					connStatusMu.RLock()
+					status := currentStatus
+					connStatusMu.RUnlock()
 					setConnStatus(status)
 				})
 			}
@@ -213,16 +232,19 @@ func initialConnStatus(dep Dependencies) connectors.ConnStatus {
 	switch dep.Config.Connection.Connector {
 	case config.ConnectorIP:
 		status.TransportName = "ip"
+		status.Target = strings.TrimSpace(dep.Config.Connection.Host)
 		if strings.TrimSpace(dep.Config.Connection.Host) != "" {
 			status.State = connectors.ConnectionStateConnecting
 		}
 	case config.ConnectorSerial:
 		status.TransportName = "serial"
+		status.Target = strings.TrimSpace(dep.Config.Connection.SerialPort)
 		if strings.TrimSpace(dep.Config.Connection.SerialPort) != "" {
 			status.State = connectors.ConnectionStateConnecting
 		}
 	case config.ConnectorBluetooth:
 		status.TransportName = "bluetooth"
+		status.Target = strings.TrimSpace(dep.Config.Connection.BluetoothAddress)
 		if strings.TrimSpace(dep.Config.Connection.BluetoothAddress) != "" {
 			status.State = connectors.ConnectionStateConnecting
 		}
@@ -241,6 +263,9 @@ func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
 	if strings.TrimSpace(status.TransportName) == "" {
 		status.TransportName = fallback.TransportName
 	}
+	if strings.TrimSpace(status.Target) == "" {
+		status.Target = fallback.Target
+	}
 	return status
 }
 
@@ -251,10 +276,20 @@ func currentConnStatus(dep Dependencies) (connectors.ConnStatus, bool) {
 	return dep.CurrentConnStatus()
 }
 
-func formatConnStatus(status connectors.ConnStatus) string {
+func formatConnStatus(status connectors.ConnStatus, localShortName string) string {
 	text := string(status.State)
-	if status.TransportName != "" {
-		text += " via " + status.TransportName
+	if transportName := transportDisplayName(status.TransportName); transportName != "" {
+		text = transportName + " " + text
+	}
+	details := make([]string, 0, 2)
+	if target := strings.TrimSpace(status.Target); target != "" {
+		details = append(details, target)
+	}
+	if shortName := strings.TrimSpace(localShortName); shortName != "" {
+		details = append(details, shortName)
+	}
+	if len(details) > 0 {
+		text += " (" + strings.Join(details, ", ") + ")"
 	}
 	if status.Err != "" {
 		text += " (" + status.Err + ")"
@@ -262,8 +297,21 @@ func formatConnStatus(status connectors.ConnStatus) string {
 	return text
 }
 
-func formatWindowTitle(status connectors.ConnStatus) string {
-	return "MeshGo - " + formatConnStatus(status)
+func transportDisplayName(name string) string {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case string(config.ConnectorIP):
+		return connectorOptionIP
+	case string(config.ConnectorSerial):
+		return connectorOptionSerial
+	case string(config.ConnectorBluetooth):
+		return connectorOptionBluetooth
+	default:
+		return strings.TrimSpace(name)
+	}
+}
+
+func formatWindowTitle(status connectors.ConnStatus, localShortName string) string {
+	return "MeshGo - " + formatConnStatus(status, localShortName)
 }
 
 func applyConnStatusUI(
@@ -272,9 +320,10 @@ func applyConnStatusUI(
 	sidebarIcon *widget.Icon,
 	status connectors.ConnStatus,
 	variant fyne.ThemeVariant,
+	localShortName string,
 ) {
-	window.SetTitle(formatWindowTitle(status))
-	statusLabel.SetText(formatConnStatus(status))
+	window.SetTitle(formatWindowTitle(status, localShortName))
+	statusLabel.SetText(formatConnStatus(status, localShortName))
 	setConnStatusIcon(sidebarIcon, status, variant)
 }
 
@@ -306,6 +355,30 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 		}
 		return ""
 	}
+}
+
+func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) string {
+	if localNodeID == nil {
+		return ""
+	}
+	nodeID := strings.TrimSpace(localNodeID())
+	if nodeID == "" {
+		return ""
+	}
+	if store == nil {
+		return nodeID
+	}
+	node, ok := store.Get(nodeID)
+	if !ok {
+		return nodeID
+	}
+	if v := strings.TrimSpace(node.LongName); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(node.ShortName); v != "" {
+		return v
+	}
+	return nodeID
 }
 
 func nodeChanges(store *domain.NodeStore) <-chan struct{} {

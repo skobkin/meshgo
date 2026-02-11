@@ -46,6 +46,12 @@ func (t *SerialTransport) PortName() string {
 	return t.portName
 }
 
+func (t *SerialTransport) StatusTarget() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.portName
+}
+
 func (t *SerialTransport) BaudRate() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()

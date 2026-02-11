@@ -270,6 +270,9 @@ func (s *Service) publishConnStatus(state connectors.ConnectionState, err error)
 		TransportName: s.transport.Name(),
 		Timestamp:     time.Now(),
 	}
+	if provider, ok := s.transport.(transport.StatusTargetProvider); ok {
+		status.Target = strings.TrimSpace(provider.StatusTarget())
+	}
 	if err != nil {
 		status.Err = err.Error()
 	}

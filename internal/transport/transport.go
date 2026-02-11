@@ -9,3 +9,7 @@ type Transport interface {
 	ReadFrame(ctx context.Context) ([]byte, error)
 	WriteFrame(ctx context.Context, payload []byte) error
 }
+
+type StatusTargetProvider interface {
+	StatusTarget() string
+}

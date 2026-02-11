@@ -15,6 +15,7 @@ type ConnStatus struct {
 	State         ConnectionState
 	Err           string
 	TransportName string
+	Target        string
 	Timestamp     time.Time
 }
 
