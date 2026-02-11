@@ -18,6 +18,12 @@
 - `go run ./cmd/debug --host <node-ip> --no-subscribe`: run one-shot initial config/debug flow.
 - `go run ./cmd/debug --host <node-ip> --listen-for 30s`: subscribe for a bounded session.
 
+## Windows Icon Regeneration
+- Source icon: `internal/resources/ui/light/icon_64.png`.
+- Regenerate ICO (multi-size): `magick internal/resources/ui/light/icon_64.png -define icon:auto-resize=64,48,32,24,16 cmd/gui/icon_windows.ico`
+- Regenerate Windows resource object: `rsrc -arch amd64 -ico cmd/gui/icon_windows.ico -o cmd/gui/icon_windows_amd64.syso`
+- Commit both files together when icon changes: `cmd/gui/icon_windows.ico` and `cmd/gui/icon_windows_amd64.syso`.
+
 ## Coding Style & Naming Conventions
 - Language: Go (`go 1.25` in `go.mod`).
 - Formatting is mandatory: run `gofmt -w` on changed Go files.
