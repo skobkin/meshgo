@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
@@ -187,17 +188,21 @@ func initialConnStatus(dep Dependencies) connectors.ConnStatus {
 		State:         connectors.ConnectionStateDisconnected,
 		TransportName: "unknown",
 	}
-	if dep.IPTransport == nil {
-		return status
-	}
-
-	status.TransportName = dep.IPTransport.Name()
-	if dep.IPTransport.Connected() {
-		status.State = connectors.ConnectionStateConnected
-		return status
-	}
-	if dep.IPTransport.Host() != "" {
-		status.State = connectors.ConnectionStateConnecting
+	switch dep.Config.Connection.Connector {
+	case config.ConnectorIP:
+		status.TransportName = "ip"
+		if strings.TrimSpace(dep.Config.Connection.Host) != "" {
+			status.State = connectors.ConnectionStateConnecting
+		}
+	case config.ConnectorSerial:
+		status.TransportName = "serial"
+		if strings.TrimSpace(dep.Config.Connection.SerialPort) != "" {
+			status.State = connectors.ConnectionStateConnecting
+		}
+	case config.ConnectorBluetooth:
+		status.TransportName = "bluetooth"
+	default:
+		status.TransportName = string(dep.Config.Connection.Connector)
 	}
 	return status
 }

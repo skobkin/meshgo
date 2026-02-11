@@ -15,7 +15,6 @@ import (
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
 	"github.com/skobkin/meshgo/internal/radio"
-	"github.com/skobkin/meshgo/internal/transport"
 )
 
 type Runtime struct {
@@ -39,8 +38,8 @@ type Runtime struct {
 	NodeStore *domain.NodeStore
 	ChatStore *domain.ChatStore
 
-	IPTransport *transport.IPTransport
-	Radio       *radio.Service
+	ConnectionTransport *ConnectionTransport
+	Radio               *radio.Service
 }
 
 func Initialize(parent context.Context) (*Runtime, error) {
@@ -105,14 +104,21 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		return nil, fmt.Errorf("initialize meshtastic codec: %w", err)
 	}
 
-	rt.IPTransport = transport.NewIPTransport(cfg.Connection.Host, DefaultIPPort)
-	rt.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.IPTransport, codec)
+	connTransport, err := NewConnectionTransport(cfg.Connection)
+	if err != nil {
+		_ = rt.Close()
+		return nil, fmt.Errorf("initialize transport: %w", err)
+	}
+	rt.ConnectionTransport = connTransport
+
+	rt.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.ConnectionTransport, codec)
 	rt.Radio.Start(ctx)
 
 	return rt, nil
 }
 
 func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
+	cfg.ApplyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -130,9 +136,10 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		return err
 	}
 
-	if cfg.Connection.Connector == config.ConnectorIP {
-		r.IPTransport.SetHost(cfg.Connection.Host)
-		_ = r.IPTransport.Close()
+	if r.ConnectionTransport != nil {
+		if err := r.ConnectionTransport.Apply(cfg.Connection); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -205,6 +212,9 @@ func (r *Runtime) Close() error {
 	}
 	if r.Bus != nil {
 		r.Bus.Close()
+	}
+	if r.ConnectionTransport != nil {
+		_ = r.ConnectionTransport.Close()
 	}
 	if r.DB != nil {
 		_ = r.DB.Close()

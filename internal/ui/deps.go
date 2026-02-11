@@ -5,7 +5,6 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
-	"github.com/skobkin/meshgo/internal/transport"
 )
 
 type Dependencies struct {
@@ -18,7 +17,6 @@ type Dependencies struct {
 		SendText(chatKey, text string) <-chan radio.SendResult
 	}
 	LocalNodeID    func() string
-	IPTransport    *transport.IPTransport
 	OnSave         func(cfg config.AppConfig) error
 	OnChatSelected func(chatKey string)
 	OnClearDB      func() error

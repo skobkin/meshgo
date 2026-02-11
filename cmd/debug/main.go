@@ -19,7 +19,6 @@ import (
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
 	"github.com/skobkin/meshgo/internal/radio"
-	"github.com/skobkin/meshgo/internal/transport"
 )
 
 const (
@@ -35,15 +34,13 @@ func main() {
 }
 
 func run() error {
-	connector := flag.String("connector", "ip", "connector type (draft: ip)")
+	connector := flag.String("connector", "", "connector type (ip|serial); defaults to config value")
 	host := flag.String("host", "", "ip/hostname")
+	serialPort := flag.String("serial-port", "", "serial port path/name (example: /dev/ttyACM0, COM3)")
+	serialBaud := flag.Int("serial-baud", 0, "serial baud rate (example: 115200)")
 	noSubscribe := flag.Bool("no-subscribe", false, "exit after initial config download completes")
 	listenFor := flag.Duration("listen-for", 0, "listen duration, e.g. 30s")
 	flag.Parse()
-
-	if *connector != "ip" {
-		return fmt.Errorf("only ip connector is supported in draft: %s", *connector)
-	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -56,11 +53,24 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	cfg.ApplyDefaults()
+
+	selectedConnector := strings.ToLower(strings.TrimSpace(*connector))
+	if selectedConnector != "" {
+		cfg.Connection.Connector = config.ConnectorType(selectedConnector)
+	}
 	if strings.TrimSpace(*host) != "" {
 		cfg.Connection.Host = strings.TrimSpace(*host)
 	}
-	if strings.TrimSpace(cfg.Connection.Host) == "" {
-		return fmt.Errorf("missing ip host: set --host or save connection host in config")
+	if strings.TrimSpace(*serialPort) != "" {
+		cfg.Connection.SerialPort = strings.TrimSpace(*serialPort)
+	}
+	if *serialBaud > 0 {
+		cfg.Connection.SerialBaud = *serialBaud
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid connection config: %w", err)
 	}
 
 	logMgr := logging.NewManager()
@@ -120,7 +130,10 @@ func run() error {
 		return fmt.Errorf("initialize meshtastic codec: %w", err)
 	}
 
-	tr := transport.NewIPTransport(cfg.Connection.Host, app.DefaultIPPort)
+	tr, err := app.NewTransportForConnection(cfg.Connection)
+	if err != nil {
+		return fmt.Errorf("create transport: %w", err)
+	}
 	radioSvc := radio.NewService(logMgr.Logger("radio"), b, tr, codec)
 	initialDecodedSub := b.Subscribe(connectors.TopicRadioFrom)
 	initialConnSub := b.Subscribe(connectors.TopicConnStatus)
@@ -132,7 +145,15 @@ func run() error {
 	defer b.Unsubscribe(initialRawOutSub, connectors.TopicRawFrameOut)
 	radioSvc.Start(ctx)
 
-	logger.Info("waiting for initial config completion", "host", cfg.Connection.Host, "timeout", initialConfigWaitTimeout)
+	logger.Info(
+		"waiting for initial config completion",
+		"connector",
+		cfg.Connection.Connector,
+		"target",
+		connectionTarget(cfg.Connection),
+		"timeout",
+		initialConfigWaitTimeout,
+	)
 	if err := waitForInitialConfig(ctx, logger, initialDecodedSub, initialConnSub, initialRawInSub, initialRawOutSub, initialConfigWaitTimeout); err != nil {
 		return fmt.Errorf("initial config did not complete: %w", err)
 	}
@@ -319,4 +340,15 @@ func previewHex(hex string) string {
 		return hex
 	}
 	return hex[:maxHexPreviewLen] + "..."
+}
+
+func connectionTarget(connection config.ConnectionConfig) string {
+	switch connection.Connector {
+	case config.ConnectorIP:
+		return connection.Host
+	case config.ConnectorSerial:
+		return fmt.Sprintf("%s@%d", connection.SerialPort, connection.SerialBaud)
+	default:
+		return string(connection.Connector)
+	}
 }

@@ -2,17 +2,12 @@ package transport
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
-	"math"
 	"net"
 	"sync"
 	"time"
 )
-
-var frameHeader = [2]byte{0x94, 0xC3}
 
 const defaultIPPort = 4403
 
@@ -96,22 +91,9 @@ func (t *IPTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 		_ = conn.SetReadDeadline(time.Time{})
 	}
 
-	if err := t.resyncToHeader(conn); err != nil {
+	payload, err := readFrame(ioReadFullFunc(conn))
+	if err != nil {
 		return nil, err
-	}
-
-	var lenBuf [2]byte
-	if _, err := io.ReadFull(conn, lenBuf[:]); err != nil {
-		return nil, fmt.Errorf("read frame length: %w", err)
-	}
-	ln := int(binary.BigEndian.Uint16(lenBuf[:]))
-	if ln <= 0 {
-		return nil, fmt.Errorf("invalid frame length: %d", ln)
-	}
-
-	payload := make([]byte, ln)
-	if _, err := io.ReadFull(conn, payload); err != nil {
-		return nil, fmt.Errorf("read frame payload: %w", err)
 	}
 	return payload, nil
 }
@@ -121,22 +103,16 @@ func (t *IPTransport) WriteFrame(ctx context.Context, payload []byte) error {
 	if err != nil {
 		return err
 	}
-	if len(payload) > math.MaxUint16 {
-		return fmt.Errorf("payload too large: %d", len(payload))
-	}
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetWriteDeadline(deadline)
 	} else {
 		_ = conn.SetWriteDeadline(time.Time{})
 	}
 
-	frame := make([]byte, 4+len(payload))
-	frame[0] = frameHeader[0]
-	frame[1] = frameHeader[1]
-	// #nosec G115 -- length is bounded by math.MaxUint16 above.
-	payloadLen := uint16(len(payload))
-	binary.BigEndian.PutUint16(frame[2:4], payloadLen)
-	copy(frame[4:], payload)
+	frame, err := encodeFrame(payload)
+	if err != nil {
+		return err
+	}
 
 	t.writeMu.Lock()
 	defer t.writeMu.Unlock()
@@ -153,22 +129,4 @@ func (t *IPTransport) currentConn() (net.Conn, error) {
 		return nil, errors.New("transport is not connected")
 	}
 	return t.conn, nil
-}
-
-func (t *IPTransport) resyncToHeader(conn net.Conn) error {
-	buf := make([]byte, 1)
-	for {
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			return fmt.Errorf("read frame header byte 1: %w", err)
-		}
-		if buf[0] != frameHeader[0] {
-			continue
-		}
-		if _, err := io.ReadFull(conn, buf); err != nil {
-			return fmt.Errorf("read frame header byte 2: %w", err)
-		}
-		if buf[0] == frameHeader[1] {
-			return nil
-		}
-	}
 }

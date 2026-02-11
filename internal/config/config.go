@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type ConnectorType string
@@ -14,6 +15,7 @@ const (
 	ConnectorIP        ConnectorType = "ip"
 	ConnectorBluetooth ConnectorType = "bluetooth"
 	ConnectorSerial    ConnectorType = "serial"
+	DefaultSerialBaud                = 115200
 )
 
 type LoggingConfig struct {
@@ -22,8 +24,10 @@ type LoggingConfig struct {
 }
 
 type ConnectionConfig struct {
-	Connector ConnectorType `json:"connector"`
-	Host      string        `json:"host"`
+	Connector  ConnectorType `json:"connector"`
+	Host       string        `json:"host"`
+	SerialPort string        `json:"serial_port"`
+	SerialBaud int           `json:"serial_baud"`
 }
 
 type UIConfig struct {
@@ -39,8 +43,10 @@ type AppConfig struct {
 func Default() AppConfig {
 	return AppConfig{
 		Connection: ConnectionConfig{
-			Connector: ConnectorIP,
-			Host:      "",
+			Connector:  ConnectorIP,
+			Host:       "",
+			SerialPort: "",
+			SerialBaud: DefaultSerialBaud,
 		},
 		Logging: LoggingConfig{
 			Level:     "info",
@@ -76,6 +82,9 @@ func (c *AppConfig) ApplyDefaults() {
 	if c.Connection.Connector == "" {
 		c.Connection.Connector = ConnectorIP
 	}
+	if c.Connection.SerialBaud <= 0 {
+		c.Connection.SerialBaud = DefaultSerialBaud
+	}
 	if c.Logging.Level == "" {
 		c.Logging.Level = "info"
 	}
@@ -83,7 +92,19 @@ func (c *AppConfig) ApplyDefaults() {
 
 func (c AppConfig) Validate() error {
 	switch c.Connection.Connector {
-	case ConnectorIP, ConnectorBluetooth, ConnectorSerial:
+	case ConnectorIP:
+		if strings.TrimSpace(c.Connection.Host) == "" {
+			return errors.New("ip host is required")
+		}
+	case ConnectorSerial:
+		if strings.TrimSpace(c.Connection.SerialPort) == "" {
+			return errors.New("serial port is required")
+		}
+		if c.Connection.SerialBaud <= 0 {
+			return errors.New("serial baud must be positive")
+		}
+	case ConnectorBluetooth:
+		return errors.New("bluetooth connector is not implemented")
 	default:
 		return fmt.Errorf("unknown connector: %s", c.Connection.Connector)
 	}

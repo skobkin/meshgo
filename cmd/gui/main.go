@@ -45,7 +45,6 @@ func run() error {
 		LastSelectedChat: rt.Config.UI.LastSelectedChat,
 		Sender:           rt.Radio,
 		LocalNodeID:      rt.Radio.LocalNodeID,
-		IPTransport:      rt.IPTransport,
 		OnSave:           rt.SaveAndApplyConfig,
 		OnChatSelected:   rt.RememberSelectedChat,
 		OnClearDB:        rt.ClearDatabase,
