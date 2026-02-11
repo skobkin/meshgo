@@ -45,6 +45,7 @@ type ChatMessage struct {
 	Direction       MessageDirection
 	Body            string
 	Status          MessageStatus
+	StatusReason    string
 	At              time.Time
 	MetaJSON        string
 }

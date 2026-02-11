@@ -30,11 +30,11 @@ func signalQualityFromMetrics(rssi *int, snr *float64) (domain.SignalQuality, bo
 func signalBarsForQuality(quality domain.SignalQuality) string {
 	switch quality {
 	case domain.SignalGood:
-		return "▂▄▆█"
+		return "▂▅█"
 	case domain.SignalFair:
-		return "▂▄▆ "
+		return "▂▅ "
 	case domain.SignalBad:
-		return "▂▄  "
+		return "▂  "
 	default:
 		return ""
 	}

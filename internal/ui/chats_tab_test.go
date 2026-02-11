@@ -219,7 +219,7 @@ func TestMessageTextLine_OutgoingUsesLocalNodeResolver(t *testing.T) {
 	}
 }
 
-func TestMessageMetaLine_DirectIncomingShowsRSSIAndSNR(t *testing.T) {
+func TestMessageMetaLine_DirectIncomingShowsSignalBarsOnly(t *testing.T) {
 	rssi := -67
 	snr := 4.25
 	line := messageMetaLine(
@@ -227,12 +227,12 @@ func TestMessageMetaLine_DirectIncomingShowsRSSIAndSNR(t *testing.T) {
 		messageMeta{Hops: ptrInt(0), RxRSSI: &rssi, RxSNR: &snr},
 		true,
 	)
-	if line != "⓪ ▂▄▆█ RSSI: -67 SNR: 4.25" {
+	if line != "▂▅█" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
 
-func TestMessageMetaSegments_DirectIncomingSignalBarsAndValueColors(t *testing.T) {
+func TestMessageMetaSegments_DirectIncomingSignalBarsColor(t *testing.T) {
 	rssi := -125
 	snr := -14.0
 	segs := messageMetaSegments(
@@ -242,20 +242,25 @@ func TestMessageMetaSegments_DirectIncomingSignalBarsAndValueColors(t *testing.T
 	)
 
 	line := richTextSegmentsText(segs)
-	if line != "⓪ ▂▄▆  RSSI: -125 SNR: -14.00" {
+	if line != "▂▅ " {
 		t.Fatalf("unexpected line: %q", line)
 	}
 
-	bars := findTextSegmentByContent(t, segs, "▂▄▆ ")
+	bars := findTextSegmentByContent(t, segs, "▂▅ ")
 	if bars.Style.ColorName != theme.ColorNameWarning {
 		t.Fatalf("unexpected bars color: %q", bars.Style.ColorName)
 	}
+}
+
+func TestSignalTooltipSegments_UsesValueColors(t *testing.T) {
+	rssi := -125
+	snr := -14.0
+	segs := signalTooltipSegments(messageMeta{RxRSSI: &rssi, RxSNR: &snr})
 
 	rssiValue := findTextSegmentByContent(t, segs, "-125")
 	if rssiValue.Style.ColorName != theme.ColorNameWarning {
 		t.Fatalf("unexpected RSSI color: %q", rssiValue.Style.ColorName)
 	}
-
 	snrValue := findTextSegmentByContent(t, segs, "-14.00")
 	if snrValue.Style.ColorName != theme.ColorNameWarning {
 		t.Fatalf("unexpected SNR color: %q", snrValue.Style.ColorName)
@@ -271,7 +276,7 @@ func TestMessageMetaSegments_UnknownSignalOmitsBars(t *testing.T) {
 	)
 
 	line := richTextSegmentsText(segs)
-	if line != "⓪ RSSI: -67" {
+	if line != "" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 	if strings.Contains(line, "▂") || strings.Contains(line, "▄") {
@@ -293,19 +298,21 @@ func TestMessageMetaLine_MQTTShowsHopsOnly(t *testing.T) {
 func TestMessageTransportBadge(t *testing.T) {
 	tests := []struct {
 		name    string
+		message domain.ChatMessage
 		meta    messageMeta
 		hasMeta bool
 		want    string
 		hint    string
 	}{
-		{name: "no meta", meta: messageMeta{}, hasMeta: false, want: "", hint: ""},
-		{name: "via mqtt", meta: messageMeta{ViaMQTT: true}, hasMeta: true, want: "☁", hint: "via MQTT"},
-		{name: "transport mqtt", meta: messageMeta{Transport: "TRANSPORT_MQTT"}, hasMeta: true, want: "☁", hint: "via MQTT"},
-		{name: "not mqtt", meta: messageMeta{Transport: "TRANSPORT_TCP"}, hasMeta: true, want: "", hint: ""},
+		{name: "incoming no meta", message: domain.ChatMessage{Direction: domain.MessageDirectionIn}, meta: messageMeta{}, hasMeta: false, want: "📡", hint: "via Radio"},
+		{name: "incoming via mqtt", message: domain.ChatMessage{Direction: domain.MessageDirectionIn}, meta: messageMeta{ViaMQTT: true}, hasMeta: true, want: "☁", hint: "via MQTT"},
+		{name: "incoming transport mqtt", message: domain.ChatMessage{Direction: domain.MessageDirectionIn}, meta: messageMeta{Transport: "TRANSPORT_MQTT"}, hasMeta: true, want: "☁", hint: "via MQTT"},
+		{name: "incoming not mqtt", message: domain.ChatMessage{Direction: domain.MessageDirectionIn}, meta: messageMeta{Transport: "TRANSPORT_TCP"}, hasMeta: true, want: "📡", hint: "via Radio"},
+		{name: "outgoing hidden", message: domain.ChatMessage{Direction: domain.MessageDirectionOut}, meta: messageMeta{ViaMQTT: true}, hasMeta: true, want: "", hint: ""},
 	}
 
 	for _, tc := range tests {
-		got, hint := messageTransportBadge(tc.meta, tc.hasMeta)
+		got, hint := messageTransportBadge(tc.message, tc.meta, tc.hasMeta)
 		if got != tc.want {
 			t.Fatalf("%s: expected badge %q, got %q", tc.name, tc.want, got)
 		}
@@ -321,7 +328,18 @@ func TestMessageMetaLine_UnknownHopsGracefulFallback(t *testing.T) {
 		messageMeta{},
 		false,
 	)
-	if line != "?" {
+	if line != "" {
+		t.Fatalf("unexpected line: %q", line)
+	}
+}
+
+func TestMessageMetaLine_DirectHopsHidden(t *testing.T) {
+	line := messageMetaLine(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(0)},
+		true,
+	)
+	if line != "" {
 		t.Fatalf("unexpected line: %q", line)
 	}
 }
@@ -423,36 +441,46 @@ func TestChatUnreadByKeyAndMarkRead(t *testing.T) {
 	}
 }
 
-func TestMessageStatusLine_Outgoing(t *testing.T) {
+func TestMessageStatusBadge_Outgoing(t *testing.T) {
 	tests := []struct {
-		name   string
-		status domain.MessageStatus
-		want   string
+		name    string
+		message domain.ChatMessage
+		want    string
+		hint    string
 	}{
-		{name: "pending", status: domain.MessageStatusPending, want: "Pending"},
-		{name: "sent", status: domain.MessageStatusSent, want: "Sent"},
-		{name: "acked", status: domain.MessageStatusAcked, want: "Acked"},
-		{name: "failed", status: domain.MessageStatusFailed, want: "Failed"},
+		{name: "pending", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusPending}, want: "◷", hint: "Pending"},
+		{name: "sent", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent}, want: "✓", hint: "Sent"},
+		{name: "acked", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusAcked}, want: "✓✓", hint: "Acked"},
+		{name: "failed", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusFailed, StatusReason: "NO_ROUTE"}, want: "⚠", hint: "Failed: NO_ROUTE"},
 	}
-
 	for _, tc := range tests {
-		got := messageStatusLine(domain.ChatMessage{
-			Direction: domain.MessageDirectionOut,
-			Status:    tc.status,
-		})
+		got, hint := messageStatusBadge(tc.message)
 		if got != tc.want {
-			t.Fatalf("%s: expected %q, got %q", tc.name, tc.want, got)
+			t.Fatalf("%s: expected badge %q, got %q", tc.name, tc.want, got)
+		}
+		if hint != tc.hint {
+			t.Fatalf("%s: expected tooltip %q, got %q", tc.name, tc.hint, hint)
 		}
 	}
 }
 
-func TestMessageStatusLine_IncomingHidden(t *testing.T) {
-	got := messageStatusLine(domain.ChatMessage{
+func TestMessageStatusBadge_IncomingHidden(t *testing.T) {
+	got, hint := messageStatusBadge(domain.ChatMessage{
 		Direction: domain.MessageDirectionIn,
 		Status:    domain.MessageStatusAcked,
 	})
-	if got != "" {
-		t.Fatalf("expected empty status for incoming message, got %q", got)
+	if got != "" || hint != "" {
+		t.Fatalf("unexpected incoming badge (%q, %q)", got, hint)
+	}
+}
+
+func TestMessageTimeLabel(t *testing.T) {
+	at := time.Date(2026, 2, 11, 8, 7, 0, 0, time.Local)
+	if got := messageTimeLabel(at); got != "08:07" {
+		t.Fatalf("unexpected time label: %q", got)
+	}
+	if got := messageTimeLabel(time.Time{}); got != "" {
+		t.Fatalf("unexpected zero time label: %q", got)
 	}
 }
 

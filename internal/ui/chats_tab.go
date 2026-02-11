@@ -103,11 +103,24 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
-			messageLine := container.NewBorder(nil, nil, nil, newTooltipLabel("", ""), widget.NewRichTextWithText("message"))
+			transportBadge := newTooltipLabel("", "")
+			messageLine := container.NewBorder(
+				nil,
+				nil,
+				nil,
+				container.NewHBox(horizontalSpacer(theme.Padding()), transportBadge, horizontalSpacer(theme.Padding())),
+				widget.NewRichTextWithText("message"),
+			)
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
+			statusBadge := newTooltipLabel("", "")
+			timeLabel := widget.NewLabel("time")
 			row := container.NewVBox(
 				messageLine,
-				container.NewHBox(metaParts, layout.NewSpacer(), widget.NewLabel("status")),
+				container.NewHBox(
+					metaParts,
+					layout.NewSpacer(),
+					container.NewHBox(statusBadge, horizontalSpacer(theme.Padding()/2), timeLabel, horizontalSpacer(0)),
+				),
 			)
 			bubbleBg := canvas.NewRectangle(chatBubbleFillColor(domain.MessageDirectionIn))
 			bubbleBg.CornerRadius = 10
@@ -133,15 +146,18 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			box := bubble.Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
 			messageLine := box.Objects[0].(*fyne.Container)
 			messageText := messageLine.Objects[0].(*widget.RichText)
-			messageBadge := messageLine.Objects[1].(*tooltipLabel)
+			transportSlot := messageLine.Objects[1].(*fyne.Container)
+			transportBadge := transportSlot.Objects[1].(*tooltipLabel)
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Refresh()
-			messageBadge.SetBadge(messageTransportBadge(meta, hasMeta))
+			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta)
 			metaParts.Refresh()
-			metaRow.Objects[2].(*widget.Label).SetText(messageStatusLine(msg))
+			metaRight := metaRow.Objects[2].(*fyne.Container)
+			metaRight.Objects[0].(*tooltipLabel).SetBadge(messageStatusBadge(msg))
+			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
 
 			// Chat rows can have different heights (e.g. multiline message text),
 			// so we must update list item height per message.
@@ -495,6 +511,11 @@ func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool) []
 	chunks := messageMetaChunks(m, meta, hasMeta)
 	widgets := make([]fyne.CanvasObject, 0, len(chunks))
 	for _, chunk := range chunks {
+		if len(chunk.Tooltip) > 0 {
+			widgets = append(widgets, newTooltipRichText(chunk.Segments, chunk.Tooltip))
+
+			continue
+		}
 		widgets = append(widgets, widget.NewRichText(chunk.Segments...))
 	}
 
@@ -508,6 +529,7 @@ var hopBadges = [...]string{
 type messageMetaChunk struct {
 	PlainText string
 	Segments  []widget.RichTextSegment
+	Tooltip   []widget.RichTextSegment
 }
 
 func newMetaChunkInline(text string) messageMetaChunk {
@@ -519,12 +541,10 @@ func newMetaChunkInline(text string) messageMetaChunk {
 
 func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaChunk {
 	hops, hopsKnown := messageHops(meta, hasMeta)
-	hopsLine := "?"
-	if hopsKnown {
-		hopsLine = hopBadge(hops)
+	parts := make([]messageMetaChunk, 0, 2)
+	if hopsKnown && hops > 0 {
+		parts = append(parts, newMetaChunkInline(hopBadge(hops)))
 	}
-
-	parts := []messageMetaChunk{newMetaChunkInline(hopsLine)}
 	if isMessageFromMQTT(meta, hasMeta) {
 		return parts
 	}
@@ -540,37 +560,41 @@ func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []m
 						Style: signalRichTextStyle(signalThemeColorForQuality(quality), true),
 					},
 				},
-			})
-		}
-		if meta.RxRSSI != nil {
-			rssiText := fmt.Sprintf("%d", *meta.RxRSSI)
-			parts = append(parts, messageMetaChunk{
-				PlainText: fmt.Sprintf("RSSI: %s", rssiText),
-				Segments: []widget.RichTextSegment{
-					&widget.TextSegment{Text: "RSSI: ", Style: widget.RichTextStyleInline},
-					&widget.TextSegment{
-						Text:  rssiText,
-						Style: signalRichTextStyle(signalThemeColorForRSSI(*meta.RxRSSI), false),
-					},
-				},
-			})
-		}
-		if meta.RxSNR != nil {
-			snrText := fmt.Sprintf("%.2f", *meta.RxSNR)
-			parts = append(parts, messageMetaChunk{
-				PlainText: fmt.Sprintf("SNR: %s", snrText),
-				Segments: []widget.RichTextSegment{
-					&widget.TextSegment{Text: "SNR: ", Style: widget.RichTextStyleInline},
-					&widget.TextSegment{
-						Text:  snrText,
-						Style: signalRichTextStyle(signalThemeColorForSNR(*meta.RxSNR), false),
-					},
-				},
+				Tooltip: signalTooltipSegments(meta),
 			})
 		}
 	}
 
 	return parts
+}
+
+func signalTooltipSegments(meta messageMeta) []widget.RichTextSegment {
+	segments := make([]widget.RichTextSegment, 0, 6)
+	if meta.RxRSSI != nil {
+		rssiText := fmt.Sprintf("%d", *meta.RxRSSI)
+		segments = append(segments,
+			&widget.TextSegment{Text: "RSSI: ", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{
+				Text:  rssiText,
+				Style: signalRichTextStyle(signalThemeColorForRSSI(*meta.RxRSSI), false),
+			},
+		)
+	}
+	if meta.RxSNR != nil {
+		if len(segments) > 0 {
+			segments = append(segments, &widget.TextSegment{Text: " ", Style: widget.RichTextStyleInline})
+		}
+		snrText := fmt.Sprintf("%.2f", *meta.RxSNR)
+		segments = append(segments,
+			&widget.TextSegment{Text: "SNR: ", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{
+				Text:  snrText,
+				Style: signalRichTextStyle(signalThemeColorForSNR(*meta.RxSNR), false),
+			},
+		)
+	}
+
+	return segments
 }
 
 func hopBadge(hops int) string {
@@ -594,21 +618,26 @@ func signalRichTextStyle(colorName fyne.ThemeColorName, monospace bool) widget.R
 	return style
 }
 
-func messageStatusLine(m domain.ChatMessage) string {
+func messageStatusBadge(m domain.ChatMessage) (text, tooltip string) {
 	if m.Direction != domain.MessageDirectionOut {
-		return ""
+		return "", ""
 	}
 	switch m.Status {
 	case domain.MessageStatusPending:
-		return "Pending"
+		return "◷", "Pending"
 	case domain.MessageStatusSent:
-		return "Sent"
+		return "✓", "Sent"
 	case domain.MessageStatusAcked:
-		return "Acked"
+		return "✓✓", "Acked"
 	case domain.MessageStatusFailed:
-		return "Failed"
+		reason := compactWhitespace(strings.TrimSpace(m.StatusReason))
+		if reason == "" {
+			return "⚠", "Failed"
+		}
+
+		return "⚠", "Failed: " + reason
 	default:
-		return ""
+		return "", ""
 	}
 }
 
@@ -643,12 +672,23 @@ func isMessageFromMQTT(meta messageMeta, hasMeta bool) bool {
 	return strings.EqualFold(strings.TrimSpace(meta.Transport), "TRANSPORT_MQTT")
 }
 
-func messageTransportBadge(meta messageMeta, hasMeta bool) (text, tooltip string) {
+func messageTransportBadge(m domain.ChatMessage, meta messageMeta, hasMeta bool) (text, tooltip string) {
+	if m.Direction != domain.MessageDirectionIn {
+		return "", ""
+	}
 	if isMessageFromMQTT(meta, hasMeta) {
 		return "☁", "via MQTT"
 	}
 
-	return "", ""
+	return "📡", "via Radio"
+}
+
+func messageTimeLabel(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+
+	return at.Local().Format("15:04")
 }
 
 func chatBubbleFillColor(direction domain.MessageDirection) color.Color {
@@ -701,6 +741,16 @@ func mixNRGBA(a, b color.NRGBA, bWeight float32) color.NRGBA {
 		B: uint8(float32(a.B)*aWeight + float32(b.B)*bWeight),
 		A: uint8(float32(a.A)*aWeight + float32(b.A)*bWeight),
 	}
+}
+
+func horizontalSpacer(width float32) fyne.CanvasObject {
+	if width < 0 {
+		width = 0
+	}
+	rect := canvas.NewRectangle(color.Transparent)
+	rect.SetMinSize(fyne.NewSize(width, 1))
+
+	return rect
 }
 
 func colorWithContrastOffset(c color.NRGBA) color.NRGBA {

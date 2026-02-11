@@ -142,7 +142,7 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	if !signal.Visible() {
 		t.Fatalf("signal should be visible")
 	}
-	if signal.Text != "▂▄▆█ Good" {
+	if signal.Text != "▂▅█ Good" {
 		t.Fatalf("unexpected signal text: %q", signal.Text)
 	}
 }
@@ -159,9 +159,9 @@ func TestNodeLine2Signal(t *testing.T) {
 		show bool
 	}{
 		{name: "unknown without metrics", node: domain.Node{}, want: "", show: false},
-		{name: "good", node: domain.Node{RSSI: &goodRSSI, SNR: &goodSNR}, want: "▂▄▆█ Good", show: true},
-		{name: "fair", node: domain.Node{RSSI: &fairRSSI, SNR: &fairSNR}, want: "▂▄▆  Fair", show: true},
-		{name: "bad", node: domain.Node{RSSI: &badRSSI, SNR: &badSNR}, want: "▂▄   Bad", show: true},
+		{name: "good", node: domain.Node{RSSI: &goodRSSI, SNR: &goodSNR}, want: "▂▅█ Good", show: true},
+		{name: "fair", node: domain.Node{RSSI: &fairRSSI, SNR: &fairSNR}, want: "▂▅  Fair", show: true},
+		{name: "bad", node: domain.Node{RSSI: &badRSSI, SNR: &badSNR}, want: "▂   Bad", show: true},
 	}
 
 	for _, tt := range tests {

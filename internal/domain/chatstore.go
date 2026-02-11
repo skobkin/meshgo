@@ -79,7 +79,7 @@ func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
 				if !ok {
 					continue
 				}
-				s.UpdateMessageStatusByDeviceID(update.DeviceMessageID, update.Status)
+				s.UpdateMessageStatusByDeviceID(update.DeviceMessageID, update.Status, update.Reason)
 			}
 		}
 	}()
@@ -159,6 +159,11 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 			}
 			if ShouldTransitionMessageStatus(msgs[i].Status, msg.Status) {
 				msgs[i].Status = msg.Status
+				if msg.Status == MessageStatusFailed {
+					msgs[i].StatusReason = strings.TrimSpace(msg.StatusReason)
+				} else {
+					msgs[i].StatusReason = ""
+				}
 				changed = true
 			}
 			if changed {
@@ -188,11 +193,12 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 	s.notify()
 }
 
-func (s *ChatStore) UpdateMessageStatusByDeviceID(deviceMessageID string, status MessageStatus) {
+func (s *ChatStore) UpdateMessageStatusByDeviceID(deviceMessageID string, status MessageStatus, reason string) {
 	deviceMessageID = strings.TrimSpace(deviceMessageID)
 	if deviceMessageID == "" || status == 0 {
 		return
 	}
+	reason = strings.TrimSpace(reason)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -203,11 +209,25 @@ func (s *ChatStore) UpdateMessageStatusByDeviceID(deviceMessageID string, status
 			if messages[i].DeviceMessageID != deviceMessageID {
 				continue
 			}
-			if !ShouldTransitionMessageStatus(messages[i].Status, status) {
+			statusChanged := ShouldTransitionMessageStatus(messages[i].Status, status)
+			if statusChanged {
+				messages[i].Status = status
+				if status == MessageStatusFailed {
+					messages[i].StatusReason = reason
+				} else {
+					messages[i].StatusReason = ""
+				}
+				changed = true
+
 				continue
 			}
-			messages[i].Status = status
-			changed = true
+			if status == MessageStatusFailed &&
+				messages[i].Status == MessageStatusFailed &&
+				reason != "" &&
+				messages[i].StatusReason != reason {
+				messages[i].StatusReason = reason
+				changed = true
+			}
 		}
 		s.messages[chatKey] = messages
 	}
