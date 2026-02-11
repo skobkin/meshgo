@@ -99,7 +99,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.updated_at > nodes.updated_at THEN excluded.updated_at
 				ELSE nodes.updated_at
 			END
-	`, n.NodeID, n.LongName, n.ShortName, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, toUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, toUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -142,8 +142,8 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
-		n.LastHeardAt = fromUnixMillis(heardMs)
-		n.UpdatedAt = fromUnixMillis(updMs)
+		n.LastHeardAt = unixMillisToTime(heardMs)
+		n.UpdatedAt = unixMillisToTime(updMs)
 		if battery.Valid && battery.Int64 >= 0 && battery.Int64 <= math.MaxUint32 {
 			// #nosec G115 -- guarded by explicit int64 bounds check.
 			v := uint32(battery.Int64)

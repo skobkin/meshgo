@@ -45,12 +45,12 @@ func run() error {
 	}
 	defer closeRuntime()
 
-	deps := ui.NewDependenciesFromRuntime(rt, ui.LaunchOptions{StartHidden: opts.StartHidden}, func() {
+	uiDeps := ui.BuildRuntimeDependencies(rt, ui.LaunchOptions{StartHidden: opts.StartHidden}, func() {
 		stop()
 		closeRuntime()
 	})
 
-	err = ui.Run(deps)
+	err = ui.Run(uiDeps)
 	if err != nil {
 		return fmt.Errorf("run ui: %w", err)
 	}

@@ -31,7 +31,7 @@ const (
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
 
-func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
+func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
 	current := dep.Data.Config
 	current.ApplyDefaults()
 

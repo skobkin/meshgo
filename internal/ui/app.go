@@ -20,7 +20,7 @@ import (
 
 const sidebarConnIconSize float32 = 32
 
-func Run(dep Dependencies) error {
+func Run(dep RuntimeDependencies) error {
 	fyApp := fyneapp.NewWithID("meshgo")
 	initialVariant := fyApp.Settings().ThemeVariant()
 	fyApp.SetIcon(resources.AppIconResource(initialVariant))
@@ -114,7 +114,7 @@ func Run(dep Dependencies) error {
 		sidebarConnIcon,
 	)))
 
-	setConnStatus := func(status connectors.ConnStatus) {
+	setConnStatus := func(status connectors.ConnectionStatus) {
 		connStatusMu.Lock()
 		currentStatus = status
 		connStatusMu.Unlock()
@@ -151,7 +151,7 @@ func Run(dep Dependencies) error {
 		sub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
 		go func() {
 			for raw := range sub {
-				status, ok := raw.(connectors.ConnStatus)
+				status, ok := raw.(connectors.ConnectionStatus)
 				if !ok {
 					continue
 				}
@@ -228,11 +228,11 @@ func disabledTab(text string) fyne.CanvasObject {
 	return container.NewCenter(widget.NewLabel(text))
 }
 
-func initialConnStatus(dep Dependencies) connectors.ConnStatus {
+func initialConnStatus(dep RuntimeDependencies) connectors.ConnectionStatus {
 	return meshapp.ConnectionStatusFromConfig(dep.Data.Config.Connection)
 }
 
-func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
+func resolveInitialConnStatus(dep RuntimeDependencies) connectors.ConnectionStatus {
 	fallback := initialConnStatus(dep)
 	status, ok := currentConnStatus(dep)
 	if !ok || status.State == "" {
@@ -247,14 +247,14 @@ func resolveInitialConnStatus(dep Dependencies) connectors.ConnStatus {
 	return status
 }
 
-func currentConnStatus(dep Dependencies) (connectors.ConnStatus, bool) {
+func currentConnStatus(dep RuntimeDependencies) (connectors.ConnectionStatus, bool) {
 	if dep.Data.CurrentConnStatus == nil {
-		return connectors.ConnStatus{}, false
+		return connectors.ConnectionStatus{}, false
 	}
 	return dep.Data.CurrentConnStatus()
 }
 
-func formatConnStatus(status connectors.ConnStatus, localShortName string) string {
+func formatConnStatus(status connectors.ConnectionStatus, localShortName string) string {
 	text := string(status.State)
 	if transportName := transportDisplayName(status.TransportName); transportName != "" {
 		text = transportName + " " + text
@@ -285,7 +285,7 @@ func transportDisplayName(name string) string {
 	}
 }
 
-func formatWindowTitle(status connectors.ConnStatus, localShortName string) string {
+func formatWindowTitle(status connectors.ConnectionStatus, localShortName string) string {
 	return "MeshGo - " + formatConnStatus(status, localShortName)
 }
 
@@ -293,7 +293,7 @@ func applyConnStatusUI(
 	window fyne.Window,
 	statusLabel *widget.Label,
 	sidebarIcon *widget.Icon,
-	status connectors.ConnStatus,
+	status connectors.ConnectionStatus,
 	variant fyne.ThemeVariant,
 	localShortName string,
 ) {
@@ -302,11 +302,11 @@ func applyConnStatusUI(
 	setConnStatusIcon(sidebarIcon, status, variant)
 }
 
-func setConnStatusIcon(sidebarIcon *widget.Icon, status connectors.ConnStatus, variant fyne.ThemeVariant) {
+func setConnStatusIcon(sidebarIcon *widget.Icon, status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
 	sidebarIcon.SetResource(resources.UIIconResource(sidebarStatusIcon(status), variant))
 }
 
-func sidebarStatusIcon(status connectors.ConnStatus) resources.UIIcon {
+func sidebarStatusIcon(status connectors.ConnectionStatus) resources.UIIcon {
 	if status.State == connectors.ConnectionStateConnected {
 		return resources.UIIconConnected
 	}

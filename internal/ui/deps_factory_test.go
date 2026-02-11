@@ -9,7 +9,7 @@ import (
 	"github.com/skobkin/meshgo/internal/radio"
 )
 
-func TestNewDependenciesFromRuntime_MapsRuntimeAndLaunch(t *testing.T) {
+func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	cfg := config.Default()
 	cfg.UI.LastSelectedChat = "chat-1"
 
@@ -21,7 +21,7 @@ func TestNewDependenciesFromRuntime_MapsRuntimeAndLaunch(t *testing.T) {
 	}
 
 	quitCalled := false
-	dep := NewDependenciesFromRuntime(rt, LaunchOptions{StartHidden: true}, func() {
+	dep := BuildRuntimeDependencies(rt, LaunchOptions{StartHidden: true}, func() {
 		quitCalled = true
 	})
 
@@ -77,9 +77,9 @@ func TestNewDependenciesFromRuntime_MapsRuntimeAndLaunch(t *testing.T) {
 	}
 }
 
-func TestNewDependenciesFromRuntime_NilRuntimeStillMapsLaunchAndQuit(t *testing.T) {
+func TestBuildRuntimeDependencies_NilRuntimeStillMapsLaunchAndQuit(t *testing.T) {
 	quitCalled := false
-	dep := NewDependenciesFromRuntime(nil, LaunchOptions{StartHidden: true}, func() {
+	dep := BuildRuntimeDependencies(nil, LaunchOptions{StartHidden: true}, func() {
 		quitCalled = true
 	})
 

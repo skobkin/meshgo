@@ -265,12 +265,12 @@ func (s *Service) sendWantConfig(ctx context.Context) error {
 }
 
 func (s *Service) publishConnStatus(state connectors.ConnectionState, err error) {
-	status := connectors.ConnStatus{
+	status := connectors.ConnectionStatus{
 		State:         state,
 		TransportName: s.transport.Name(),
 		Timestamp:     time.Now(),
 	}
-	if provider, ok := s.transport.(transport.StatusTargetProvider); ok {
+	if provider, ok := s.transport.(transport.StatusTargetResolver); ok {
 		status.Target = strings.TrimSpace(provider.StatusTarget())
 	}
 	if err != nil {

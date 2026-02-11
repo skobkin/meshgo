@@ -11,7 +11,7 @@ const (
 	ConnectionStateReconnecting ConnectionState = "reconnecting"
 )
 
-type ConnStatus struct {
+type ConnectionStatus struct {
 	State         ConnectionState
 	Err           string
 	TransportName string

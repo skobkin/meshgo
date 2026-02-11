@@ -7,19 +7,24 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio"
 )
 
-type DataDeps struct {
+type MessageSender interface {
+	SendText(chatKey, text string) <-chan radio.SendResult
+}
+
+type DataDependencies struct {
 	Config            config.AppConfig
 	ChatStore         *domain.ChatStore
 	NodeStore         *domain.NodeStore
 	Bus               bus.MessageBus
 	LastSelectedChat  string
 	LocalNodeID       func() string
-	CurrentConnStatus func() (connectors.ConnStatus, bool)
+	CurrentConnStatus func() (connectors.ConnectionStatus, bool)
 }
 
-type ActionDeps struct {
+type ActionDependencies struct {
 	Sender         MessageSender
 	OnSave         func(cfg config.AppConfig) error
 	OnChatSelected func(chatKey string)
@@ -27,7 +32,7 @@ type ActionDeps struct {
 	OnQuit         func()
 }
 
-type PlatformDeps struct {
+type PlatformDependencies struct {
 	BluetoothScanner      BluetoothScanner
 	OpenBluetoothSettings func() error
 }
@@ -45,10 +50,10 @@ type LaunchOptions struct {
 	StartHidden bool
 }
 
-type Dependencies struct {
-	Data     DataDeps
-	Actions  ActionDeps
-	Platform PlatformDeps
+type RuntimeDependencies struct {
+	Data     DataDependencies
+	Actions  ActionDependencies
+	Platform PlatformDependencies
 	UIHooks  UIHooks
 	Launch   LaunchOptions
 }

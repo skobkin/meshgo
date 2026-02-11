@@ -22,5 +22,5 @@ func TestMustParseUUIDPanicsOnInvalidValue(t *testing.T) {
 			t.Fatalf("expected panic for invalid UUID")
 		}
 	}()
-	_ = MustParseUUID("not-a-uuid")
+	_ = mustParseUUID("not-a-uuid")
 }

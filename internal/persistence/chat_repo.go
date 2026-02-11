@@ -38,7 +38,7 @@ func (r *ChatRepo) Upsert(ctx context.Context, c domain.Chat) error {
 				WHEN excluded.updated_at > chats.updated_at THEN excluded.updated_at
 				ELSE chats.updated_at
 			END
-	`, c.Key, int(c.Type), c.Title, toUnixMillis(c.LastSentByMeAt), toUnixMillis(c.UpdatedAt))
+	`, c.Key, int(c.Type), c.Title, timeToUnixMillis(c.LastSentByMeAt), timeToUnixMillis(c.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert chat: %w", err)
 	}
@@ -71,9 +71,9 @@ func (r *ChatRepo) ListSortedByLastSentByMe(ctx context.Context) ([]domain.Chat,
 		}
 		chat.Type = domain.ChatType(typeInt)
 		if lastSentMs.Valid {
-			chat.LastSentByMeAt = fromUnixMillis(lastSentMs.Int64)
+			chat.LastSentByMeAt = unixMillisToTime(lastSentMs.Int64)
 		}
-		chat.UpdatedAt = fromUnixMillis(updatedMs)
+		chat.UpdatedAt = unixMillisToTime(updatedMs)
 		out = append(out, chat)
 	}
 	if err := rows.Err(); err != nil {

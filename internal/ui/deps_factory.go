@@ -5,14 +5,14 @@ import (
 	"github.com/skobkin/meshgo/internal/platform"
 )
 
-func NewDependenciesFromRuntime(rt *meshapp.Runtime, launch LaunchOptions, onQuit func()) Dependencies {
+func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit func()) RuntimeDependencies {
 	systemActions := platform.NewSystemActions()
-	dep := Dependencies{
+	dep := RuntimeDependencies{
 		Launch: launch,
-		Actions: ActionDeps{
+		Actions: ActionDependencies{
 			OnQuit: onQuit,
 		},
-		Platform: PlatformDeps{
+		Platform: PlatformDependencies{
 			OpenBluetoothSettings: systemActions.OpenBluetoothSettings,
 		},
 	}
@@ -21,7 +21,7 @@ func NewDependenciesFromRuntime(rt *meshapp.Runtime, launch LaunchOptions, onQui
 		return dep
 	}
 
-	dep.Data = DataDeps{
+	dep.Data = DataDependencies{
 		Config:            rt.Config,
 		ChatStore:         rt.ChatStore,
 		NodeStore:         rt.NodeStore,
@@ -30,7 +30,7 @@ func NewDependenciesFromRuntime(rt *meshapp.Runtime, launch LaunchOptions, onQui
 		CurrentConnStatus: rt.CurrentConnStatus,
 	}
 
-	dep.Platform = PlatformDeps{
+	dep.Platform = PlatformDependencies{
 		BluetoothScanner:      NewTinyGoBluetoothScanner(defaultBluetoothScanDuration),
 		OpenBluetoothSettings: systemActions.OpenBluetoothSettings,
 	}

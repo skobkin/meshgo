@@ -10,26 +10,26 @@ import (
 	"github.com/skobkin/meshgo/internal/transport"
 )
 
-type ConnectionTransport struct {
+type SwitchableTransport struct {
 	mu sync.RWMutex
 
 	cfg       config.ConnectionConfig
 	transport transport.Transport
 }
 
-func NewConnectionTransport(cfg config.ConnectionConfig) (*ConnectionTransport, error) {
+func NewConnectionTransport(cfg config.ConnectionConfig) (*SwitchableTransport, error) {
 	tr, err := newTransportForConnection(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ConnectionTransport{
+	return &SwitchableTransport{
 		cfg:       cfg,
 		transport: tr,
 	}, nil
 }
 
-func (t *ConnectionTransport) Apply(cfg config.ConnectionConfig) error {
+func (t *SwitchableTransport) Apply(cfg config.ConnectionConfig) error {
 	next, err := newTransportForConnection(cfg)
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (t *ConnectionTransport) Apply(cfg config.ConnectionConfig) error {
 	return nil
 }
 
-func (t *ConnectionTransport) Name() string {
+func (t *SwitchableTransport) Name() string {
 	tr := t.current()
 	if tr == nil {
 		return "unknown"
@@ -56,13 +56,13 @@ func (t *ConnectionTransport) Name() string {
 	return tr.Name()
 }
 
-func (t *ConnectionTransport) StatusTarget() string {
+func (t *SwitchableTransport) StatusTarget() string {
 	t.mu.RLock()
 	tr := t.transport
 	cfg := t.cfg
 	t.mu.RUnlock()
 
-	if provider, ok := tr.(transport.StatusTargetProvider); ok {
+	if provider, ok := tr.(transport.StatusTargetResolver); ok {
 		target := strings.TrimSpace(provider.StatusTarget())
 		if target != "" {
 			return target
@@ -72,7 +72,7 @@ func (t *ConnectionTransport) StatusTarget() string {
 	return ConnectionTarget(cfg)
 }
 
-func (t *ConnectionTransport) Connect(ctx context.Context) error {
+func (t *SwitchableTransport) Connect(ctx context.Context) error {
 	tr := t.current()
 	if tr == nil {
 		return fmt.Errorf("transport is not configured")
@@ -80,7 +80,7 @@ func (t *ConnectionTransport) Connect(ctx context.Context) error {
 	return tr.Connect(ctx)
 }
 
-func (t *ConnectionTransport) Close() error {
+func (t *SwitchableTransport) Close() error {
 	tr := t.current()
 	if tr == nil {
 		return nil
@@ -88,7 +88,7 @@ func (t *ConnectionTransport) Close() error {
 	return tr.Close()
 }
 
-func (t *ConnectionTransport) ReadFrame(ctx context.Context) ([]byte, error) {
+func (t *SwitchableTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 	tr := t.current()
 	if tr == nil {
 		return nil, fmt.Errorf("transport is not configured")
@@ -96,7 +96,7 @@ func (t *ConnectionTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 	return tr.ReadFrame(ctx)
 }
 
-func (t *ConnectionTransport) WriteFrame(ctx context.Context, payload []byte) error {
+func (t *SwitchableTransport) WriteFrame(ctx context.Context, payload []byte) error {
 	tr := t.current()
 	if tr == nil {
 		return fmt.Errorf("transport is not configured")
@@ -104,13 +104,13 @@ func (t *ConnectionTransport) WriteFrame(ctx context.Context, payload []byte) er
 	return tr.WriteFrame(ctx, payload)
 }
 
-func (t *ConnectionTransport) current() transport.Transport {
+func (t *SwitchableTransport) current() transport.Transport {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.transport
 }
 
-func (t *ConnectionTransport) Config() config.ConnectionConfig {
+func (t *SwitchableTransport) Config() config.ConnectionConfig {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.cfg

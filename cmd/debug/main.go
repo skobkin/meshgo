@@ -123,7 +123,7 @@ func run() error {
 
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
-	if err := domain.LoadStoresFromPersistence(ctx, nodeStore, chatStore, nodeRepo, chatRepo, msgRepo); err != nil {
+	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, nodeRepo, chatRepo, msgRepo); err != nil {
 		return fmt.Errorf("bootstrap stores: %w", err)
 	}
 	nodeStore.Start(ctx, b)
@@ -131,18 +131,18 @@ func run() error {
 
 	writer := persistence.NewWriterQueue(logMgr.Logger("persistence"), 256)
 	writer.Start(ctx)
-	domain.StartPersistenceSync(ctx, b, writer, nodeRepo, chatRepo, msgRepo)
+	domain.StartPersistenceProjection(ctx, b, writer, nodeRepo, chatRepo, msgRepo)
 
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {
 		return fmt.Errorf("initialize meshtastic codec: %w", err)
 	}
 
-	tr, err := app.NewTransportForConnection(cfg.Connection)
+	connTransport, err := app.NewTransportForConnection(cfg.Connection)
 	if err != nil {
 		return fmt.Errorf("create transport: %w", err)
 	}
-	radioSvc := radio.NewService(logMgr.Logger("radio"), b, tr, codec)
+	radioService := radio.NewService(logMgr.Logger("radio"), b, connTransport, codec)
 	initialDecodedSub := b.Subscribe(connectors.TopicRadioFrom)
 	initialConnSub := b.Subscribe(connectors.TopicConnStatus)
 	initialRawInSub := b.Subscribe(connectors.TopicRawFrameIn)
@@ -151,7 +151,7 @@ func run() error {
 	defer b.Unsubscribe(initialConnSub, connectors.TopicConnStatus)
 	defer b.Unsubscribe(initialRawInSub, connectors.TopicRawFrameIn)
 	defer b.Unsubscribe(initialRawOutSub, connectors.TopicRawFrameOut)
-	radioSvc.Start(ctx)
+	radioService.Start(ctx)
 
 	logger.Info(
 		"waiting for initial config completion",
@@ -204,7 +204,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			if !ok {
 				continue
 			}
-			status, ok := raw.(connectors.ConnStatus)
+			status, ok := raw.(connectors.ConnectionStatus)
 			if !ok {
 				continue
 			}
@@ -280,7 +280,7 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 				b.Unsubscribe(rawOutSub, connectors.TopicRawFrameOut)
 				return
 			case raw := <-connSub:
-				if status, ok := raw.(connectors.ConnStatus); ok {
+				if status, ok := raw.(connectors.ConnectionStatus); ok {
 					logger.Info("conn", "state", status.State, "transport", status.TransportName, "error", status.Err)
 				}
 			case raw := <-channelSub:

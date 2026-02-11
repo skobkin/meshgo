@@ -36,8 +36,8 @@ func ConnectionTarget(cfg config.ConnectionConfig) string {
 	}
 }
 
-func ConnectionStatusFromConfig(cfg config.ConnectionConfig) connectors.ConnStatus {
-	status := connectors.ConnStatus{
+func ConnectionStatusFromConfig(cfg config.ConnectionConfig) connectors.ConnectionStatus {
+	status := connectors.ConnectionStatus{
 		State:         connectors.ConnectionStateDisconnected,
 		TransportName: TransportNameFromConnector(cfg.Connector),
 		Target:        ConnectionTarget(cfg),

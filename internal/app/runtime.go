@@ -40,12 +40,12 @@ type Runtime struct {
 	NodeStore *domain.NodeStore
 	ChatStore *domain.ChatStore
 
-	ConnectionTransport *ConnectionTransport
+	ConnectionTransport *SwitchableTransport
 	Radio               *radio.Service
 	AutostartManager    platform.AutostartManager
 
 	connStatusMu    sync.RWMutex
-	connStatus      connectors.ConnStatus
+	connStatus      connectors.ConnectionStatus
 	connStatusKnown bool
 }
 
@@ -93,7 +93,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
-	if err := domain.LoadStoresFromPersistence(ctx, nodeStore, chatStore, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo); err != nil {
+	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo); err != nil {
 		_ = rt.Close()
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	writerQueue := persistence.NewWriterQueue(logMgr.Logger("persistence"), 512)
 	writerQueue.Start(ctx)
 	rt.WriterQueue = writerQueue
-	domain.StartPersistenceSync(ctx, b, writerQueue, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo)
+	domain.StartPersistenceProjection(ctx, b, writerQueue, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo)
 
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {
@@ -140,7 +140,7 @@ func (r *Runtime) captureConnStatus(ctx context.Context, sub bus.Subscription) {
 			if !ok {
 				return
 			}
-			status, ok := raw.(connectors.ConnStatus)
+			status, ok := raw.(connectors.ConnectionStatus)
 			if !ok {
 				continue
 			}
@@ -149,14 +149,14 @@ func (r *Runtime) captureConnStatus(ctx context.Context, sub bus.Subscription) {
 	}
 }
 
-func (r *Runtime) setConnStatus(status connectors.ConnStatus) {
+func (r *Runtime) setConnStatus(status connectors.ConnectionStatus) {
 	r.connStatusMu.Lock()
 	r.connStatus = status
 	r.connStatusKnown = true
 	r.connStatusMu.Unlock()
 }
 
-func (r *Runtime) CurrentConnStatus() (connectors.ConnStatus, bool) {
+func (r *Runtime) CurrentConnStatus() (connectors.ConnectionStatus, bool) {
 	r.connStatusMu.RLock()
 	status := r.connStatus
 	known := r.connStatusKnown

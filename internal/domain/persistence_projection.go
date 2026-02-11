@@ -2,38 +2,16 @@ package domain
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/connectors"
 )
 
-const defaultRecentMessagesLoad = 200
-
-func LoadStoresFromPersistence(ctx context.Context, nodes *NodeStore, chats *ChatStore, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) error {
-	nodeItems, err := nodeRepo.ListSortedByLastHeard(ctx)
-	if err != nil {
-		return fmt.Errorf("load nodes from db: %w", err)
-	}
-	chatItems, err := chatRepo.ListSortedByLastSentByMe(ctx)
-	if err != nil {
-		return fmt.Errorf("load chats from db: %w", err)
-	}
-	messageItems, err := msgRepo.LoadRecentPerChat(ctx, defaultRecentMessagesLoad)
-	if err != nil {
-		return fmt.Errorf("load messages from db: %w", err)
-	}
-
-	nodes.Load(nodeItems)
-	chats.Load(chatItems, messageItems)
-	return nil
-}
-
 type WriteQueue interface {
 	Enqueue(name string, fn func(context.Context) error)
 }
 
-func StartPersistenceSync(ctx context.Context, b bus.MessageBus, queue WriteQueue, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) {
+func StartPersistenceProjection(ctx context.Context, b bus.MessageBus, queue WriteQueue, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) {
 	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
 	channelSub := b.Subscribe(connectors.TopicChannels)
 	textSub := b.Subscribe(connectors.TopicTextMessage)

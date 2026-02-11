@@ -21,7 +21,7 @@ func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, 
 	res, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO messages(chat_key, device_message_id, direction, body, status, at, meta_json)
 		VALUES(?, ?, ?, ?, ?, ?, ?)
-	`, m.ChatKey, nullableString(m.DeviceMessageID), int(m.Direction), m.Body, int(m.Status), toUnixMillis(m.At), nullableString(m.MetaJSON))
+	`, m.ChatKey, nullableString(m.DeviceMessageID), int(m.Direction), m.Body, int(m.Status), timeToUnixMillis(m.At), nullableString(m.MetaJSON))
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
 	}
@@ -170,7 +170,7 @@ func scanMessage(scanner interface {
 	}
 	m.Direction = domain.MessageDirection(direction)
 	m.Status = domain.MessageStatus(status)
-	m.At = fromUnixMillis(atMs)
+	m.At = unixMillisToTime(atMs)
 	if deviceIDRaw.Valid {
 		m.DeviceMessageID = deviceIDRaw.String
 	}

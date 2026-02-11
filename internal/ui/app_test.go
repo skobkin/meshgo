@@ -32,7 +32,7 @@ func TestResolveNodeDisplayName_Priority(t *testing.T) {
 }
 
 func TestFormatWindowTitle(t *testing.T) {
-	got := formatWindowTitle(connectors.ConnStatus{
+	got := formatWindowTitle(connectors.ConnectionStatus{
 		State:         connectors.ConnectionStateConnected,
 		TransportName: "ip",
 	}, "")
@@ -43,7 +43,7 @@ func TestFormatWindowTitle(t *testing.T) {
 }
 
 func TestFormatConnStatus_WithTargetAndLocalNodeName(t *testing.T) {
-	got := formatConnStatus(connectors.ConnStatus{
+	got := formatConnStatus(connectors.ConnectionStatus{
 		State:         connectors.ConnectionStateConnected,
 		TransportName: "serial",
 		Target:        "/dev/ttyACM2",
@@ -76,8 +76,8 @@ func TestTransportDisplayName(t *testing.T) {
 }
 
 func TestInitialConnStatusBluetooth(t *testing.T) {
-	status := initialConnStatus(Dependencies{
-		Data: DataDeps{
+	status := initialConnStatus(RuntimeDependencies{
+		Data: DataDependencies{
 			Config: config.AppConfig{
 				Connection: config.ConnectionConfig{
 					Connector:        config.ConnectorBluetooth,
@@ -96,8 +96,8 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 }
 
 func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
-	dep := Dependencies{
-		Data: DataDeps{
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
 			Config: config.AppConfig{
 				Connection: config.ConnectionConfig{
 					Connector:        config.ConnectorSerial,
@@ -107,8 +107,8 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 					BluetoothAddress: "",
 				},
 			},
-			CurrentConnStatus: func() (connectors.ConnStatus, bool) {
-				return connectors.ConnStatus{
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{
 					State:         connectors.ConnectionStateConnected,
 					TransportName: "serial",
 					Target:        "",
@@ -130,21 +130,21 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 }
 
 func TestSidebarStatusIcon(t *testing.T) {
-	connected := sidebarStatusIcon(connectors.ConnStatus{
+	connected := sidebarStatusIcon(connectors.ConnectionStatus{
 		State: connectors.ConnectionStateConnected,
 	})
 	if connected != resources.UIIconConnected {
 		t.Fatalf("expected connected icon, got %q", connected)
 	}
 
-	disconnected := sidebarStatusIcon(connectors.ConnStatus{
+	disconnected := sidebarStatusIcon(connectors.ConnectionStatus{
 		State: connectors.ConnectionStateDisconnected,
 	})
 	if disconnected != resources.UIIconDisconnected {
 		t.Fatalf("expected disconnected icon, got %q", disconnected)
 	}
 
-	connecting := sidebarStatusIcon(connectors.ConnStatus{
+	connecting := sidebarStatusIcon(connectors.ConnectionStatus{
 		State: connectors.ConnectionStateConnecting,
 	})
 	if connecting != resources.UIIconDisconnected {

@@ -26,11 +26,11 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 	cfg.Connection.Connector = config.ConnectorBluetooth
 
 	var window fyne.Window
-	dep := Dependencies{
-		Data: DataDeps{
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
 			Config: cfg,
 		},
-		Platform: PlatformDeps{
+		Platform: PlatformDependencies{
 			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
 				return []BluetoothScanDevice{
 					{
@@ -79,11 +79,11 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 	release := make(chan struct{})
 
 	var window fyne.Window
-	dep := Dependencies{
-		Data: DataDeps{
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
 			Config: cfg,
 		},
-		Platform: PlatformDeps{
+		Platform: PlatformDependencies{
 			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
 				close(started)
 				<-release
@@ -138,11 +138,11 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 	cfg.Connection.Connector = config.ConnectorBluetooth
 
 	var window fyne.Window
-	dep := Dependencies{
-		Data: DataDeps{
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
 			Config: cfg,
 		},
-		Platform: PlatformDeps{
+		Platform: PlatformDependencies{
 			OpenBluetoothSettings: func() error {
 				return errors.New("boom")
 			},
@@ -165,7 +165,7 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 }
 
 func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
-	tab := newSettingsTab(Dependencies{Data: DataDeps{Config: config.Default()}}, widget.NewLabel(""))
+	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
 
 	modeSelect := mustFindSelectWithOption(t, tab, "Background tray")
@@ -180,11 +180,11 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 	cfg.UI.Autostart.Mode = config.AutostartModeBackground
 
 	var saved config.AppConfig
-	dep := Dependencies{
-		Data: DataDeps{
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
 			Config: cfg,
 		},
-		Actions: ActionDeps{
+		Actions: ActionDependencies{
 			OnSave: func(next config.AppConfig) error {
 				saved = next
 				return &app.AutostartSyncWarning{Err: errors.New("registry denied")}
