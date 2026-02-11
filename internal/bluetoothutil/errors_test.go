@@ -30,6 +30,15 @@ func TestIsBenignStopScanError(t *testing.T) {
 	if !IsBenignStopScanError(dbus.NewError("org.bluez.Error.Failed", []interface{}{"No discovery started"})) {
 		t.Fatalf("no discovery started should be benign")
 	}
+	if IsBenignStopScanError(testErr("operation canceled by user")) {
+		t.Fatalf("cancel should not be treated as benign stop-scan error")
+	}
+	if IsBenignStopScanError(testErr("adapter scan stopped unexpectedly")) {
+		t.Fatalf("stopped should not be treated as benign stop-scan error")
+	}
+	if !IsBenignStopScanError(testErr("bluetooth: there is no scan in progress")) {
+		t.Fatalf("known no-scan-in-progress message should be benign")
+	}
 	if IsBenignStopScanError(testErr("some serious error")) {
 		t.Fatalf("unexpected benign classification")
 	}

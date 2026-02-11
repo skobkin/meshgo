@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"testing"
@@ -52,4 +53,48 @@ func TestShouldRetryBluetoothConnectWithDiscovery(t *testing.T) {
 	if got != want {
 		t.Fatalf("unexpected retry decision: got=%v want=%v", got, want)
 	}
+}
+
+func TestBluetoothConnStateCloseAndError(t *testing.T) {
+	state := &bluetoothConnState{
+		closed: make(chan struct{}),
+	}
+
+	state.setAsyncError(testErr("drain failed"))
+	state.markClosed()
+	state.markClosed()
+
+	select {
+	case <-state.closed:
+	default:
+		t.Fatalf("expected closed channel to be closed")
+	}
+
+	if got := state.closeErr(); got == nil || got.Error() != "drain failed" {
+		t.Fatalf("unexpected async error: %v", got)
+	}
+}
+
+func TestBluetoothTransportReadFrameReturnsAsyncError(t *testing.T) {
+	state := &bluetoothConnState{
+		frameCh: make(chan []byte),
+		closed:  make(chan struct{}),
+	}
+	state.setAsyncError(testErr("from-radio drain failed"))
+	state.markClosed()
+
+	tr := &BluetoothTransport{conn: state}
+	_, err := tr.ReadFrame(context.Background())
+	if err == nil {
+		t.Fatalf("expected read error")
+	}
+	if err.Error() != "from-radio drain failed" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type testErr string
+
+func (e testErr) Error() string {
+	return string(e)
 }

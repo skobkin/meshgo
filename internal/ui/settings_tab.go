@@ -80,6 +80,32 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	if openBluetoothSettingsFn == nil {
 		openBluetoothSettingsFn = openBluetoothSettings
 	}
+	currentWindowFn := dep.CurrentWindow
+	if currentWindowFn == nil {
+		currentWindowFn = currentWindow
+	}
+	runOnUI := dep.RunOnUI
+	if runOnUI == nil {
+		runOnUI = fyne.Do
+	}
+	runAsync := dep.RunAsync
+	if runAsync == nil {
+		runAsync = func(fn func()) {
+			go fn()
+		}
+	}
+	showScanDialogFn := dep.ShowBluetoothScanDialog
+	if showScanDialogFn == nil {
+		showScanDialogFn = showBluetoothScanDialog
+	}
+	showErrorDialogFn := dep.ShowErrorDialog
+	if showErrorDialogFn == nil {
+		showErrorDialogFn = dialog.ShowError
+	}
+	showInfoDialogFn := dep.ShowInfoDialog
+	if showInfoDialogFn == nil {
+		showInfoDialogFn = dialog.ShowInformation
+	}
 
 	scanBluetoothButton := widget.NewButton("Scan", nil)
 	openBluetoothSettingsButton := widget.NewButton("Open Bluetooth Settings", func() {
@@ -92,7 +118,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	bluetoothActionRow := container.NewHBox(scanBluetoothButton, openBluetoothSettingsButton)
 
 	scanBluetoothButton.OnTapped = func() {
-		window := currentWindow()
+		window := currentWindowFn()
 		if window == nil {
 			status.SetText("Bluetooth scan failed: active window is unavailable")
 			return
@@ -114,9 +140,9 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		progress.Show()
 
 		adapterID := strings.TrimSpace(bluetoothAdapterEntry.Text)
-		go func() {
+		runAsync(func() {
 			devices, err := bluetoothScanner.Scan(context.Background(), adapterID)
-			fyne.Do(func() {
+			runOnUI(func() {
 				progressBar.Stop()
 				progress.Hide()
 				scanBluetoothButton.Enable()
@@ -124,21 +150,21 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 
 				if err != nil {
 					status.SetText("Bluetooth scan failed: " + err.Error())
-					dialog.ShowError(err, window)
+					showErrorDialogFn(err, window)
 					return
 				}
 				if len(devices) == 0 {
 					status.SetText("No Bluetooth devices found")
-					dialog.ShowInformation("Bluetooth scan", "No Bluetooth devices found", window)
+					showInfoDialogFn("Bluetooth scan", "No Bluetooth devices found", window)
 					return
 				}
 
-				showBluetoothScanDialog(window, devices, func(device BluetoothScanDevice) {
+				showScanDialogFn(window, devices, func(device BluetoothScanDevice) {
 					bluetoothAddressEntry.SetText(device.Address)
 					status.SetText("Selected: " + device.Address)
 				})
 			})
-		}()
+		})
 	}
 
 	refreshPorts := func() {

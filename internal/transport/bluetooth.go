@@ -37,6 +37,10 @@ type bluetoothConnState struct {
 	frameCh  chan []byte
 	drainReq chan struct{}
 	closed   chan struct{}
+
+	closeOnce sync.Once
+	errMu     sync.RWMutex
+	asyncErr  error
 }
 
 type BluetoothTransport struct {
@@ -165,6 +169,7 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 	t.requestDrain(state)
 
 	if err := ctx.Err(); err != nil {
+		state.markClosed()
 		_ = state.fromNum.EnableNotifications(nil)
 		_ = device.Disconnect()
 		return err
@@ -183,7 +188,7 @@ func (t *BluetoothTransport) Close() error {
 		return nil
 	}
 
-	close(state.closed)
+	state.markClosed()
 
 	var closeErr error
 	if state.fromNum != nil {
@@ -208,6 +213,9 @@ func (t *BluetoothTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-state.closed:
+		if err := state.closeErr(); err != nil {
+			return nil, err
+		}
 		return nil, errors.New("transport is closed")
 	case payload := <-state.frameCh:
 		return payload, nil
@@ -232,6 +240,14 @@ func (t *BluetoothTransport) WriteFrame(ctx context.Context, payload []byte) err
 
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	select {
+	case <-state.closed:
+		if err := state.closeErr(); err != nil {
+			return err
+		}
+		return errors.New("transport is closed")
+	default:
 	}
 
 	written, err := state.toRadio.WriteWithoutResponse(payload)
@@ -274,10 +290,27 @@ func (t *BluetoothTransport) runDrainLoop(state *bluetoothConnState) {
 			return
 		case <-state.drainReq:
 			if err := t.drainFromRadio(state); err != nil {
+				t.failState(state, err)
 				return
 			}
 		}
 	}
+}
+
+func (t *BluetoothTransport) failState(state *bluetoothConnState, err error) {
+	state.setAsyncError(err)
+	state.markClosed()
+
+	t.mu.Lock()
+	if t.conn == state {
+		t.conn = nil
+	}
+	t.mu.Unlock()
+
+	if state.fromNum != nil {
+		_ = state.fromNum.EnableNotifications(nil)
+	}
+	_ = state.device.Disconnect()
 }
 
 func (t *BluetoothTransport) drainFromRadio(state *bluetoothConnState) error {
@@ -430,4 +463,27 @@ func discoverBluetoothDevice(ctx context.Context, adapter *bluetooth.Adapter, ta
 	}
 
 	return nil
+}
+
+func (s *bluetoothConnState) markClosed() {
+	s.closeOnce.Do(func() {
+		close(s.closed)
+	})
+}
+
+func (s *bluetoothConnState) setAsyncError(err error) {
+	if err == nil {
+		return
+	}
+	s.errMu.Lock()
+	if s.asyncErr == nil {
+		s.asyncErr = err
+	}
+	s.errMu.Unlock()
+}
+
+func (s *bluetoothConnState) closeErr() error {
+	s.errMu.RLock()
+	defer s.errMu.RUnlock()
+	return s.asyncErr
 }

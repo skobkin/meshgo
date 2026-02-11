@@ -24,15 +24,15 @@ func IsBenignStopScanError(err error) bool {
 	if IsDBusErrorName(err, "org.bluez.Error.NotReady") {
 		return true
 	}
-	if IsDBusErrorName(err, "org.bluez.Error.Failed") && strings.Contains(strings.ToLower(err.Error()), "no discovery started") {
+
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if IsDBusErrorName(err, "org.bluez.Error.Failed") && strings.Contains(msg, "no discovery started") {
 		return true
 	}
 
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "cancel") ||
-		strings.Contains(msg, "stopped") ||
-		strings.Contains(msg, "not scanning") ||
-		strings.Contains(msg, "no scan in progress")
+	return strings.Contains(msg, "there is no scan in progress") ||
+		strings.Contains(msg, "no scan in progress") ||
+		strings.Contains(msg, "no discovery started")
 }
 
 func IsScanAlreadyInProgressError(err error) bool {
