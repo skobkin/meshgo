@@ -343,3 +343,94 @@ func TestMeshtasticCodec_DecodeFromRadioLocalEchoIsPendingWhenWantAck(t *testing
 		t.Fatalf("expected pending status, got %v", frame.TextMessage.Status)
 	}
 }
+
+func TestDecodeChannelInfo_EmptyPrimaryUsesDefaultTitle(t *testing.T) {
+	channel := &generated.Channel{
+		Index: 1,
+		Role:  generated.Channel_PRIMARY,
+		Settings: &generated.ChannelSettings{
+			Name: "",
+		},
+	}
+
+	channels, _, ok := decodeChannelInfo(channel, "LongFast")
+	if !ok {
+		t.Fatalf("expected channel to be decoded")
+	}
+	if len(channels.Items) != 1 {
+		t.Fatalf("expected one channel item, got %d", len(channels.Items))
+	}
+	if channels.Items[0].Title != "LongFast" {
+		t.Fatalf("expected primary fallback title LongFast, got %q", channels.Items[0].Title)
+	}
+}
+
+func TestDecodeChannelInfo_EmptySecondaryUsesDefaultTitle(t *testing.T) {
+	channel := &generated.Channel{
+		Index: 2,
+		Role:  generated.Channel_SECONDARY,
+		Settings: &generated.ChannelSettings{
+			Name: "",
+			Psk:  []byte{1},
+		},
+	}
+
+	channels, _, ok := decodeChannelInfo(channel, "LongFast")
+	if !ok {
+		t.Fatalf("expected channel to be decoded")
+	}
+	if len(channels.Items) != 1 {
+		t.Fatalf("expected one channel item, got %d", len(channels.Items))
+	}
+	if channels.Items[0].Title != "LongFast" {
+		t.Fatalf("expected secondary fallback title LongFast, got %q", channels.Items[0].Title)
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioConfigPresetAffectsEmptyPrimaryName(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	configRaw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Config{
+			Config: &generated.Config{
+				PayloadVariant: &generated.Config_Lora{
+					Lora: &generated.Config_LoRaConfig{
+						ModemPreset: generated.Config_LoRaConfig_MEDIUM_FAST,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal config frame: %v", err)
+	}
+	if _, err := codec.DecodeFromRadio(configRaw); err != nil {
+		t.Fatalf("decode config frame: %v", err)
+	}
+
+	channelRaw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Channel{
+			Channel: &generated.Channel{
+				Index: 3,
+				Role:  generated.Channel_PRIMARY,
+				Settings: &generated.ChannelSettings{
+					Name: "",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal channel frame: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(channelRaw)
+	if err != nil {
+		t.Fatalf("decode channel frame: %v", err)
+	}
+	if frame.Channels == nil || len(frame.Channels.Items) != 1 {
+		t.Fatalf("expected one decoded channel")
+	}
+	if frame.Channels.Items[0].Title != "MediumFast" {
+		t.Fatalf("expected MediumFast title, got %q", frame.Channels.Items[0].Title)
+	}
+}

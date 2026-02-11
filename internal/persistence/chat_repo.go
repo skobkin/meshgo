@@ -22,7 +22,13 @@ func (r *ChatRepo) Upsert(ctx context.Context, c domain.Chat) error {
 		VALUES(?, ?, ?, ?, ?)
 		ON CONFLICT(chat_key) DO UPDATE SET
 			type = excluded.type,
-			title = excluded.title,
+			title = CASE
+				WHEN excluded.title = excluded.chat_key
+					AND COALESCE(chats.title, '') <> ''
+					AND chats.title <> chats.chat_key
+				THEN chats.title
+				ELSE excluded.title
+			END,
 			last_sent_by_me_at = CASE
 				WHEN excluded.last_sent_by_me_at > COALESCE(chats.last_sent_by_me_at, 0)
 				THEN excluded.last_sent_by_me_at

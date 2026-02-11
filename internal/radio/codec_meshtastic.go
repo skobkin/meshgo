@@ -23,6 +23,7 @@ type MeshtasticCodec struct {
 	wantConfigID atomic.Uint32
 	packetID     atomic.Uint32
 	localNodeNum atomic.Uint32
+	modemPreset  atomic.Int32
 }
 
 func NewMeshtasticCodec() (*MeshtasticCodec, error) {
@@ -33,6 +34,7 @@ func NewMeshtasticCodec() (*MeshtasticCodec, error) {
 	seed := binary.BigEndian.Uint32(seedRaw[:])
 	c := &MeshtasticCodec{}
 	c.packetID.Store(seed)
+	c.modemPreset.Store(int32(generated.Config_LoRaConfig_LONG_FAST))
 	return c, nil
 }
 
@@ -102,6 +104,9 @@ func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) 
 	if my := wire.GetMyInfo(); my != nil && my.GetMyNodeNum() != 0 {
 		c.localNodeNum.Store(my.GetMyNodeNum())
 	}
+	if cfg := wire.GetConfig(); cfg != nil {
+		c.updateModemPresetFromConfig(cfg)
+	}
 
 	if configID := wire.GetConfigCompleteId(); configID != 0 {
 		out.ConfigCompleteID = configID
@@ -117,7 +122,8 @@ func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) 
 	}
 
 	if channelInfo := wire.GetChannel(); channelInfo != nil {
-		if channelList, snapshot, ok := decodeChannelInfo(channelInfo); ok {
+		defaultTitle := c.defaultPresetChannelTitle()
+		if channelList, snapshot, ok := decodeChannelInfo(channelInfo, defaultTitle); ok {
 			out.Channels = &channelList
 			out.ConfigSnapshot = &snapshot
 		}
@@ -295,7 +301,7 @@ func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte,
 	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
 }
 
-func decodeChannelInfo(channelInfo *generated.Channel) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
+func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
 	if channelInfo.GetRole() == generated.Channel_DISABLED {
 		return domain.ChannelList{}, connectors.ConfigSnapshot{}, false
 	}
@@ -306,12 +312,58 @@ func decodeChannelInfo(channelInfo *generated.Channel) (domain.ChannelList, conn
 
 	title := strings.TrimSpace(channelInfo.GetSettings().GetName())
 	if title == "" {
-		title = fmt.Sprintf("Channel %d", idx)
+		title = strings.TrimSpace(defaultPresetTitle)
+		if title == "" {
+			title = fmt.Sprintf("Channel %d", idx)
+		}
 	}
 
 	list := domain.ChannelList{Items: []domain.ChannelInfo{{Index: idx, Title: title}}}
 	snapshot := connectors.ConfigSnapshot{ChannelTitles: []string{title}}
 	return list, snapshot, true
+}
+
+func (c *MeshtasticCodec) updateModemPresetFromConfig(cfg *generated.Config) {
+	if cfg == nil {
+		return
+	}
+	lora := cfg.GetLora()
+	if lora == nil {
+		return
+	}
+	c.modemPreset.Store(int32(lora.GetModemPreset()))
+}
+
+func (c *MeshtasticCodec) defaultPresetChannelTitle() string {
+	preset := generated.Config_LoRaConfig_ModemPreset(c.modemPreset.Load())
+	return modemPresetTitle(preset)
+}
+
+func modemPresetTitle(preset generated.Config_LoRaConfig_ModemPreset) string {
+	switch preset.String() {
+	case "LONG_FAST":
+		return "LongFast"
+	case "LONG_SLOW":
+		return "LongSlow"
+	case "VERY_LONG_SLOW":
+		return "VeryLongSlow"
+	case "MEDIUM_SLOW":
+		return "MediumSlow"
+	case "MEDIUM_FAST":
+		return "MediumFast"
+	case "SHORT_SLOW":
+		return "ShortSlow"
+	case "SHORT_FAST":
+		return "ShortFast"
+	case "LONG_MODERATE":
+		return "LongModerate"
+	case "SHORT_TURBO":
+		return "ShortTurbo"
+	case "LONG_TURBO":
+		return "LongTurbo"
+	default:
+		return "LongFast"
+	}
 }
 
 func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
