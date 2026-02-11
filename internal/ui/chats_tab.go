@@ -149,7 +149,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			messageLine := box.Objects[0].(*fyne.Container)
 			messageText := messageLine.Objects[0].(*widget.RichText)
 			transportSlot := messageLine.Objects[1].(*fyne.Container)
-			transportBadge := transportSlot.Objects[1].(*tooltipLabel)
+			transportBadge := transportSlot.Objects[1].(*tooltipWidget)
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Refresh()
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
@@ -158,7 +158,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
-			metaRight.Objects[0].(*tooltipLabel).SetBadge(messageStatusBadge(msg))
+			metaRight.Objects[0].(*tooltipWidget).SetBadge(messageStatusBadge(msg))
 			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
 
 			// Chat rows can have different heights (e.g. multiline message text),
