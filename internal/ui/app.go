@@ -23,10 +23,12 @@ func Run(dep Dependencies) error {
 	fyApp.SetIcon(resources.AppIconResource(initialVariant))
 
 	initialStatus := initialConnStatus(dep)
-	window := fyApp.NewWindow(formatWindowTitle(initialStatus))
+	currentStatus := initialStatus
+	var connStatusMu sync.RWMutex
+	window := fyApp.NewWindow("")
 	window.Resize(fyne.NewSize(1000, 700))
 
-	settingsConnStatus := widget.NewLabel(formatConnStatus(initialStatus))
+	settingsConnStatus := widget.NewLabel("")
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
 
 	chatsTab := newChatsTab(
@@ -103,15 +105,28 @@ func Run(dep Dependencies) error {
 	}
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
+	sidebarConnIcon := widget.NewIcon(resources.UIIconResource(sidebarStatusIcon(currentStatus), initialVariant))
+	left.Add(container.NewCenter(sidebarConnIcon))
+
+	setConnStatus := func(status connectors.ConnStatus) {
+		connStatusMu.Lock()
+		currentStatus = status
+		connStatusMu.Unlock()
+		applyConnStatusUI(window, settingsConnStatus, sidebarConnIcon, status, fyApp.Settings().ThemeVariant())
+	}
 
 	setTrayIcon := func(_ fyne.ThemeVariant) {}
 	applyThemeResources := func(variant fyne.ThemeVariant) {
+		connStatusMu.RLock()
+		status := currentStatus
+		connStatusMu.RUnlock()
 		fyApp.SetIcon(resources.AppIconResource(variant))
 		setTrayIcon(variant)
 		for tabName, button := range navButtons {
 			icon := resources.UIIconResource(tabIcons[tabName], variant)
 			button.SetIcon(icon)
 		}
+		setConnStatusIcon(sidebarConnIcon, status, variant)
 	}
 
 	fyApp.Settings().AddListener(func(_ fyne.Settings) {
@@ -126,10 +141,8 @@ func Run(dep Dependencies) error {
 				if !ok {
 					continue
 				}
-				text := formatConnStatus(status)
 				fyne.Do(func() {
-					window.SetTitle(formatWindowTitle(status))
-					settingsConnStatus.SetText(text)
+					setConnStatus(status)
 				})
 			}
 		}()
@@ -167,6 +180,7 @@ func Run(dep Dependencies) error {
 			}),
 		))
 	}
+	setConnStatus(initialStatus)
 	applyThemeResources(initialVariant)
 
 	window.Show()
@@ -223,6 +237,29 @@ func formatConnStatus(status connectors.ConnStatus) string {
 
 func formatWindowTitle(status connectors.ConnStatus) string {
 	return "MeshGo - " + formatConnStatus(status)
+}
+
+func applyConnStatusUI(
+	window fyne.Window,
+	statusLabel *widget.Label,
+	sidebarIcon *widget.Icon,
+	status connectors.ConnStatus,
+	variant fyne.ThemeVariant,
+) {
+	window.SetTitle(formatWindowTitle(status))
+	statusLabel.SetText(formatConnStatus(status))
+	setConnStatusIcon(sidebarIcon, status, variant)
+}
+
+func setConnStatusIcon(sidebarIcon *widget.Icon, status connectors.ConnStatus, variant fyne.ThemeVariant) {
+	sidebarIcon.SetResource(resources.UIIconResource(sidebarStatusIcon(status), variant))
+}
+
+func sidebarStatusIcon(status connectors.ConnStatus) resources.UIIcon {
+	if status.State == connectors.ConnectionStateConnected {
+		return resources.UIIconConnected
+	}
+	return resources.UIIconDisconnected
 }
 
 func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {

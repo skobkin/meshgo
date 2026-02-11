@@ -6,6 +6,7 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 func TestResolveNodeDisplayName_Priority(t *testing.T) {
@@ -56,5 +57,28 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 	}
 	if status.State != connectors.ConnectionStateConnecting {
 		t.Fatalf("expected connecting state, got %q", status.State)
+	}
+}
+
+func TestSidebarStatusIcon(t *testing.T) {
+	connected := sidebarStatusIcon(connectors.ConnStatus{
+		State: connectors.ConnectionStateConnected,
+	})
+	if connected != resources.UIIconConnected {
+		t.Fatalf("expected connected icon, got %q", connected)
+	}
+
+	disconnected := sidebarStatusIcon(connectors.ConnStatus{
+		State: connectors.ConnectionStateDisconnected,
+	})
+	if disconnected != resources.UIIconDisconnected {
+		t.Fatalf("expected disconnected icon, got %q", disconnected)
+	}
+
+	connecting := sidebarStatusIcon(connectors.ConnStatus{
+		State: connectors.ConnectionStateConnecting,
+	})
+	if connecting != resources.UIIconDisconnected {
+		t.Fatalf("expected disconnected icon for connecting state, got %q", connecting)
 	}
 }
