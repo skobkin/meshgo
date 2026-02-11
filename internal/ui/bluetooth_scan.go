@@ -43,7 +43,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	defer s.mu.Unlock()
 
 	adapter := bluetoothutil.ResolveAdapter(adapterID)
-	if err := adapter.Enable(); err != nil {
+	if err := bluetoothutil.EnableAdapter(adapter); err != nil {
 		return nil, fmt.Errorf("enable bluetooth adapter: %w", err)
 	}
 	if err := bluetoothutil.StopScan(adapter); err != nil {

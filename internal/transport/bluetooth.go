@@ -110,7 +110,7 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 	adapter := bluetoothutil.ResolveAdapter(t.adapterID)
 	logger.Info("connecting")
 	logger.Debug("enabling adapter")
-	if err := adapter.Enable(); err != nil {
+	if err := bluetoothutil.EnableAdapter(adapter); err != nil {
 		logger.Warn("enable adapter failed", "error", err)
 		return fmt.Errorf("enable bluetooth adapter: %w", err)
 	}
@@ -163,15 +163,20 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 		return fmt.Errorf("discover meshtastic characteristics: %w", err)
 	}
 	if len(chars) != 3 {
-		_ = device.Disconnect()
-		logger.Warn("unexpected characteristic count", "count", len(chars))
-		return fmt.Errorf("unexpected characteristic count: %d", len(chars))
+		logger.Debug("unexpected characteristic count", "count", len(chars))
 	}
 	logger.Debug("meshtastic characteristics discovered")
 
-	toRadio := chars[0]
-	fromRadio := chars[1]
-	fromNum := chars[2]
+	toRadioIdx, fromRadioIdx, fromNumIdx, err := resolveMeshtasticCharacteristicIndices(characteristicUUIDs(chars))
+	if err != nil {
+		_ = device.Disconnect()
+		logger.Warn("resolve meshtastic characteristics failed", "error", err)
+		return err
+	}
+
+	toRadio := chars[toRadioIdx]
+	fromRadio := chars[fromRadioIdx]
+	fromNum := chars[fromNumIdx]
 
 	state := &bluetoothConnState{
 		device:    device,
@@ -541,6 +546,60 @@ func (s *bluetoothConnState) closeErr() error {
 	s.errMu.RLock()
 	defer s.errMu.RUnlock()
 	return s.asyncErr
+}
+
+func characteristicUUIDs(chars []bluetooth.DeviceCharacteristic) []bluetooth.UUID {
+	uuids := make([]bluetooth.UUID, 0, len(chars))
+	for _, char := range chars {
+		uuids = append(uuids, char.UUID())
+	}
+	return uuids
+}
+
+func resolveMeshtasticCharacteristicIndices(uuids []bluetooth.UUID) (int, int, int, error) {
+	toRadioUUID := bluetoothutil.MeshtasticToRadioUUID()
+	fromRadioUUID := bluetoothutil.MeshtasticFromRadioUUID()
+	fromNumUUID := bluetoothutil.MeshtasticFromNumUUID()
+
+	toRadioIdx := -1
+	fromRadioIdx := -1
+	fromNumIdx := -1
+
+	for idx, uuid := range uuids {
+		switch uuid {
+		case toRadioUUID:
+			if toRadioIdx != -1 {
+				return 0, 0, 0, fmt.Errorf("duplicate ToRadio characteristic %s", toRadioUUID.String())
+			}
+			toRadioIdx = idx
+		case fromRadioUUID:
+			if fromRadioIdx != -1 {
+				return 0, 0, 0, fmt.Errorf("duplicate FromRadio characteristic %s", fromRadioUUID.String())
+			}
+			fromRadioIdx = idx
+		case fromNumUUID:
+			if fromNumIdx != -1 {
+				return 0, 0, 0, fmt.Errorf("duplicate FromNum characteristic %s", fromNumUUID.String())
+			}
+			fromNumIdx = idx
+		}
+	}
+
+	missing := make([]string, 0, 3)
+	if toRadioIdx == -1 {
+		missing = append(missing, "ToRadio")
+	}
+	if fromRadioIdx == -1 {
+		missing = append(missing, "FromRadio")
+	}
+	if fromNumIdx == -1 {
+		missing = append(missing, "FromNum")
+	}
+	if len(missing) > 0 {
+		return 0, 0, 0, fmt.Errorf("meshtastic characteristic(s) not found: %s", strings.Join(missing, ", "))
+	}
+
+	return toRadioIdx, fromRadioIdx, fromNumIdx, nil
 }
 
 func enableBluetoothNotificationsWithTimeout(

@@ -8,6 +8,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/skobkin/meshgo/internal/bluetoothutil"
+	"tinygo.org/x/bluetooth"
 )
 
 func TestParseBluetoothAddress(t *testing.T) {
@@ -92,6 +93,48 @@ func TestBluetoothTransportReadFrameReturnsAsyncError(t *testing.T) {
 	if err.Error() != "from-radio drain failed" {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestResolveMeshtasticCharacteristicIndices(t *testing.T) {
+	toRadio := bluetoothutil.MeshtasticToRadioUUID()
+	fromRadio := bluetoothutil.MeshtasticFromRadioUUID()
+	fromNum := bluetoothutil.MeshtasticFromNumUUID()
+
+	t.Run("out of order", func(t *testing.T) {
+		toIdx, fromIdx, fromNumIdx, err := resolveMeshtasticCharacteristicIndices([]bluetooth.UUID{
+			fromNum,
+			toRadio,
+			fromRadio,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if toIdx != 1 || fromIdx != 2 || fromNumIdx != 0 {
+			t.Fatalf("unexpected indices: to=%d from=%d fromNum=%d", toIdx, fromIdx, fromNumIdx)
+		}
+	})
+
+	t.Run("missing characteristic", func(t *testing.T) {
+		_, _, _, err := resolveMeshtasticCharacteristicIndices([]bluetooth.UUID{
+			toRadio,
+			fromNum,
+		})
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("duplicate characteristic", func(t *testing.T) {
+		_, _, _, err := resolveMeshtasticCharacteristicIndices([]bluetooth.UUID{
+			toRadio,
+			fromRadio,
+			fromNum,
+			fromNum,
+		})
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
 }
 
 type testErr string
