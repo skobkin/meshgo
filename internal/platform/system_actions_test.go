@@ -1,12 +1,12 @@
-package ui
+package platform
 
 import (
 	"errors"
 	"testing"
 )
 
-func TestBluetoothSettingsCommands(t *testing.T) {
-	windows, err := bluetoothSettingsCommands("windows")
+func TestBluetoothSettingsCommandsForOS(t *testing.T) {
+	windows, err := bluetoothSettingsCommandsForOS("windows")
 	if err != nil {
 		t.Fatalf("unexpected windows commands error: %v", err)
 	}
@@ -17,7 +17,7 @@ func TestBluetoothSettingsCommands(t *testing.T) {
 		t.Fatalf("unexpected windows command: %q", windows[0].name)
 	}
 
-	linux, err := bluetoothSettingsCommands("linux")
+	linux, err := bluetoothSettingsCommandsForOS("linux")
 	if err != nil {
 		t.Fatalf("unexpected linux commands error: %v", err)
 	}
@@ -29,8 +29,8 @@ func TestBluetoothSettingsCommands(t *testing.T) {
 	}
 }
 
-func TestBluetoothSettingsCommandsUnsupportedOS(t *testing.T) {
-	if _, err := bluetoothSettingsCommands("darwin"); err == nil {
+func TestBluetoothSettingsCommandsForOSUnsupported(t *testing.T) {
+	if _, err := bluetoothSettingsCommandsForOS("darwin"); err == nil {
 		t.Fatalf("expected unsupported os error")
 	}
 }

@@ -2,13 +2,18 @@ package ui
 
 import (
 	meshapp "github.com/skobkin/meshgo/internal/app"
+	"github.com/skobkin/meshgo/internal/platform"
 )
 
 func NewDependenciesFromRuntime(rt *meshapp.Runtime, launch LaunchOptions, onQuit func()) Dependencies {
+	systemActions := platform.NewSystemActions()
 	dep := Dependencies{
 		Launch: launch,
 		Actions: ActionDeps{
 			OnQuit: onQuit,
+		},
+		Platform: PlatformDeps{
+			OpenBluetoothSettings: systemActions.OpenBluetoothSettings,
 		},
 	}
 
@@ -26,7 +31,8 @@ func NewDependenciesFromRuntime(rt *meshapp.Runtime, launch LaunchOptions, onQui
 	}
 
 	dep.Platform = PlatformDeps{
-		BluetoothScanner: NewTinyGoBluetoothScanner(defaultBluetoothScanDuration),
+		BluetoothScanner:      NewTinyGoBluetoothScanner(defaultBluetoothScanDuration),
+		OpenBluetoothSettings: systemActions.OpenBluetoothSettings,
 	}
 
 	dep.Actions.OnSave = rt.SaveAndApplyConfig

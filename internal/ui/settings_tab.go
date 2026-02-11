@@ -101,7 +101,9 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	}
 	openBluetoothSettingsFn := dep.Platform.OpenBluetoothSettings
 	if openBluetoothSettingsFn == nil {
-		openBluetoothSettingsFn = openBluetoothSettings
+		openBluetoothSettingsFn = func() error {
+			return fmt.Errorf("open bluetooth settings is not configured")
+		}
 	}
 	currentWindowFn := dep.UIHooks.CurrentWindow
 	if currentWindowFn == nil {

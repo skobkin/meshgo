@@ -61,6 +61,9 @@ func TestNewDependenciesFromRuntime_MapsRuntimeAndLaunch(t *testing.T) {
 	if dep.Platform.BluetoothScanner == nil {
 		t.Fatalf("expected bluetooth scanner to be initialized")
 	}
+	if dep.Platform.OpenBluetoothSettings == nil {
+		t.Fatalf("expected bluetooth settings opener to be initialized")
+	}
 	if !dep.Launch.StartHidden {
 		t.Fatalf("expected launch options to be mapped")
 	}
@@ -94,6 +97,9 @@ func TestNewDependenciesFromRuntime_NilRuntimeStillMapsLaunchAndQuit(t *testing.
 	}
 	if dep.Platform.BluetoothScanner != nil {
 		t.Fatalf("expected scanner to stay nil for nil runtime")
+	}
+	if dep.Platform.OpenBluetoothSettings == nil {
+		t.Fatalf("expected bluetooth settings opener to be initialized for nil runtime")
 	}
 
 	dep.Actions.OnQuit()
