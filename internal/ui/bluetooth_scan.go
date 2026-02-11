@@ -178,7 +178,7 @@ func sortBluetoothScanDevices(devices []BluetoothScanDevice) {
 	})
 }
 
-func formatBluetoothScanDevice(device BluetoothScanDevice) string {
+func bluetoothScanDeviceTitle(device BluetoothScanDevice) string {
 	displayName := strings.TrimSpace(device.Name)
 	if displayName == "" {
 		displayName = "(unnamed)"
@@ -189,7 +189,15 @@ func formatBluetoothScanDevice(device BluetoothScanDevice) string {
 		marker = " [Meshtastic]"
 	}
 
-	return fmt.Sprintf("%s%s\n%s RSSI: %d", displayName, marker, device.Address, device.RSSI)
+	return fmt.Sprintf("%s%s", displayName, marker)
+}
+
+func bluetoothScanDeviceDetails(device BluetoothScanDevice) string {
+	return fmt.Sprintf("%s RSSI: %d", device.Address, device.RSSI)
+}
+
+func formatBluetoothScanDevice(device BluetoothScanDevice) string {
+	return fmt.Sprintf("%s\n%s", bluetoothScanDeviceTitle(device), bluetoothScanDeviceDetails(device))
 }
 
 func bluetoothScanDeviceAt(devices []BluetoothScanDevice, index int) (BluetoothScanDevice, bool) {

@@ -384,21 +384,30 @@ func showBluetoothScanDialog(window fyne.Window, devices []BluetoothScanDevice, 
 			return len(devices)
 		},
 		func() fyne.CanvasObject {
-			label := widget.NewLabel("")
-			label.Wrapping = fyne.TextWrapWord
-			return label
+			title := widget.NewLabel(" ")
+			title.Truncation = fyne.TextTruncateEllipsis
+			details := widget.NewLabel(" ")
+			details.Truncation = fyne.TextTruncateEllipsis
+			return container.NewVBox(title, details)
 		},
 		func(id widget.ListItemID, object fyne.CanvasObject) {
-			label, ok := object.(*widget.Label)
-			if !ok {
+			row, ok := object.(*fyne.Container)
+			if !ok || len(row.Objects) < 2 {
+				return
+			}
+			title, titleOK := row.Objects[0].(*widget.Label)
+			details, detailsOK := row.Objects[1].(*widget.Label)
+			if !titleOK || !detailsOK {
 				return
 			}
 			device, ok := bluetoothScanDeviceAt(devices, id)
 			if !ok {
-				label.SetText("")
+				title.SetText("")
+				details.SetText("")
 				return
 			}
-			label.SetText(formatBluetoothScanDevice(device))
+			title.SetText(bluetoothScanDeviceTitle(device))
+			details.SetText(bluetoothScanDeviceDetails(device))
 		},
 	)
 	list.OnSelected = func(id widget.ListItemID) {
