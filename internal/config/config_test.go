@@ -15,6 +15,28 @@ func TestAppConfigApplyDefaults(t *testing.T) {
 	if cfg.Logging.Level != "info" {
 		t.Fatalf("expected default log level info, got %q", cfg.Logging.Level)
 	}
+	if cfg.UI.Autostart.Enabled {
+		t.Fatalf("expected autostart to be disabled by default")
+	}
+	if cfg.UI.Autostart.Mode != AutostartModeNormal {
+		t.Fatalf("expected default autostart mode %q, got %q", AutostartModeNormal, cfg.UI.Autostart.Mode)
+	}
+}
+
+func TestAppConfigApplyDefaultsNormalizesAutostartMode(t *testing.T) {
+	cfg := AppConfig{
+		UI: UIConfig{
+			Autostart: AutostartConfig{
+				Enabled: true,
+				Mode:    AutostartMode("invalid"),
+			},
+		},
+	}
+
+	cfg.ApplyDefaults()
+	if cfg.UI.Autostart.Mode != AutostartModeNormal {
+		t.Fatalf("expected invalid autostart mode to normalize to %q, got %q", AutostartModeNormal, cfg.UI.Autostart.Mode)
+	}
 }
 
 func TestAppConfigValidate(t *testing.T) {

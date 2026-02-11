@@ -11,6 +11,7 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
 )
 
@@ -145,6 +146,49 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 	}
 }
 
+func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
+	tab := newSettingsTab(Dependencies{Config: config.Default()}, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	modeSelect := mustFindSelectWithOption(t, tab, "Background tray")
+	if !modeSelect.Disabled() {
+		t.Fatalf("expected autostart mode select to be disabled when autostart is off")
+	}
+}
+
+func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
+	cfg := config.Default()
+	cfg.UI.Autostart.Enabled = true
+	cfg.UI.Autostart.Mode = config.AutostartModeBackground
+
+	var saved config.AppConfig
+	dep := Dependencies{
+		Config: cfg,
+		OnSave: func(next config.AppConfig) error {
+			saved = next
+			return &app.AutostartSyncWarning{Err: errors.New("registry denied")}
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	saveButton := mustFindButtonByText(t, tab, "Save")
+	fynetest.Tap(saveButton)
+
+	if !saved.UI.Autostart.Enabled {
+		t.Fatalf("expected autostart to be saved as enabled")
+	}
+	if saved.UI.Autostart.Mode != config.AutostartModeBackground {
+		t.Fatalf("expected autostart mode %q, got %q", config.AutostartModeBackground, saved.UI.Autostart.Mode)
+	}
+
+	statusLabel := mustFindLabelByPrefix(t, tab, "Saved with warning:")
+	if !strings.Contains(statusLabel.Text, "autostart sync failed") {
+		t.Fatalf("unexpected warning text: %q", statusLabel.Text)
+	}
+}
+
 func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *widget.Button {
 	t.Helper()
 	for _, object := range fynetest.LaidOutObjects(root) {
@@ -187,6 +231,23 @@ func mustFindLabelByPrefix(t *testing.T, root fyne.CanvasObject, prefix string) 
 		}
 	}
 	t.Fatalf("label with prefix %q not found", prefix)
+	return nil
+}
+
+func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option string) *widget.Select {
+	t.Helper()
+	for _, object := range fynetest.LaidOutObjects(root) {
+		selectWidget, ok := object.(*widget.Select)
+		if !ok {
+			continue
+		}
+		for _, candidate := range selectWidget.Options {
+			if strings.TrimSpace(candidate) == option {
+				return selectWidget
+			}
+		}
+	}
+	t.Fatalf("select with option %q not found", option)
 	return nil
 }
 

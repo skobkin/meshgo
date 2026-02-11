@@ -10,12 +10,16 @@ import (
 )
 
 type ConnectorType string
+type AutostartMode string
 
 const (
 	ConnectorIP        ConnectorType = "ip"
 	ConnectorBluetooth ConnectorType = "bluetooth"
 	ConnectorSerial    ConnectorType = "serial"
 	DefaultSerialBaud                = 115200
+
+	AutostartModeNormal     AutostartMode = "normal"
+	AutostartModeBackground AutostartMode = "background"
 )
 
 type LoggingConfig struct {
@@ -33,7 +37,13 @@ type ConnectionConfig struct {
 }
 
 type UIConfig struct {
-	LastSelectedChat string `json:"last_selected_chat"`
+	LastSelectedChat string          `json:"last_selected_chat"`
+	Autostart        AutostartConfig `json:"autostart"`
+}
+
+type AutostartConfig struct {
+	Enabled bool          `json:"enabled"`
+	Mode    AutostartMode `json:"mode"`
 }
 
 type AppConfig struct {
@@ -58,6 +68,10 @@ func Default() AppConfig {
 		},
 		UI: UIConfig{
 			LastSelectedChat: "",
+			Autostart: AutostartConfig{
+				Enabled: false,
+				Mode:    AutostartModeNormal,
+			},
 		},
 	}
 }
@@ -91,6 +105,16 @@ func (c *AppConfig) ApplyDefaults() {
 	}
 	if c.Logging.Level == "" {
 		c.Logging.Level = "info"
+	}
+	c.UI.Autostart.Mode = normalizeAutostartMode(c.UI.Autostart.Mode)
+}
+
+func normalizeAutostartMode(mode AutostartMode) AutostartMode {
+	switch mode {
+	case AutostartModeBackground:
+		return AutostartModeBackground
+	default:
+		return AutostartModeNormal
 	}
 }
 

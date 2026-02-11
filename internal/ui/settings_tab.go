@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
@@ -24,6 +25,8 @@ const (
 	connectorOptionIP        = "IP"
 	connectorOptionSerial    = "Serial"
 	connectorOptionBluetooth = "Bluetooth LE (unstable)"
+	autostartOptionNormal    = "Normal window"
+	autostartOptionTray      = "Background tray"
 )
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
@@ -51,6 +54,26 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	if levelSelect.Selected == "" {
 		levelSelect.SetSelected("info")
 	}
+
+	autostartEnabled := widget.NewCheck("", nil)
+	autostartEnabled.SetChecked(current.UI.Autostart.Enabled)
+
+	autostartModeSelect := widget.NewSelect([]string{autostartOptionNormal, autostartOptionTray}, nil)
+	autostartModeSelect.SetSelected(autostartOptionFromMode(current.UI.Autostart.Mode))
+	if autostartModeSelect.Selected == "" {
+		autostartModeSelect.SetSelected(autostartOptionNormal)
+	}
+	setAutostartModeEnabled := func(enabled bool) {
+		if enabled {
+			autostartModeSelect.Enable()
+			return
+		}
+		autostartModeSelect.Disable()
+	}
+	autostartEnabled.OnChanged = func(value bool) {
+		setAutostartModeEnabled(value)
+	}
+	setAutostartModeEnabled(autostartEnabled.Checked)
 
 	status := widget.NewLabel("")
 
@@ -270,6 +293,8 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		cfg.Connection.BluetoothAdapter = strings.TrimSpace(bluetoothAdapterEntry.Text)
 		cfg.Logging.Level = levelSelect.Selected
 		cfg.Logging.LogToFile = logToFile.Checked
+		cfg.UI.Autostart.Enabled = autostartEnabled.Checked
+		cfg.UI.Autostart.Mode = autostartModeFromOption(autostartModeSelect.Selected)
 
 		saveConfig := func(clearDatabase bool) {
 			if clearDatabase {
@@ -283,6 +308,12 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 				}
 			}
 			if err := dep.OnSave(cfg); err != nil {
+				var warning *app.AutostartSyncWarning
+				if errors.As(err, &warning) {
+					current = cfg
+					status.SetText("Saved with warning: " + warning.Error())
+					return
+				}
 				status.SetText("Save failed: " + err.Error())
 				return
 			}
@@ -334,11 +365,16 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		widget.NewFormItem("Log Level", levelSelect),
 		widget.NewFormItem("Log to file", logToFile),
 	)
+	startupForm := widget.NewForm(
+		widget.NewFormItem("Run on system startup", autostartEnabled),
+		widget.NewFormItem("Startup mode", autostartModeSelect),
+	)
 
 	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(
 		connStatusLabel,
 		connectionFields,
 	))
+	startupBlock := widget.NewCard("Startup", "", startupForm)
 	loggingBlock := widget.NewCard("Logging", "", loggingForm)
 	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewVBox(
 		clearDBButton,
@@ -366,6 +402,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	content := container.NewVBox(
 		widget.NewLabel("App settings"),
 		connectionBlock,
+		startupBlock,
 		loggingBlock,
 		maintenanceBlock,
 		saveButton,
@@ -525,6 +562,24 @@ func connectorTypeFromOption(value string) config.ConnectorType {
 		return config.ConnectorBluetooth
 	default:
 		return config.ConnectorIP
+	}
+}
+
+func autostartOptionFromMode(mode config.AutostartMode) string {
+	switch mode {
+	case config.AutostartModeBackground:
+		return autostartOptionTray
+	default:
+		return autostartOptionNormal
+	}
+}
+
+func autostartModeFromOption(value string) config.AutostartMode {
+	switch strings.TrimSpace(value) {
+	case autostartOptionTray:
+		return config.AutostartModeBackground
+	default:
+		return config.AutostartModeNormal
 	}
 }
 

@@ -212,6 +212,9 @@ func Run(dep Dependencies) error {
 	applyThemeResources(initialVariant)
 
 	window.Show()
+	if dep.StartHidden {
+		window.Hide()
+	}
 	fyApp.Run()
 	shutdownOnce.Do(func() {
 		if dep.OnQuit != nil {

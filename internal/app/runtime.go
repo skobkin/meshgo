@@ -15,6 +15,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
+	"github.com/skobkin/meshgo/internal/platform"
 	"github.com/skobkin/meshgo/internal/radio"
 )
 
@@ -41,6 +42,7 @@ type Runtime struct {
 
 	ConnectionTransport *ConnectionTransport
 	Radio               *radio.Service
+	AutostartManager    platform.AutostartManager
 
 	connStatusMu    sync.RWMutex
 	connStatus      connectors.ConnStatus
@@ -64,6 +66,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		Paths:  paths,
 		Config: cfg,
 	}
+	rt.AutostartManager = platform.NewAutostartManager()
 
 	logMgr := logging.NewManager()
 	if err := logMgr.Configure(cfg.Logging, paths.LogFile); err != nil {
@@ -73,6 +76,9 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	}
 	rt.LogManager = logMgr
 	slog.Info("starting meshgo runtime", "version", BuildVersion(), "build_date", BuildDateYMD())
+	if err := rt.syncAutostart(cfg, "startup"); err != nil {
+		slog.Warn("sync autostart on startup", "error", err)
+	}
 
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {
@@ -165,7 +171,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 
 	r.mu.Lock()
-	cfg.UI = r.Config.UI
+	cfg.UI.LastSelectedChat = r.Config.UI.LastSelectedChat
 	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 		return err
@@ -181,6 +187,10 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		if err := r.ConnectionTransport.Apply(cfg.Connection); err != nil {
 			return err
 		}
+	}
+	if err := r.syncAutostart(cfg, "settings_save"); err != nil {
+		slog.Warn("sync autostart after save", "error", err)
+		return &AutostartSyncWarning{Err: err}
 	}
 
 	return nil

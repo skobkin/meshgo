@@ -32,5 +32,6 @@ type Dependencies struct {
 	ShowBluetoothScanDialog func(window fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice))
 	ShowErrorDialog         func(err error, window fyne.Window)
 	ShowInfoDialog          func(title, message string, window fyne.Window)
+	StartHidden             bool
 	OnQuit                  func()
 }
