@@ -296,11 +296,11 @@ func focusEntry(entry *widget.Entry) {
 	if app == nil {
 		return
 	}
-	canvas := app.Driver().CanvasForObject(entry)
-	if canvas == nil {
+	fyneCanvas := app.Driver().CanvasForObject(entry)
+	if fyneCanvas == nil {
 		return
 	}
-	canvas.Focus(entry)
+	fyneCanvas.Focus(entry)
 }
 
 func scrollMessageListToEnd(list *widget.List, length int) {
