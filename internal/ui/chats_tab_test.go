@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -16,6 +17,15 @@ func TestChatTypeLabel(t *testing.T) {
 	}
 	if v := chatTypeLabel(domain.Chat{Type: domain.ChatTypeDM}); v != "DM" {
 		t.Fatalf("unexpected dm label: %q", v)
+	}
+}
+
+func TestChatUnreadMarker(t *testing.T) {
+	if got := chatUnreadMarker(true); got != "●" {
+		t.Fatalf("unexpected unread marker: %q", got)
+	}
+	if got := chatUnreadMarker(false); got != " " {
+		t.Fatalf("unexpected read marker: %q", got)
 	}
 }
 
@@ -335,6 +345,66 @@ func TestChatIndexByKey(t *testing.T) {
 	}
 	if got := chatIndexByKey(chats, ""); got != -1 {
 		t.Fatalf("unexpected index for empty key: %d", got)
+	}
+}
+
+func TestLatestIncomingAt(t *testing.T) {
+	base := time.Date(2026, 2, 11, 12, 0, 0, 0, time.UTC)
+	messages := []domain.ChatMessage{
+		{Direction: domain.MessageDirectionOut, At: base.Add(1 * time.Minute)},
+		{Direction: domain.MessageDirectionIn, At: base.Add(2 * time.Minute)},
+		{Direction: domain.MessageDirectionIn, At: base.Add(5 * time.Minute)},
+	}
+
+	got := latestIncomingAt(messages)
+	want := base.Add(5 * time.Minute)
+	if !got.Equal(want) {
+		t.Fatalf("unexpected latest incoming time: got %v want %v", got, want)
+	}
+}
+
+func TestChatUnreadByKeyAndMarkRead(t *testing.T) {
+	base := time.Date(2026, 2, 11, 12, 0, 0, 0, time.UTC)
+	chats := []domain.Chat{
+		{Key: "ch:1", Title: "One", Type: domain.ChatTypeChannel},
+		{Key: "ch:2", Title: "Two", Type: domain.ChatTypeChannel},
+	}
+	store := domain.NewChatStore()
+	store.Load(chats, map[string][]domain.ChatMessage{
+		"ch:1": {
+			{ChatKey: "ch:1", Direction: domain.MessageDirectionIn, Body: "hello", At: base},
+		},
+		"ch:2": {
+			{ChatKey: "ch:2", Direction: domain.MessageDirectionOut, Body: "out", At: base},
+		},
+	})
+
+	read := initialReadIncomingByChat(store, chats)
+	unread := chatUnreadByKey(store, chats, read)
+	if unread["ch:1"] {
+		t.Fatalf("chat ch:1 should be read initially")
+	}
+	if unread["ch:2"] {
+		t.Fatalf("chat ch:2 should be read initially")
+	}
+
+	store.AppendMessage(domain.ChatMessage{
+		ChatKey:   "ch:1",
+		Direction: domain.MessageDirectionIn,
+		Body:      "new",
+		At:        base.Add(10 * time.Minute),
+		MetaJSON:  `{"from":"!abcd1234"}`,
+	})
+
+	unread = chatUnreadByKey(store, chats, read)
+	if !unread["ch:1"] {
+		t.Fatalf("chat ch:1 should be unread after new incoming message")
+	}
+
+	markChatRead(store, read, "ch:1")
+	unread = chatUnreadByKey(store, chats, read)
+	if unread["ch:1"] {
+		t.Fatalf("chat ch:1 should be read after markChatRead")
 	}
 }
 

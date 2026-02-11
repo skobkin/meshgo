@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -23,12 +24,16 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
 	selectedKey := strings.TrimSpace(initialSelectedKey)
+	readIncomingUpToByKey := initialReadIncomingByChat(store, chats)
+	unreadByKey := chatUnreadByKey(store, chats, readIncomingUpToByKey)
 	if selectedKey != "" && len(chats) > 0 && !hasChat(chats, selectedKey) {
 		selectedKey = ""
 	}
 	if selectedKey == "" && len(chats) > 0 {
 		selectedKey = chats[0].Key
 	}
+	markChatRead(store, readIncomingUpToByKey, selectedKey)
+	unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 	messages := store.Messages(selectedKey)
 	var messageList *widget.List
 	var chatTitle *widget.Label
@@ -39,12 +44,13 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	chatList := widget.NewList(
 		func() int { return len(chats) },
 		func() fyne.CanvasObject {
+			unreadLabel := widget.NewLabel("●")
 			titleLabel := widget.NewLabel("chat")
 			titleLabel.TextStyle = fyne.TextStyle{Bold: true}
 			typeLabel := widget.NewLabel("type")
 			previewLabel := widget.NewLabel("preview")
 			return container.NewVBox(
-				container.NewHBox(titleLabel, layout.NewSpacer(), typeLabel),
+				container.NewHBox(unreadLabel, titleLabel, layout.NewSpacer(), typeLabel),
 				previewLabel,
 			)
 		},
@@ -55,10 +61,12 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			chat := chats[id]
 			root := obj.(*fyne.Container)
 			line1 := root.Objects[0].(*fyne.Container)
-			titleLabel := line1.Objects[0].(*widget.Label)
-			typeLabel := line1.Objects[2].(*widget.Label)
+			unreadLabel := line1.Objects[0].(*widget.Label)
+			titleLabel := line1.Objects[1].(*widget.Label)
+			typeLabel := line1.Objects[3].(*widget.Label)
 			previewLabel := root.Objects[1].(*widget.Label)
 
+			unreadLabel.SetText(chatUnreadMarker(unreadByKey[chat.Key]))
 			titleLabel.SetText(chat.Title)
 			typeLabel.SetText(chatTypeLabel(chat))
 			if preview, ok := previewsByKey[chat.Key]; ok {
@@ -73,10 +81,13 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			return
 		}
 		selectedKey = chats[id].Key
+		markChatRead(store, readIncomingUpToByKey, selectedKey)
+		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 		if onChatSelected != nil {
 			onChatSelected(selectedKey)
 		}
 		messages = store.Messages(selectedKey)
+		chatList.Refresh()
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
 		scrollMessageListToEnd(messageList, len(messages))
@@ -213,6 +224,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	refreshFromStore := func() {
 		updatedChats := store.ChatListSorted()
 		chats = updatedChats
+		pruneReadIncomingByChat(readIncomingUpToByKey, chats)
 		previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
 		if selectedKey == "" && len(chats) > 0 {
 			selectedKey = chats[0].Key
@@ -225,6 +237,8 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		}
 		selectedIndex := chatIndexByKey(chats, selectedKey)
 		messages = store.Messages(selectedKey)
+		markChatRead(store, readIncomingUpToByKey, selectedKey)
+		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
 		chatList.Refresh()
 		messageList.Refresh()
@@ -298,6 +312,13 @@ func chatTypeLabel(c domain.Chat) string {
 		return "DM"
 	}
 	return "Channel"
+}
+
+func chatUnreadMarker(hasUnread bool) string {
+	if hasUnread {
+		return "●"
+	}
+	return " "
 }
 
 func chatPreviewByKey(store *domain.ChatStore, chats []domain.Chat, nodeNameByID func(string) string) map[string]string {
@@ -718,4 +739,56 @@ func chatIndexByKey(chats []domain.Chat, key string) int {
 		}
 	}
 	return -1
+}
+
+func initialReadIncomingByChat(store *domain.ChatStore, chats []domain.Chat) map[string]time.Time {
+	readIncomingUpToByKey := make(map[string]time.Time, len(chats))
+	for _, chat := range chats {
+		readIncomingUpToByKey[chat.Key] = latestIncomingAt(store.Messages(chat.Key))
+	}
+	return readIncomingUpToByKey
+}
+
+func markChatRead(store *domain.ChatStore, readIncomingUpToByKey map[string]time.Time, chatKey string) {
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return
+	}
+	readIncomingUpToByKey[chatKey] = latestIncomingAt(store.Messages(chatKey))
+}
+
+func pruneReadIncomingByChat(readIncomingUpToByKey map[string]time.Time, chats []domain.Chat) {
+	keep := make(map[string]struct{}, len(chats))
+	for _, chat := range chats {
+		keep[chat.Key] = struct{}{}
+	}
+	for key := range readIncomingUpToByKey {
+		if _, ok := keep[key]; ok {
+			continue
+		}
+		delete(readIncomingUpToByKey, key)
+	}
+}
+
+func chatUnreadByKey(store *domain.ChatStore, chats []domain.Chat, readIncomingUpToByKey map[string]time.Time) map[string]bool {
+	unreadByKey := make(map[string]bool, len(chats))
+	for _, chat := range chats {
+		latestIncoming := latestIncomingAt(store.Messages(chat.Key))
+		lastReadIncoming := readIncomingUpToByKey[chat.Key]
+		unreadByKey[chat.Key] = latestIncoming.After(lastReadIncoming)
+	}
+	return unreadByKey
+}
+
+func latestIncomingAt(messages []domain.ChatMessage) time.Time {
+	var latest time.Time
+	for _, msg := range messages {
+		if msg.Direction != domain.MessageDirectionIn {
+			continue
+		}
+		if msg.At.After(latest) {
+			latest = msg.At
+		}
+	}
+	return latest
 }
