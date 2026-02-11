@@ -23,7 +23,7 @@ import (
 const (
 	connectorOptionIP        = "IP"
 	connectorOptionSerial    = "Serial"
-	connectorOptionBluetooth = "Bluetooth"
+	connectorOptionBluetooth = "Bluetooth LE (unstable)"
 )
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
