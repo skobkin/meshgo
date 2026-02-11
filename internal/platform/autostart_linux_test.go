@@ -13,7 +13,7 @@ func TestLinuxAutostartSyncWritesUpdatesAndRemovesDesktopEntry(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	mgr := newAutostartManager()
-	if err := mgr.Sync(AutostartConfig{Enabled: true, Mode: LaunchModeNormal}); err != nil {
+	if err := mgr.Sync(AutostartConfig{Enabled: true, Mode: AutostartModeNormal}); err != nil {
 		t.Fatalf("sync normal mode: %v", err)
 	}
 
@@ -34,7 +34,7 @@ func TestLinuxAutostartSyncWritesUpdatesAndRemovesDesktopEntry(t *testing.T) {
 		t.Fatalf("did not expect %q in normal mode entry", startHiddenArg)
 	}
 
-	if err := mgr.Sync(AutostartConfig{Enabled: true, Mode: LaunchModeBackground}); err != nil {
+	if err := mgr.Sync(AutostartConfig{Enabled: true, Mode: AutostartModeBackground}); err != nil {
 		t.Fatalf("sync background mode: %v", err)
 	}
 	// #nosec G304 -- test controls XDG_CONFIG_HOME and entry path.
@@ -46,7 +46,7 @@ func TestLinuxAutostartSyncWritesUpdatesAndRemovesDesktopEntry(t *testing.T) {
 		t.Fatalf("expected %q in background mode entry, got %q", startHiddenArg, string(raw))
 	}
 
-	if err := mgr.Sync(AutostartConfig{Enabled: false, Mode: LaunchModeBackground}); err != nil {
+	if err := mgr.Sync(AutostartConfig{Enabled: false, Mode: AutostartModeBackground}); err != nil {
 		t.Fatalf("disable autostart: %v", err)
 	}
 	if _, err := os.Stat(entryPath); !os.IsNotExist(err) {

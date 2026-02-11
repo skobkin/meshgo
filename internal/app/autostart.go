@@ -44,7 +44,7 @@ func (r *Runtime) syncAutostart(cfg config.AppConfig, trigger string) error {
 
 	if err := r.AutostartManager.Sync(platform.AutostartConfig{
 		Enabled: cfg.UI.Autostart.Enabled,
-		Mode:    platform.LaunchMode(cfg.UI.Autostart.Mode),
+		Mode:    platform.AutostartMode(cfg.UI.Autostart.Mode),
 	}); err != nil {
 		return err
 	}

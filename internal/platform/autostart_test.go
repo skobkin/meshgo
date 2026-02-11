@@ -2,21 +2,21 @@ package platform
 
 import "testing"
 
-func TestNormalizeLaunchMode(t *testing.T) {
-	if got := normalizeLaunchMode(LaunchModeBackground); got != LaunchModeBackground {
-		t.Fatalf("expected %q, got %q", LaunchModeBackground, got)
+func TestNormalizeAutostartMode(t *testing.T) {
+	if got := normalizeAutostartMode(AutostartModeBackground); got != AutostartModeBackground {
+		t.Fatalf("expected %q, got %q", AutostartModeBackground, got)
 	}
-	if got := normalizeLaunchMode(LaunchMode("invalid")); got != LaunchModeNormal {
-		t.Fatalf("expected invalid mode to normalize to %q, got %q", LaunchModeNormal, got)
+	if got := normalizeAutostartMode(AutostartMode("invalid")); got != AutostartModeNormal {
+		t.Fatalf("expected invalid mode to normalize to %q, got %q", AutostartModeNormal, got)
 	}
 }
 
 func TestLaunchArgsForMode(t *testing.T) {
-	if got := launchArgsForMode(LaunchModeNormal); len(got) != 0 {
+	if got := launchArgsForMode(AutostartModeNormal); len(got) != 0 {
 		t.Fatalf("expected no args for normal mode, got %#v", got)
 	}
 
-	got := launchArgsForMode(LaunchModeBackground)
+	got := launchArgsForMode(AutostartModeBackground)
 	if len(got) != 1 || got[0] != startHiddenArg {
 		t.Fatalf("unexpected args for background mode: %#v", got)
 	}
