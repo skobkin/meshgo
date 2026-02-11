@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"sort"
@@ -71,6 +72,59 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	bluetoothPairingHint := widget.NewLabel("Pair the node in OS Bluetooth settings before connecting.")
 	bluetoothPairingHint.Wrapping = fyne.TextWrapWord
 
+	bluetoothScanner := dep.BluetoothScanner
+	if bluetoothScanner == nil {
+		bluetoothScanner = NewTinyGoBluetoothScanner(defaultBluetoothScanDuration)
+	}
+	openBluetoothSettingsFn := dep.OpenBluetoothSettings
+	if openBluetoothSettingsFn == nil {
+		openBluetoothSettingsFn = openBluetoothSettings
+	}
+
+	scanBluetoothButton := widget.NewButton("Scan", nil)
+	openBluetoothSettingsButton := widget.NewButton("Open Bluetooth Settings", func() {
+		if err := openBluetoothSettingsFn(); err != nil {
+			status.SetText("Failed to open Bluetooth settings: " + err.Error())
+			return
+		}
+		status.SetText("")
+	})
+	bluetoothActionRow := container.NewHBox(scanBluetoothButton, openBluetoothSettingsButton)
+
+	scanBluetoothButton.OnTapped = func() {
+		scanBluetoothButton.Disable()
+		openBluetoothSettingsButton.Disable()
+		status.SetText("Scanning...")
+
+		adapterID := strings.TrimSpace(bluetoothAdapterEntry.Text)
+		go func() {
+			devices, err := bluetoothScanner.Scan(context.Background(), adapterID)
+			fyne.Do(func() {
+				scanBluetoothButton.Enable()
+				openBluetoothSettingsButton.Enable()
+
+				if err != nil {
+					status.SetText("Bluetooth scan failed: " + err.Error())
+					return
+				}
+				if len(devices) == 0 {
+					status.SetText("No Bluetooth devices found")
+					return
+				}
+
+				window := currentWindow()
+				if window == nil {
+					status.SetText("Bluetooth scan failed: active window is unavailable")
+					return
+				}
+				showBluetoothScanDialog(window, devices, func(device BluetoothScanDevice) {
+					bluetoothAddressEntry.SetText(device.Address)
+					status.SetText("Selected: " + device.Address)
+				})
+			})
+		}()
+	}
+
 	refreshPorts := func() {
 		selectedPort := strings.TrimSpace(serialPortSelect.Selected)
 		ports, err := serial.GetPortsList()
@@ -111,6 +165,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	serialBaudLabel := widget.NewLabel("Serial Baud")
 	bluetoothAddressLabel := widget.NewLabel("Bluetooth Address")
 	bluetoothAdapterLabel := widget.NewLabel("Bluetooth Adapter")
+	bluetoothActionsLabel := widget.NewLabel("")
 	bluetoothHintLabel := widget.NewLabel("")
 
 	connectionFields := container.New(layout.NewFormLayout(),
@@ -120,6 +175,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 		serialBaudLabel, serialBaudSelect,
 		bluetoothAddressLabel, bluetoothAddressEntry,
 		bluetoothAdapterLabel, bluetoothAdapterEntry,
+		bluetoothActionsLabel, bluetoothActionRow,
 		bluetoothHintLabel, bluetoothPairingHint,
 	)
 
@@ -130,7 +186,7 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 
 		setVisible(showIP, ipHostLabel, hostEntry)
 		setVisible(showSerial, serialPortLabel, serialPortRow, serialBaudLabel, serialBaudSelect)
-		setVisible(showBluetooth, bluetoothAddressLabel, bluetoothAddressEntry, bluetoothAdapterLabel, bluetoothAdapterEntry, bluetoothHintLabel, bluetoothPairingHint)
+		setVisible(showBluetooth, bluetoothAddressLabel, bluetoothAddressEntry, bluetoothAdapterLabel, bluetoothAdapterEntry, bluetoothActionsLabel, bluetoothActionRow, bluetoothHintLabel, bluetoothPairingHint)
 	}
 
 	connectorSelect.OnChanged = func(value string) {
@@ -276,6 +332,60 @@ func newSettingsTab(dep Dependencies, connStatusLabel *widget.Label) fyne.Canvas
 	)
 
 	return container.NewVScroll(content)
+}
+
+func showBluetoothScanDialog(window fyne.Window, devices []BluetoothScanDevice, onSelect func(BluetoothScanDevice)) {
+	selected := 0
+
+	list := widget.NewList(
+		func() int {
+			return len(devices)
+		},
+		func() fyne.CanvasObject {
+			label := widget.NewLabel("")
+			label.Wrapping = fyne.TextWrapWord
+			return label
+		},
+		func(id widget.ListItemID, object fyne.CanvasObject) {
+			label, ok := object.(*widget.Label)
+			if !ok {
+				return
+			}
+			device, ok := bluetoothScanDeviceAt(devices, id)
+			if !ok {
+				label.SetText("")
+				return
+			}
+			label.SetText(formatBluetoothScanDevice(device))
+		},
+	)
+	list.OnSelected = func(id widget.ListItemID) {
+		selected = id
+	}
+	if len(devices) > 0 {
+		list.Select(0)
+	}
+
+	dialogContent := container.NewBorder(nil, nil, nil, nil, list)
+	scanDialog := dialog.NewCustomConfirm(
+		"Bluetooth devices",
+		"Select",
+		"Cancel",
+		dialogContent,
+		func(ok bool) {
+			if !ok {
+				return
+			}
+			device, ok := bluetoothScanDeviceAt(devices, selected)
+			if !ok {
+				return
+			}
+			onSelect(device)
+		},
+		window,
+	)
+	scanDialog.Resize(fyne.NewSize(560, 420))
+	scanDialog.Show()
 }
 
 func openExternalURL(rawURL string) error {

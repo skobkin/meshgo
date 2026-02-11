@@ -13,12 +13,14 @@ type Dependencies struct {
 	NodeStore        *domain.NodeStore
 	Bus              bus.MessageBus
 	LastSelectedChat string
+	BluetoothScanner BluetoothScanner
 	Sender           interface {
 		SendText(chatKey, text string) <-chan radio.SendResult
 	}
-	LocalNodeID    func() string
-	OnSave         func(cfg config.AppConfig) error
-	OnChatSelected func(chatKey string)
-	OnClearDB      func() error
-	OnQuit         func()
+	LocalNodeID           func() string
+	OnSave                func(cfg config.AppConfig) error
+	OnChatSelected        func(chatKey string)
+	OnClearDB             func() error
+	OpenBluetoothSettings func() error
+	OnQuit                func()
 }

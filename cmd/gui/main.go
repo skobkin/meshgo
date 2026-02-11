@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/ui"
@@ -43,6 +44,7 @@ func run() error {
 		NodeStore:        rt.NodeStore,
 		Bus:              rt.Bus,
 		LastSelectedChat: rt.Config.UI.LastSelectedChat,
+		BluetoothScanner: ui.NewTinyGoBluetoothScanner(10 * time.Second),
 		Sender:           rt.Radio,
 		LocalNodeID:      rt.Radio.LocalNodeID,
 		OnSave:           rt.SaveAndApplyConfig,
