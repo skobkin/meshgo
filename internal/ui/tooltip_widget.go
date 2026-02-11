@@ -158,7 +158,80 @@ func richTextSegmentsPlainText(segs []widget.RichTextSegment) string {
 }
 
 func cloneRichTextSegments(segs []widget.RichTextSegment) []widget.RichTextSegment {
-	return append([]widget.RichTextSegment(nil), segs...)
+	cloned := make([]widget.RichTextSegment, 0, len(segs))
+	for _, seg := range segs {
+		cloned = append(cloned, cloneRichTextSegment(seg))
+	}
+
+	return cloned
+}
+
+func cloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
+	switch s := seg.(type) {
+	case *widget.TextSegment:
+		if s == nil {
+			return nil
+		}
+		c := *s
+
+		return &c
+	case *widget.HyperlinkSegment:
+		if s == nil {
+			return nil
+		}
+		c := *s
+		if s.URL != nil {
+			url := *s.URL
+			c.URL = &url
+		}
+
+		return &c
+	case *widget.ImageSegment:
+		if s == nil {
+			return nil
+		}
+		c := *s
+
+		return &c
+	case *widget.ParagraphSegment:
+		if s == nil {
+			return nil
+		}
+		c := *s
+		c.Texts = cloneRichTextSegments(s.Texts)
+
+		return &c
+	case *widget.ListSegment:
+		if s == nil {
+			return nil
+		}
+		c := *s
+		c.Items = cloneRichTextSegments(s.Items)
+		c.SetStartNumber(s.StartNumber())
+
+		return &c
+	case *widget.SeparatorSegment:
+		if s == nil {
+			return nil
+		}
+
+		return &widget.SeparatorSegment{}
+	default:
+		return seg
+	}
+}
+
+func hideTooltipWidgets(objects []fyne.CanvasObject) {
+	for _, obj := range objects {
+		switch v := obj.(type) {
+		case nil:
+			continue
+		case *tooltipWidget:
+			v.hideTooltip()
+		case *fyne.Container:
+			hideTooltipWidgets(v.Objects)
+		}
+	}
 }
 
 type hoverTooltipManager struct {
@@ -198,7 +271,6 @@ func (m *hoverTooltipManager) Show(owner fyne.CanvasObject, content fyne.CanvasO
 	ownerPos := driver.AbsolutePositionForObject(owner).Subtract(layerPos)
 	if layerSize.Width <= 0 || layerSize.Height <= 0 {
 		layerSize = cnv.Size()
-		ownerPos = driver.AbsolutePositionForObject(owner)
 	}
 
 	bubble := newTooltipBubble(content)

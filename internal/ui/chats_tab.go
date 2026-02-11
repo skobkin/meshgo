@@ -38,6 +38,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	var messageList *widget.List
 	var chatTitle *widget.Label
 	var entry *widget.Entry
+	var tooltipManager *hoverTooltipManager
 	pendingScrollChatKey := ""
 	pendingScrollMinCount := 0
 
@@ -81,6 +82,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		if id < 0 || id >= len(chats) {
 			return
 		}
+		tooltipManager.Hide(nil)
 		selectedKey = chats[id].Key
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
@@ -100,7 +102,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
 	}
 	tooltipLayer := container.NewWithoutLayout()
-	tooltipManager := newHoverTooltipManager(tooltipLayer)
+	tooltipManager = newHoverTooltipManager(tooltipLayer)
 
 	messageList = widget.NewList(
 		func() int { return len(messages) },
@@ -155,6 +157,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
+			hideTooltipWidgets(metaParts.Objects)
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
@@ -250,6 +253,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	split.Offset = 0.32
 
 	refreshFromStore := func() {
+		tooltipManager.Hide(nil)
 		updatedChats := store.ChatListSorted()
 		chats = updatedChats
 		pruneReadIncomingByChat(readIncomingUpToByKey, chats)
@@ -295,6 +299,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		go func() {
 			for range nodeChanges {
 				fyne.Do(func() {
+					tooltipManager.Hide(nil)
 					previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
 					chatList.Refresh()
 					messageList.Refresh()
