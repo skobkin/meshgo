@@ -225,6 +225,7 @@ func localNodeSnapshot(store *domain.NodeStore, localNodeID func() string) (doma
 	if strings.TrimSpace(node.NodeID) == "" {
 		node.NodeID = id
 	}
+
 	return node, true
 }
 
@@ -232,6 +233,7 @@ func nodeIDOrUnknown(nodeID string) string {
 	if v := strings.TrimSpace(nodeID); v != "" {
 		return v
 	}
+
 	return "unknown"
 }
 
@@ -239,6 +241,7 @@ func nodeDisplayNameOrUnknown(node domain.Node) string {
 	if v := strings.TrimSpace(nodeDisplayName(node)); v != "" {
 		return v
 	}
+
 	return "unknown"
 }
 
@@ -247,6 +250,7 @@ func orUnknown(v string) string {
 	if v == "" {
 		return "unknown"
 	}
+
 	return v
 }
 
@@ -257,6 +261,7 @@ func boolPtrText(v *bool) string {
 	if *v {
 		return "yes"
 	}
+
 	return "no"
 }
 
@@ -267,6 +272,7 @@ func chargeOrUnknown(level *uint32) string {
 	if *level > 100 {
 		return "external"
 	}
+
 	return fmt.Sprintf("%d%%", *level)
 }
 
@@ -274,6 +280,7 @@ func voltageOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.2fV", *value)
 }
 
@@ -281,6 +288,7 @@ func temperatureOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.1f C", *value)
 }
 
@@ -288,6 +296,7 @@ func humidityOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.1f%%", *value)
 }
 
@@ -295,6 +304,7 @@ func pressureOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.1f hPa", *value)
 }
 
@@ -302,6 +312,7 @@ func aqiOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.1f", *value)
 }
 
@@ -309,6 +320,7 @@ func currentOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.3fA", *value)
 }
 
@@ -316,6 +328,7 @@ func intOrUnknown(value *int) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%d", *value)
 }
 
@@ -323,6 +336,7 @@ func floatOrUnknown(value *float64) string {
 	if value == nil {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("%.2f", *value)
 }
 
@@ -330,5 +344,6 @@ func timeOrUnknown(v time.Time) string {
 	if v.IsZero() {
 		return "unknown"
 	}
+
 	return v.Local().Format("2006-01-02 15:04:05")
 }

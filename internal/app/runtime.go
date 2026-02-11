@@ -19,6 +19,7 @@ import (
 	"github.com/skobkin/meshgo/internal/radio"
 )
 
+// Runtime wires app services, persistence, transport, and UI-facing stores together.
 type Runtime struct {
 	mu sync.RWMutex
 
@@ -72,6 +73,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	if err := logMgr.Configure(cfg.Logging, paths.LogFile); err != nil {
 		_ = logMgr.Close()
 		cancel()
+
 		return nil, fmt.Errorf("configure logging: %w", err)
 	}
 	rt.LogManager = logMgr
@@ -83,6 +85,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	db, err := persistence.Open(ctx, paths.DBFile)
 	if err != nil {
 		_ = rt.Close()
+
 		return nil, err
 	}
 	rt.DB = db
@@ -95,6 +98,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	chatStore := domain.NewChatStore()
 	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, rt.NodeRepo, rt.ChatRepo, rt.MessageRepo); err != nil {
 		_ = rt.Close()
+
 		return nil, err
 	}
 	rt.NodeStore = nodeStore
@@ -115,12 +119,14 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {
 		_ = rt.Close()
+
 		return nil, fmt.Errorf("initialize meshtastic codec: %w", err)
 	}
 
 	connTransport, err := NewConnectionTransport(cfg.Connection)
 	if err != nil {
 		_ = rt.Close()
+
 		return nil, fmt.Errorf("initialize transport: %w", err)
 	}
 	rt.ConnectionTransport = connTransport
@@ -161,6 +167,7 @@ func (r *Runtime) CurrentConnStatus() (connectors.ConnectionStatus, bool) {
 	status := r.connStatus
 	known := r.connStatusKnown
 	r.connStatusMu.RUnlock()
+
 	return status, known
 }
 
@@ -174,6 +181,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	cfg.UI.LastSelectedChat = r.Config.UI.LastSelectedChat
 	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
+
 		return err
 	}
 	r.Config = cfg
@@ -190,6 +198,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 	if err := r.syncAutostart(cfg, "settings_save"); err != nil {
 		slog.Warn("sync autostart after save", "error", err)
+
 		return &AutostartSyncWarning{Err: err}
 	}
 
@@ -202,6 +211,7 @@ func (r *Runtime) RememberSelectedChat(chatKey string) {
 	r.mu.Lock()
 	if r.Config.UI.LastSelectedChat == normalized {
 		r.mu.Unlock()
+
 		return
 	}
 	cfg := r.Config
@@ -209,6 +219,7 @@ func (r *Runtime) RememberSelectedChat(chatKey string) {
 	if err := config.Save(r.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 		slog.Warn("save selected chat", "error", err)
+
 		return
 	}
 	r.Config = cfg
@@ -273,5 +284,6 @@ func (r *Runtime) Close() error {
 	if r.LogManager != nil {
 		_ = r.LogManager.Close()
 	}
+
 	return nil
 }

@@ -43,6 +43,7 @@ func TestNodeDisplayName(t *testing.T) {
 				LongName:  "Alpha Bravo",
 				IsUnmessageable: func() *bool {
 					v := true
+
 					return &v
 				}(),
 			},
@@ -97,6 +98,7 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 		SNR:        &snr,
 		BatteryLevel: func() *uint32 {
 			v := uint32(80)
+
 			return &v
 		}(),
 	})

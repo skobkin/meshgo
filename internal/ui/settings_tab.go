@@ -66,6 +66,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	setAutostartModeEnabled := func(enabled bool) {
 		if enabled {
 			autostartModeSelect.Enable()
+
 			return
 		}
 		autostartModeSelect.Disable()
@@ -136,6 +137,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	openBluetoothSettingsButton := widget.NewButton("Open Bluetooth Settings", func() {
 		if err := openBluetoothSettingsFn(); err != nil {
 			status.SetText("Failed to open Bluetooth settings: " + err.Error())
+
 			return
 		}
 		status.SetText("")
@@ -146,6 +148,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		window := currentWindowFn()
 		if window == nil {
 			status.SetText("Bluetooth scan failed: active window is unavailable")
+
 			return
 		}
 
@@ -176,11 +179,13 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				if err != nil {
 					status.SetText("Bluetooth scan failed: " + err.Error())
 					showErrorDialogFn(err, window)
+
 					return
 				}
 				if len(devices) == 0 {
 					status.SetText("No Bluetooth devices found")
 					showInfoDialogFn("Bluetooth scan", "No Bluetooth devices found", window)
+
 					return
 				}
 
@@ -197,6 +202,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		ports, err := serial.GetPortsList()
 		if err != nil {
 			status.SetText("Failed to list serial ports: " + err.Error())
+
 			return
 		}
 		sort.Strings(ports)
@@ -218,6 +224,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 		if len(ports) == 0 {
 			status.SetText("No serial ports detected")
+
 			return
 		}
 		status.SetText("")
@@ -264,6 +271,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		}
 		if next == config.ConnectorBluetooth {
 			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
+
 			return
 		}
 		status.SetText("")
@@ -282,6 +290,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			baud, err = parseSerialBaud(serialBaudSelect.Selected)
 			if err != nil {
 				status.SetText("Save failed: " + err.Error())
+
 				return
 			}
 		}
@@ -302,10 +311,12 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			if clearDatabase {
 				if dep.Actions.OnClearDB == nil {
 					status.SetText("Save failed: database clear is not available")
+
 					return
 				}
 				if err := dep.Actions.OnClearDB(); err != nil {
 					status.SetText("Save failed: database clear failed: " + err.Error())
+
 					return
 				}
 			}
@@ -314,9 +325,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				if errors.As(err, &warning) {
 					current = cfg
 					status.SetText("Saved with warning: " + warning.Error())
+
 					return
 				}
 				status.SetText("Save failed: " + err.Error())
+
 				return
 			}
 			current = cfg
@@ -327,6 +340,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			window := currentWindow()
 			if window == nil {
 				status.SetText("Save failed: active window is unavailable")
+
 				return
 			}
 			dialog.ShowConfirm(
@@ -335,12 +349,14 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				func(ok bool) {
 					if !ok {
 						status.SetText("Save canceled")
+
 						return
 					}
 					saveConfig(true)
 				},
 				window,
 			)
+
 			return
 		}
 
@@ -351,10 +367,12 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	clearDBButton := widget.NewButton("Clear database", func() {
 		if dep.Actions.OnClearDB == nil {
 			status.SetText("Database clear is not available")
+
 			return
 		}
 		if err := dep.Actions.OnClearDB(); err != nil {
 			status.SetText("Database clear failed: " + err.Error())
+
 			return
 		}
 		status.SetText("Database cleared")
@@ -427,6 +445,7 @@ func showBluetoothScanDialog(window fyne.Window, devices []BluetoothScanDevice, 
 			title.Truncation = fyne.TextTruncateEllipsis
 			details := widget.NewLabel(" ")
 			details.Truncation = fyne.TextTruncateEllipsis
+
 			return container.NewVBox(title, details)
 		},
 		func(id widget.ListItemID, object fyne.CanvasObject) {
@@ -443,6 +462,7 @@ func showBluetoothScanDialog(window fyne.Window, devices []BluetoothScanDevice, 
 			if !ok {
 				title.SetText("")
 				details.SetText("")
+
 				return
 			}
 			title.SetText(bluetoothScanDeviceTitle(device))
@@ -491,6 +511,7 @@ func openExternalURL(rawURL string) error {
 	if err := currentApp.OpenURL(parsed); err != nil {
 		return fmt.Errorf("open url: %w", err)
 	}
+
 	return nil
 }
 
@@ -499,6 +520,7 @@ func mustParseURL(rawURL string) *url.URL {
 	if err != nil {
 		panic(fmt.Sprintf("invalid url %q: %v", rawURL, err))
 	}
+
 	return parsed
 }
 
@@ -506,6 +528,7 @@ func setVisible(visible bool, objects ...fyne.CanvasObject) {
 	for _, object := range objects {
 		if visible {
 			object.Show()
+
 			continue
 		}
 		object.Hide()
@@ -526,6 +549,7 @@ func uniqueValues(values []string) []string {
 		seen[trimmed] = struct{}{}
 		unique = append(unique, trimmed)
 	}
+
 	return unique
 }
 
@@ -538,6 +562,7 @@ func currentWindow() fyne.Window {
 	if len(windows) == 0 {
 		return nil
 	}
+
 	return windows[0]
 }
 
@@ -593,5 +618,6 @@ func parseSerialBaud(value string) (int, error) {
 	if baud <= 0 {
 		return 0, fmt.Errorf("serial baud must be positive")
 	}
+
 	return baud, nil
 }

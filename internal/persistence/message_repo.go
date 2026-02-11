@@ -9,6 +9,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+// MessageRepo implements domain.MessageRepository using SQLite.
 type MessageRepo struct {
 	db *sql.DB
 }
@@ -33,6 +34,7 @@ func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, 
 	if err != nil {
 		return 0, fmt.Errorf("get message local id: %w", err)
 	}
+
 	return id, nil
 }
 
@@ -66,6 +68,7 @@ func (r *MessageRepo) ListRecentByChat(ctx context.Context, chatKey string, limi
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
+
 	return out, nil
 }
 
@@ -95,6 +98,7 @@ func (r *MessageRepo) LoadRecentPerChat(ctx context.Context, limit int) (map[str
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate chat keys: %w", err)
 	}
+
 	return result, nil
 }
 
@@ -151,6 +155,7 @@ func (r *MessageRepo) UpdateStatusByDeviceMessageID(ctx context.Context, deviceM
 			return fmt.Errorf("update message status: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -177,6 +182,7 @@ func scanMessage(scanner interface {
 	if metaRaw.Valid {
 		m.MetaJSON = metaRaw.String
 	}
+
 	return m, nil
 }
 
@@ -184,5 +190,6 @@ func nullableString(v string) any {
 	if v == "" {
 		return nil
 	}
+
 	return v
 }

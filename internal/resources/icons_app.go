@@ -19,6 +19,7 @@ func AppIconResource(variant fyne.ThemeVariant) fyne.Resource {
 	if res, ok := appIconResources[variant]; ok {
 		return res
 	}
+
 	return appIconResources[theme.VariantDark]
 }
 
@@ -26,5 +27,6 @@ func TrayIconResource(variant fyne.ThemeVariant) fyne.Resource {
 	if res, ok := trayIconResources[variant]; ok {
 		return res
 	}
+
 	return trayIconResources[theme.VariantDark]
 }

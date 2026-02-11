@@ -2,6 +2,7 @@ package domain
 
 import "time"
 
+// ChatType classifies chat destination kind.
 type ChatType int
 
 const (
@@ -9,6 +10,7 @@ const (
 	ChatTypeDM
 )
 
+// MessageDirection indicates whether a message was received or sent locally.
 type MessageDirection int
 
 const (
@@ -16,6 +18,7 @@ const (
 	MessageDirectionOut
 )
 
+// MessageStatus tracks delivery progress for a chat message.
 type MessageStatus int
 
 const (
@@ -25,6 +28,7 @@ const (
 	MessageStatusFailed
 )
 
+// Chat is a UI-facing chat summary record.
 type Chat struct {
 	Key            string
 	Title          string
@@ -33,6 +37,7 @@ type Chat struct {
 	UpdatedAt      time.Time
 }
 
+// ChatMessage is a single message item stored and shown in a chat timeline.
 type ChatMessage struct {
 	LocalID         int64
 	DeviceMessageID string
@@ -44,6 +49,7 @@ type ChatMessage struct {
 	MetaJSON        string
 }
 
+// MessageStatusUpdate updates delivery status by device message id.
 type MessageStatusUpdate struct {
 	DeviceMessageID string
 	Status          MessageStatus
@@ -72,6 +78,7 @@ func ShouldTransitionMessageStatus(current, next MessageStatus) bool {
 	}
 }
 
+// Node stores the latest known node metadata and telemetry.
 type Node struct {
 	NodeID          string
 	LongName        string
@@ -93,16 +100,19 @@ type Node struct {
 	UpdatedAt       time.Time
 }
 
+// NodeUpdate is a bus event with node data and update source metadata.
 type NodeUpdate struct {
 	Node       Node
 	LastHeard  time.Time
 	FromPacket bool
 }
 
+// ChannelList carries known device channels published by the radio.
 type ChannelList struct {
 	Items []ChannelInfo
 }
 
+// ChannelInfo describes one mesh channel index and title.
 type ChannelInfo struct {
 	Index int
 	Title string

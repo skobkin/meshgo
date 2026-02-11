@@ -9,6 +9,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+// NodeRepo implements domain.NodeRepository using SQLite.
 type NodeRepo struct {
 	db *sql.DB
 }
@@ -103,6 +104,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
+
 	return nil
 }
 
@@ -200,5 +202,6 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate nodes: %w", err)
 	}
+
 	return out, nil
 }

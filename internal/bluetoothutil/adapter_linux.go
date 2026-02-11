@@ -13,5 +13,6 @@ func ResolveAdapter(adapterID string) *bluetooth.Adapter {
 	if trimmed == "" {
 		return bluetooth.DefaultAdapter
 	}
+
 	return bluetooth.NewAdapter(trimmed)
 }

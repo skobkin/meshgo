@@ -12,6 +12,7 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 )
 
+// Manager owns app logger configuration and optional log file lifecycle.
 type Manager struct {
 	mu     sync.RWMutex
 	logger *slog.Logger
@@ -21,6 +22,7 @@ type Manager struct {
 func NewManager() *Manager {
 	m := &Manager{}
 	m.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
 	return m
 }
 
@@ -53,12 +55,14 @@ func (m *Manager) Configure(cfg config.LoggingConfig, filePath string) error {
 	h := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: level})
 	m.logger = slog.New(h)
 	slog.SetDefault(m.logger)
+
 	return nil
 }
 
 func (m *Manager) Logger(component string) *slog.Logger {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.logger.With("component", component)
 }
 
@@ -71,6 +75,7 @@ func (m *Manager) Close() error {
 		}
 		m.file = nil
 	}
+
 	return nil
 }
 
@@ -100,6 +105,7 @@ func newFanoutWriter(writers ...io.Writer) io.Writer {
 			filtered = append(filtered, w)
 		}
 	}
+
 	return &fanoutWriter{writers: filtered}
 }
 
@@ -115,12 +121,14 @@ func (w *fanoutWriter) Write(p []byte) (int, error) {
 			if firstErr == nil {
 				firstErr = err
 			}
+
 			continue
 		}
 		if n != len(p) {
 			if firstErr == nil {
 				firstErr = io.ErrShortWrite
 			}
+
 			continue
 		}
 		wroteAny = true
@@ -132,5 +140,6 @@ func (w *fanoutWriter) Write(p []byte) (int, error) {
 	if firstErr != nil {
 		return 0, firstErr
 	}
+
 	return len(p), nil
 }

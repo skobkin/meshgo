@@ -11,6 +11,7 @@ type writeCmd struct {
 	fn   func(context.Context) error
 }
 
+// WriterQueue runs persistence commands asynchronously with bounded retries.
 type WriterQueue struct {
 	logger *slog.Logger
 	queue  chan writeCmd
@@ -20,6 +21,7 @@ func NewWriterQueue(logger *slog.Logger, capacity int) *WriterQueue {
 	if capacity <= 0 {
 		capacity = 256
 	}
+
 	return &WriterQueue{
 		logger: logger,
 		queue:  make(chan writeCmd, capacity),
@@ -61,8 +63,10 @@ func (w *WriterQueue) runWithRetry(ctx context.Context, cmd writeCmd) {
 				return
 			case <-time.After(time.Duration(attempt) * 300 * time.Millisecond):
 			}
+
 			continue
 		}
+
 		return
 	}
 }

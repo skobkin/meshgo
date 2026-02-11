@@ -22,6 +22,7 @@ func newLinkImage(resource fyne.Resource, minSize fyne.Size, onTap func()) *link
 		onTap: onTap,
 	}
 	l.ExtendBaseWidget(l)
+
 	return l
 }
 

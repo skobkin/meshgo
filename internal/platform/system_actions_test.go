@@ -42,6 +42,7 @@ func TestOpenBluetoothSettingsForOSFallsBack(t *testing.T) {
 		if len(attempts) == 1 {
 			return errors.New("first command failed")
 		}
+
 		return nil
 	}
 

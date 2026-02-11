@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 )
 
+// Paths stores resolved runtime file locations for user config, DB, and logs.
 type Paths struct {
 	RootDir    string
 	ConfigFile string

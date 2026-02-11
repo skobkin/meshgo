@@ -18,6 +18,7 @@ import (
 	"github.com/skobkin/meshgo/internal/transport"
 )
 
+// SendResult is the async outcome of a user message send request.
 type SendResult struct {
 	Message domain.ChatMessage
 	Err     error
@@ -29,6 +30,7 @@ type sendRequest struct {
 	result  chan SendResult
 }
 
+// Service runs transport I/O, codec translation, and bus publication loops.
 type Service struct {
 	logger    *slog.Logger
 	transport transport.Transport
@@ -66,20 +68,24 @@ func (s *Service) SendText(chatKey, text string) <-chan SendResult {
 	if chatKey == "" {
 		resCh <- SendResult{Err: errors.New("chat key is required")}
 		close(resCh)
+
 		return resCh
 	}
 	if utf8.RuneCountInString(text) == 0 {
 		resCh <- SendResult{Err: errors.New("message body is empty")}
 		close(resCh)
+
 		return resCh
 	}
 	if len([]byte(text)) > 200 {
 		resCh <- SendResult{Err: fmt.Errorf("message body exceeds 200 bytes: %d", len([]byte(text)))}
 		close(resCh)
+
 		return resCh
 	}
 
 	s.outbox <- sendRequest{chatKey: chatKey, text: text, result: resCh}
+
 	return resCh
 }
 
@@ -88,6 +94,7 @@ func (s *Service) LocalNodeID() string {
 	if !ok {
 		return ""
 	}
+
 	return strings.TrimSpace(codec.LocalNodeID())
 }
 
@@ -108,6 +115,7 @@ func (s *Service) runConnector(ctx context.Context) {
 			if backoff < 15*time.Second {
 				backoff *= 2
 			}
+
 			continue
 		}
 
@@ -150,6 +158,7 @@ func (s *Service) runReader(ctx context.Context) error {
 		decoded, err := s.codec.DecodeFromRadio(payload)
 		if err != nil {
 			s.logger.Warn("decode fromradio failed", "error", err)
+
 			continue
 		}
 		s.bus.Publish(connectors.TopicRadioFrom, decoded)
@@ -191,6 +200,7 @@ func (s *Service) runKeepAlive(ctx context.Context) {
 			payload, err := s.codec.EncodeHeartbeat()
 			if err != nil {
 				s.logger.Debug("encode heartbeat failed", "error", err)
+
 				continue
 			}
 			writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -198,6 +208,7 @@ func (s *Service) runKeepAlive(ctx context.Context) {
 			cancel()
 			if err != nil {
 				s.logger.Debug("heartbeat write failed", "error", err)
+
 				continue
 			}
 			s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
@@ -247,6 +258,7 @@ func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
 
 	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
 	s.bus.Publish(connectors.TopicTextMessage, msg)
+
 	return SendResult{Message: msg}
 }
 
@@ -261,6 +273,7 @@ func (s *Service) sendWantConfig(ctx context.Context) error {
 		return err
 	}
 	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
+
 	return nil
 }
 
@@ -299,6 +312,7 @@ func outgoingMessageMetaJSON(localNodeID string) string {
 	if err != nil {
 		return ""
 	}
+
 	return string(raw)
 }
 
@@ -330,5 +344,6 @@ func (s *Service) isAckTracked(deviceMessageID string) bool {
 	s.ackTrackMu.Lock()
 	_, ok := s.ackTrack[deviceMessageID]
 	s.ackTrackMu.Unlock()
+
 	return ok
 }

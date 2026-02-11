@@ -11,6 +11,7 @@ import (
 	"github.com/skobkin/meshgo/internal/connectors"
 )
 
+// ChatStore keeps chats and per-chat messages in memory for UI reads.
 type ChatStore struct {
 	mu       sync.RWMutex
 	chats    map[string]Chat
@@ -169,6 +170,7 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 				}
 				s.notify()
 			}
+
 			return
 		}
 	}
@@ -225,8 +227,10 @@ func (s *ChatStore) ChatListSorted() []Chat {
 		if out[i].LastSentByMeAt.Equal(out[j].LastSentByMeAt) {
 			return out[i].UpdatedAt.After(out[j].UpdatedAt)
 		}
+
 		return out[i].LastSentByMeAt.After(out[j].LastSentByMeAt)
 	})
+
 	return out
 }
 
@@ -239,6 +243,7 @@ func (s *ChatStore) Messages(chatKey string) []ChatMessage {
 	sort.Slice(cloned, func(i, j int) bool {
 		return cloned[i].At.Before(cloned[j].At)
 	})
+
 	return cloned
 }
 
@@ -265,5 +270,6 @@ func chatTypeForKey(key string) ChatType {
 	if strings.HasPrefix(key, "dm:") {
 		return ChatTypeDM
 	}
+
 	return ChatTypeChannel
 }

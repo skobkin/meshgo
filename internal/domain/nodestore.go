@@ -10,6 +10,7 @@ import (
 	"github.com/skobkin/meshgo/internal/connectors"
 )
 
+// NodeStore keeps the latest node snapshots in memory for the UI.
 type NodeStore struct {
 	mu      sync.RWMutex
 	nodes   map[string]Node
@@ -130,6 +131,7 @@ func (s *NodeStore) SnapshotSorted() []Node {
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].LastHeardAt.After(out[j].LastHeardAt)
 	})
+
 	return out
 }
 
@@ -137,6 +139,7 @@ func (s *NodeStore) Get(nodeID string) (Node, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	node, ok := s.nodes[nodeID]
+
 	return node, ok
 }
 

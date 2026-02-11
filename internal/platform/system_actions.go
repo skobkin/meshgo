@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// SystemActions provides OS-specific helpers triggered from the UI.
 type SystemActions interface {
 	OpenBluetoothSettings() error
 }
@@ -40,6 +41,7 @@ func openBluetoothSettingsForOS(goos string, start commandStarter) error {
 		attempt := i + 1
 		if err := start(spec.name, spec.args...); err == nil {
 			slog.Info("opened bluetooth settings", "goos", normalizedOS, "command", spec.name, "attempt", attempt)
+
 			return nil
 		} else {
 			slog.Debug(
@@ -56,6 +58,7 @@ func openBluetoothSettingsForOS(goos string, start commandStarter) error {
 
 	joinedErr := errors.Join(errs...)
 	slog.Warn("failed to open bluetooth settings", "goos", normalizedOS, "error", joinedErr)
+
 	return joinedErr
 }
 
@@ -72,5 +75,6 @@ func bluetoothSettingsCommandsForOS(goos string) ([]commandSpec, error) {
 
 func startCommandDetached(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+
 	return cmd.Start()
 }

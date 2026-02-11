@@ -7,6 +7,7 @@ const (
 	RSSIFair = -126
 )
 
+// SignalQuality is a coarse signal quality classification used by UI indicators.
 type SignalQuality int
 
 const (
@@ -28,5 +29,6 @@ func DetermineSignalQuality(snr float32, rssi int) SignalQuality {
 	if snr >= SNRFair && rssi >= RSSIFair {
 		return SignalFair
 	}
+
 	return SignalBad
 }

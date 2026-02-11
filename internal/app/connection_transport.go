@@ -10,6 +10,7 @@ import (
 	"github.com/skobkin/meshgo/internal/transport"
 )
 
+// SwitchableTransport wraps the active connector and lets runtime swap it on config updates.
 type SwitchableTransport struct {
 	mu sync.RWMutex
 
@@ -53,6 +54,7 @@ func (t *SwitchableTransport) Name() string {
 	if tr == nil {
 		return "unknown"
 	}
+
 	return tr.Name()
 }
 
@@ -77,6 +79,7 @@ func (t *SwitchableTransport) Connect(ctx context.Context) error {
 	if tr == nil {
 		return fmt.Errorf("transport is not configured")
 	}
+
 	return tr.Connect(ctx)
 }
 
@@ -85,6 +88,7 @@ func (t *SwitchableTransport) Close() error {
 	if tr == nil {
 		return nil
 	}
+
 	return tr.Close()
 }
 
@@ -93,6 +97,7 @@ func (t *SwitchableTransport) ReadFrame(ctx context.Context) ([]byte, error) {
 	if tr == nil {
 		return nil, fmt.Errorf("transport is not configured")
 	}
+
 	return tr.ReadFrame(ctx)
 }
 
@@ -101,18 +106,21 @@ func (t *SwitchableTransport) WriteFrame(ctx context.Context, payload []byte) er
 	if tr == nil {
 		return fmt.Errorf("transport is not configured")
 	}
+
 	return tr.WriteFrame(ctx, payload)
 }
 
 func (t *SwitchableTransport) current() transport.Transport {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	return t.transport
 }
 
 func (t *SwitchableTransport) Config() config.ConnectionConfig {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	return t.cfg
 }
 

@@ -5,6 +5,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+// DecodedFrame is a parsed inbound radio frame with optional event payloads.
 type DecodedFrame struct {
 	Raw              []byte
 	NodeUpdate       *domain.NodeUpdate
@@ -16,12 +17,14 @@ type DecodedFrame struct {
 	WantConfigReady  bool
 }
 
+// EncodedText contains an outbound text frame and its tracking metadata.
 type EncodedText struct {
 	Payload         []byte
 	DeviceMessageID string
 	WantAck         bool
 }
 
+// Codec translates between transport frames and domain events.
 type Codec interface {
 	EncodeWantConfig() ([]byte, error)
 	EncodeHeartbeat() ([]byte, error)

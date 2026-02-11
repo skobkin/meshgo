@@ -7,6 +7,7 @@ import (
 	"github.com/skobkin/meshgo/internal/connectors"
 )
 
+// WriteQueue serializes persistence writes from async domain events.
 type WriteQueue interface {
 	Enqueue(name string, fn func(context.Context) error)
 }
@@ -87,6 +88,7 @@ func StartPersistenceProjection(ctx context.Context, b bus.MessageBus, queue Wri
 					if copyMsg.Direction == MessageDirectionOut {
 						chat.LastSentByMeAt = copyMsg.At
 					}
+
 					return chatRepo.Upsert(writeCtx, chat)
 				})
 			}

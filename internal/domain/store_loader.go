@@ -23,5 +23,6 @@ func LoadStoresFromRepositories(ctx context.Context, nodes *NodeStore, chats *Ch
 
 	nodes.Load(nodeItems)
 	chats.Load(chatItems, messageItems)
+
 	return nil
 }

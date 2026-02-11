@@ -17,6 +17,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+// NodeRowRenderer defines create/update callbacks for nodes list row widgets.
 type NodeRowRenderer struct {
 	Create func() fyne.CanvasObject
 	Update func(obj fyne.CanvasObject, node domain.Node)
@@ -119,6 +120,7 @@ func extractNodeRowLabels(obj fyne.CanvasObject) (nodeRowLabels, bool) {
 	if !ok {
 		return nodeRowLabels{}, false
 	}
+
 	return nodeRowLabels{
 		name:   name,
 		seen:   seen,
@@ -141,6 +143,7 @@ func nodeLine1Right(node domain.Node, now time.Time) string {
 		parts = append(parts, charge)
 	}
 	parts = append(parts, formatSeenAgo(node.LastHeardAt, now))
+
 	return strings.Join(parts, " | ")
 }
 
@@ -148,6 +151,7 @@ func nodeLine2Model(node domain.Node) string {
 	if v := strings.TrimSpace(node.BoardModel); v != "" {
 		return v
 	}
+
 	return "Unknown device"
 }
 
@@ -155,6 +159,7 @@ func nodeLine2Role(node domain.Node) string {
 	if v := strings.TrimSpace(node.Role); v != "" {
 		return v
 	}
+
 	return ""
 }
 
@@ -168,6 +173,7 @@ func nodeLine2Signal(node domain.Node) nodeSignalView {
 	if level == "" || bars == "" {
 		return nodeSignalView{Visible: false}
 	}
+
 	return nodeSignalView{
 		Text:    fmt.Sprintf("%s %s", bars, level),
 		Color:   signalColorForQuality(quality),
@@ -205,6 +211,7 @@ func nodeDisplayName(node domain.Node) string {
 	if node.IsUnmessageable != nil && *node.IsUnmessageable {
 		return base + " {INFRA}"
 	}
+
 	return base
 }
 
@@ -216,6 +223,7 @@ func nodeCharge(node domain.Node) string {
 	if v > 100 {
 		return "Charge: ext"
 	}
+
 	return fmt.Sprintf("Charge: %d%%", v)
 }
 
@@ -230,6 +238,7 @@ func formatSeenAgo(lastSeen time.Time, now time.Time) string {
 
 	if d < time.Hour {
 		minutes := maxRounded(d.Minutes())
+
 		return fmt.Sprintf("%d min", minutes)
 	}
 	if d < 24*time.Hour {
@@ -237,12 +246,14 @@ func formatSeenAgo(lastSeen time.Time, now time.Time) string {
 		if hours == 1 {
 			return "1 hour"
 		}
+
 		return fmt.Sprintf("%d hours", hours)
 	}
 	days := maxRounded(d.Hours() / 24)
 	if days == 1 {
 		return "1 day"
 	}
+
 	return fmt.Sprintf("%d days", days)
 }
 
@@ -251,6 +262,7 @@ func maxRounded(v float64) int {
 	if n < 1 {
 		return 1
 	}
+
 	return n
 }
 
@@ -314,6 +326,7 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 	}()
 
 	header := container.NewHBox(title, layout.NewSpacer(), filterWidget)
+
 	return container.NewBorder(header, nil, nil, nil, list)
 }
 
@@ -321,6 +334,7 @@ func nodeCountLabelText(total int, visible int, rawFilter string) string {
 	if strings.TrimSpace(rawFilter) == "" {
 		return fmt.Sprintf("Nodes (%d)", total)
 	}
+
 	return fmt.Sprintf("Nodes (%d/%d)", visible, total)
 }
 
@@ -329,6 +343,7 @@ func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {
 	if needle == "" {
 		out := make([]domain.Node, len(nodes))
 		copy(out, nodes)
+
 		return out
 	}
 
@@ -340,5 +355,6 @@ func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {
 			out = append(out, node)
 		}
 	}
+
 	return out
 }

@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
+// ConnectorType identifies which transport backend should be used.
 type ConnectorType string
+
+// AutostartMode controls how the app is launched by OS autostart.
 type AutostartMode string
 
 const (
@@ -22,11 +25,13 @@ const (
 	AutostartModeBackground AutostartMode = "background"
 )
 
+// LoggingConfig defines runtime logging behavior.
 type LoggingConfig struct {
 	Level     string `json:"level"`
 	LogToFile bool   `json:"log_to_file"`
 }
 
+// ConnectionConfig contains connector-specific connection parameters.
 type ConnectionConfig struct {
 	Connector        ConnectorType `json:"connector"`
 	Host             string        `json:"host"`
@@ -36,16 +41,19 @@ type ConnectionConfig struct {
 	BluetoothAdapter string        `json:"bluetooth_adapter"`
 }
 
+// UIConfig stores persistent UI preferences.
 type UIConfig struct {
 	LastSelectedChat string          `json:"last_selected_chat"`
 	Autostart        AutostartConfig `json:"autostart"`
 }
 
+// AutostartConfig stores autostart preferences saved in user config.
 type AutostartConfig struct {
 	Enabled bool          `json:"enabled"`
 	Mode    AutostartMode `json:"mode"`
 }
 
+// AppConfig is the root persisted application configuration.
 type AppConfig struct {
 	Connection ConnectionConfig `json:"connection"`
 	Logging    LoggingConfig    `json:"logging"`
@@ -85,6 +93,7 @@ func Load(path string) (AppConfig, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return cfg, nil
 		}
+
 		return AppConfig{}, fmt.Errorf("read config: %w", err)
 	}
 
@@ -93,6 +102,7 @@ func Load(path string) (AppConfig, error) {
 	}
 
 	cfg.ApplyDefaults()
+
 	return cfg, nil
 }
 
@@ -138,6 +148,7 @@ func (c AppConfig) Validate() error {
 	default:
 		return fmt.Errorf("unknown connector: %s", c.Connection.Connector)
 	}
+
 	return nil
 }
 

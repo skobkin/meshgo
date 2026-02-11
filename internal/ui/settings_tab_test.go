@@ -87,6 +87,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 			BluetoothScanner: bluetoothScannerFunc(func(_ context.Context, _ string) ([]BluetoothScanDevice, error) {
 				close(started)
 				<-release
+
 				return nil, errors.New("scan failed")
 			}),
 		},
@@ -187,6 +188,7 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 		Actions: ActionDependencies{
 			OnSave: func(next config.AppConfig) error {
 				saved = next
+
 				return &app.AutostartSyncWarning{Err: errors.New("registry denied")}
 			},
 		},
@@ -223,6 +225,7 @@ func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *wi
 		}
 	}
 	t.Fatalf("button %q not found", text)
+
 	return nil
 }
 
@@ -238,6 +241,7 @@ func mustFindEntryByPlaceholder(t *testing.T, root fyne.CanvasObject, placeholde
 		}
 	}
 	t.Fatalf("entry with placeholder %q not found", placeholder)
+
 	return nil
 }
 
@@ -253,6 +257,7 @@ func mustFindLabelByPrefix(t *testing.T, root fyne.CanvasObject, prefix string) 
 		}
 	}
 	t.Fatalf("label with prefix %q not found", prefix)
+
 	return nil
 }
 
@@ -270,6 +275,7 @@ func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option strin
 		}
 	}
 	t.Fatalf("select with option %q not found", option)
+
 	return nil
 }
 

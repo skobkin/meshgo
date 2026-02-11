@@ -49,6 +49,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			titleLabel.TextStyle = fyne.TextStyle{Bold: true}
 			typeLabel := widget.NewLabel("type")
 			previewLabel := widget.NewLabel("preview")
+
 			return container.NewVBox(
 				container.NewHBox(unreadLabel, titleLabel, layout.NewSpacer(), typeLabel),
 				previewLabel,
@@ -111,6 +112,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			bubbleBg := canvas.NewRectangle(chatBubbleFillColor(domain.MessageDirectionIn))
 			bubbleBg.CornerRadius = 10
 			bubble := container.NewStack(bubbleBg, container.NewPadded(row))
+
 			return container.New(newChatRowLayout(false), bubble)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
@@ -163,6 +165,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		if inFlight {
 			entry.Disable()
 			sendButton.Disable()
+
 			return
 		}
 		entry.Enable()
@@ -194,6 +197,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 					}
 					setSending(false)
 				})
+
 				return
 			}
 			fyne.Do(func() {
@@ -311,6 +315,7 @@ func chatTypeLabel(c domain.Chat) string {
 	if c.Type == domain.ChatTypeDM {
 		return "DM"
 	}
+
 	return "Channel"
 }
 
@@ -318,6 +323,7 @@ func chatUnreadMarker(hasUnread bool) string {
 	if hasUnread {
 		return "●"
 	}
+
 	return " "
 }
 
@@ -326,6 +332,7 @@ func chatPreviewByKey(store *domain.ChatStore, chats []domain.Chat, nodeNameByID
 	for _, chat := range chats {
 		previews[chat.Key] = chatPreviewLine(store.Messages(chat.Key), nodeNameByID)
 	}
+
 	return previews
 }
 
@@ -338,6 +345,7 @@ func chatPreviewLine(messages []domain.ChatMessage, nodeNameByID func(string) st
 	if body == "" {
 		body = "(empty)"
 	}
+
 	return truncatePreview(fmt.Sprintf("%s: %s", previewSender(last, nodeNameByID), body), 72)
 }
 
@@ -352,6 +360,7 @@ func previewSender(msg domain.ChatMessage, nodeNameByID func(string) string) str
 	if sender := normalizeNodeID(meta.From); sender != "" {
 		return displaySender(sender, nodeNameByID)
 	}
+
 	return "someone"
 }
 
@@ -360,6 +369,7 @@ func compactWhitespace(s string) string {
 	if len(parts) == 0 {
 		return ""
 	}
+
 	return strings.Join(parts, " ")
 }
 
@@ -374,6 +384,7 @@ func truncatePreview(s string, limit int) string {
 	if limit <= 3 {
 		return string(runes[:limit])
 	}
+
 	return string(runes[:limit-3]) + "..."
 }
 
@@ -397,6 +408,7 @@ func parseMessageMeta(raw string) (messageMeta, bool) {
 	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
 		return messageMeta{}, false
 	}
+
 	return meta, true
 }
 
@@ -405,6 +417,7 @@ func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeN
 	if hasSender {
 		return fmt.Sprintf("%s: %s", sender, body)
 	}
+
 	return body
 }
 
@@ -420,6 +433,7 @@ func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, node
 				return displaySender(localID, nodeNameByID), m.Body, true
 			}
 		}
+
 		return "you", m.Body, true
 	}
 	if hasMeta {
@@ -427,6 +441,7 @@ func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, node
 			return displaySender(sender, nodeNameByID), m.Body, true
 		}
 	}
+
 	return "", m.Body, false
 }
 
@@ -438,6 +453,7 @@ func messageTextSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool, n
 			&widget.TextSegment{Text: ": " + body, Style: widget.RichTextStyleInline},
 		}
 	}
+
 	return []widget.RichTextSegment{
 		&widget.TextSegment{Text: body, Style: widget.RichTextStyleInline},
 	}
@@ -452,6 +468,7 @@ func messageMetaLine(m domain.ChatMessage, meta messageMeta, hasMeta bool) strin
 		}
 		b.WriteString(chunk.PlainText)
 	}
+
 	return b.String()
 }
 
@@ -464,6 +481,7 @@ func messageMetaSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool) [
 		}
 		segments = append(segments, chunk.Segments...)
 	}
+
 	return segments
 }
 
@@ -473,6 +491,7 @@ func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool) []
 	for _, chunk := range chunks {
 		widgets = append(widgets, widget.NewRichText(chunk.Segments...))
 	}
+
 	return widgets
 }
 
@@ -565,6 +584,7 @@ func signalRichTextStyle(colorName fyne.ThemeColorName, monospace bool) widget.R
 	if monospace {
 		style.TextStyle.Monospace = true
 	}
+
 	return style
 }
 
@@ -602,6 +622,7 @@ func messageHops(meta messageMeta, hasMeta bool) (int, bool) {
 	if *meta.HopStart < *meta.HopLimit {
 		return 0, false
 	}
+
 	return int(*meta.HopStart - *meta.HopLimit), true
 }
 
@@ -612,6 +633,7 @@ func isMessageFromMQTT(meta messageMeta, hasMeta bool) bool {
 	if meta.ViaMQTT {
 		return true
 	}
+
 	return strings.EqualFold(strings.TrimSpace(meta.Transport), "TRANSPORT_MQTT")
 }
 
@@ -629,6 +651,7 @@ func chatBubbleFillColor(direction domain.MessageDirection) color.Color {
 		if direction == domain.MessageDirectionOut {
 			return color.NRGBA{R: 72, G: 92, B: 123, A: 255}
 		}
+
 		return color.NRGBA{R: 48, G: 48, B: 48, A: 255}
 	}
 
@@ -695,6 +718,7 @@ func normalizeNodeID(raw string) string {
 	if v == "" || strings.EqualFold(v, "unknown") || v == "!ffffffff" {
 		return ""
 	}
+
 	return v
 }
 
@@ -705,6 +729,7 @@ func displaySender(nodeID string, nodeNameByID func(string) string) string {
 	if v := strings.TrimSpace(nodeNameByID(nodeID)); v != "" {
 		return v
 	}
+
 	return nodeID
 }
 
@@ -717,6 +742,7 @@ func chatTitleByKey(chats []domain.Chat, key string) string {
 			return c.Title
 		}
 	}
+
 	return key
 }
 
@@ -726,6 +752,7 @@ func hasChat(chats []domain.Chat, key string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -738,6 +765,7 @@ func chatIndexByKey(chats []domain.Chat, key string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -746,6 +774,7 @@ func initialReadIncomingByChat(store *domain.ChatStore, chats []domain.Chat) map
 	for _, chat := range chats {
 		readIncomingUpToByKey[chat.Key] = latestIncomingAt(store.Messages(chat.Key))
 	}
+
 	return readIncomingUpToByKey
 }
 
@@ -777,6 +806,7 @@ func chatUnreadByKey(store *domain.ChatStore, chats []domain.Chat, readIncomingU
 		lastReadIncoming := readIncomingUpToByKey[chat.Key]
 		unreadByKey[chat.Key] = latestIncoming.After(lastReadIncoming)
 	}
+
 	return unreadByKey
 }
 
@@ -790,5 +820,6 @@ func latestIncomingAt(messages []domain.ChatMessage) time.Time {
 			latest = msg.At
 		}
 	}
+
 	return latest
 }

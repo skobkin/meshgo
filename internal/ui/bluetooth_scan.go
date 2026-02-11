@@ -15,6 +15,7 @@ import (
 
 const defaultBluetoothScanDuration = 10 * time.Second
 
+// BluetoothScanDevice represents a discovered BLE device entry for UI selection.
 type BluetoothScanDevice struct {
 	Name                 string
 	Address              string
@@ -22,10 +23,12 @@ type BluetoothScanDevice struct {
 	HasMeshtasticService bool
 }
 
+// BluetoothScanner scans nearby BLE devices and returns normalized results.
 type BluetoothScanner interface {
 	Scan(ctx context.Context, adapterID string) ([]BluetoothScanDevice, error)
 }
 
+// TinyGoBluetoothScanner is a BluetoothScanner backed by tinygo.org/x/bluetooth.
 type TinyGoBluetoothScanner struct {
 	scanDuration time.Duration
 	mu           sync.Mutex
@@ -35,6 +38,7 @@ func NewTinyGoBluetoothScanner(scanDuration time.Duration) *TinyGoBluetoothScann
 	if scanDuration <= 0 {
 		scanDuration = defaultBluetoothScanDuration
 	}
+
 	return &TinyGoBluetoothScanner{scanDuration: scanDuration}
 }
 
@@ -75,6 +79,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 
 			if existing, ok := devices[entry.Address]; ok {
 				devices[entry.Address] = mergeBluetoothScanDevice(existing, entry)
+
 				return
 			}
 			devices[entry.Address] = entry
@@ -93,6 +98,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	mu.Unlock()
 
 	sortBluetoothScanDevices(result)
+
 	return result, nil
 }
 
@@ -111,6 +117,7 @@ func runBluetoothScan(adapter *bluetooth.Adapter, callback func(*bluetooth.Adapt
 			return errors.Join(err, fmt.Errorf("stop stale bluetooth scan: %w", stopErr))
 		}
 	}
+
 	return lastErr
 }
 
@@ -120,6 +127,7 @@ func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanEr
 		if err = bluetoothutil.NormalizeScanError(err); err != nil {
 			return fmt.Errorf("scan bluetooth devices: %w", err)
 		}
+
 		return nil
 	case <-ctx.Done():
 		if err := bluetoothutil.StopScan(adapter); err != nil {
@@ -132,6 +140,7 @@ func awaitScanCompletion(ctx context.Context, adapter *bluetooth.Adapter, scanEr
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil
 		}
+
 		return ctx.Err()
 	}
 }
@@ -204,6 +213,7 @@ func bluetoothScanDeviceAt(devices []BluetoothScanDevice, index int) (BluetoothS
 	if index < 0 || index >= len(devices) {
 		return BluetoothScanDevice{}, false
 	}
+
 	return devices[index], true
 }
 

@@ -10,10 +10,12 @@ import (
 	"github.com/skobkin/meshgo/internal/radio"
 )
 
+// MessageSender sends user text messages through the active radio service.
 type MessageSender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
 }
 
+// DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
 	Config            config.AppConfig
 	ChatStore         *domain.ChatStore
@@ -24,6 +26,7 @@ type DataDependencies struct {
 	CurrentConnStatus func() (connectors.ConnectionStatus, bool)
 }
 
+// ActionDependencies contains user-triggered operations invoked from UI.
 type ActionDependencies struct {
 	Sender         MessageSender
 	OnSave         func(cfg config.AppConfig) error
@@ -32,11 +35,13 @@ type ActionDependencies struct {
 	OnQuit         func()
 }
 
+// PlatformDependencies contains OS-specific helpers used by UI actions.
 type PlatformDependencies struct {
 	BluetoothScanner      BluetoothScanner
 	OpenBluetoothSettings func() error
 }
 
+// UIHooks overrides default UI interactions for tests and custom embedding.
 type UIHooks struct {
 	CurrentWindow           func() fyne.Window
 	RunOnUI                 func(func())
@@ -46,10 +51,12 @@ type UIHooks struct {
 	ShowInfoDialog          func(title, message string, window fyne.Window)
 }
 
+// LaunchOptions controls initial window behavior at startup.
 type LaunchOptions struct {
 	StartHidden bool
 }
 
+// RuntimeDependencies is the complete dependency graph required to run the UI.
 type RuntimeDependencies struct {
 	Data     DataDependencies
 	Actions  ActionDependencies

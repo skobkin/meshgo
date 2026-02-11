@@ -19,6 +19,7 @@ func TransportNameFromConnector(connector config.ConnectorType) string {
 		if value := strings.TrimSpace(string(connector)); value != "" {
 			return value
 		}
+
 		return "unknown"
 	}
 }

@@ -27,6 +27,7 @@ func newIconNavButton(icon fyne.Resource, iconSize float32, onTap func()) *iconN
 		onTap:    onTap,
 	}
 	b.ExtendBaseWidget(b)
+
 	return b
 }
 
@@ -47,6 +48,7 @@ func (b *iconNavButton) MinSize() fyne.Size {
 	th := b.Theme()
 	pad := th.Size(theme.SizeNamePadding) * 2
 	side := b.iconSize + pad
+
 	return fyne.NewSize(side, side)
 }
 

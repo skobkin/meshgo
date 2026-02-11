@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
+// UIIcon identifies sidebar/status icon resources.
 type UIIcon string
 
 const (
@@ -46,5 +47,6 @@ func UIIconResource(icon UIIcon, variant fyne.ThemeVariant) fyne.Resource {
 	if res, ok := uiDarkIconResources[icon]; ok {
 		return res
 	}
+
 	return nil
 }

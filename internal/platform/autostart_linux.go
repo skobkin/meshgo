@@ -27,6 +27,7 @@ func (linuxAutostartManager) Sync(cfg AutostartConfig) error {
 		if err := os.Remove(desktopPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove autostart desktop entry: %w", err)
 		}
+
 		return nil
 	}
 
@@ -73,12 +74,14 @@ func desktopExecLine(executable string, args []string) string {
 	for _, arg := range args {
 		fields = append(fields, quoteDesktopExecArg(arg))
 	}
+
 	return strings.Join(fields, " ")
 }
 
 func quoteDesktopExecArg(arg string) string {
 	escaped := strings.ReplaceAll(arg, "\\", "\\\\")
 	escaped = strings.ReplaceAll(escaped, `"`, `\\"`)
+
 	return `"` + escaped + `"`
 }
 
@@ -99,10 +102,12 @@ func writeFileAtomically(path string, data []byte, mode os.FileMode) error {
 
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tmpFile.Close()
+
 		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmpFile.Chmod(mode); err != nil {
 		_ = tmpFile.Close()
+
 		return fmt.Errorf("chmod temp file: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {

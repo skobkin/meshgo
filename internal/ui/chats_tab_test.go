@@ -60,6 +60,7 @@ func TestChatPreviewLine_IncomingResolvedSender(t *testing.T) {
 			if nodeID != "!1234abcd" {
 				t.Fatalf("unexpected node id: %q", nodeID)
 			}
+
 			return "Alice"
 		},
 	)
@@ -105,6 +106,7 @@ func TestMessageTextLine_IncomingPrefersResolvedSenderName(t *testing.T) {
 			if nodeID != "!1234abcd" {
 				t.Fatalf("unexpected node id: %q", nodeID)
 			}
+
 			return "Alice"
 		},
 		nil,
@@ -136,6 +138,7 @@ func TestMessageTextLine_OutgoingUsesResolvedSenderName(t *testing.T) {
 			if nodeID != "!1234abcd" {
 				t.Fatalf("unexpected node id: %q", nodeID)
 			}
+
 			return "Local Node"
 		},
 		nil,
@@ -154,6 +157,7 @@ func TestMessageTextParts_IncomingWithSender(t *testing.T) {
 			if nodeID != "!1234abcd" {
 				t.Fatalf("unexpected node id: %q", nodeID)
 			}
+
 			return "Alice"
 		},
 		nil,
@@ -195,6 +199,7 @@ func TestMessageTextLine_OutgoingUsesLocalNodeResolver(t *testing.T) {
 			if nodeID != "!1234abcd" {
 				t.Fatalf("unexpected node id: %q", nodeID)
 			}
+
 			return "Local Node"
 		},
 		func() string { return "!1234abcd" },
@@ -454,6 +459,7 @@ func richTextSegmentsText(segs []widget.RichTextSegment) string {
 		}
 		b.WriteString(text.Text)
 	}
+
 	return b.String()
 }
 
@@ -469,5 +475,6 @@ func findTextSegmentByContent(t *testing.T, segs []widget.RichTextSegment, conte
 		}
 	}
 	t.Fatalf("segment with text %q not found", content)
+
 	return nil
 }

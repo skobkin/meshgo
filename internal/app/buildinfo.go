@@ -18,6 +18,7 @@ func BuildVersion() string {
 	if version == "" {
 		return "dev"
 	}
+
 	return version
 }
 
@@ -46,5 +47,6 @@ func BuildVersionWithDate() string {
 	if buildDate := BuildDateYMD(); buildDate != "" {
 		return fmt.Sprintf("%s (%s)", version, buildDate)
 	}
+
 	return version
 }

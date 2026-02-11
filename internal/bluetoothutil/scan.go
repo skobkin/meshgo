@@ -7,6 +7,7 @@ func StopScan(adapter *bluetooth.Adapter) error {
 	if err != nil && !IsBenignStopScanError(err) {
 		return err
 	}
+
 	return nil
 }
 
@@ -14,5 +15,6 @@ func NormalizeScanError(err error) error {
 	if err == nil || IsBenignStopScanError(err) {
 		return nil
 	}
+
 	return err
 }

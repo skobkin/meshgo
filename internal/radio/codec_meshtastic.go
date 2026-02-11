@@ -19,6 +19,7 @@ import (
 
 const broadcastNodeNum = ^uint32(0)
 
+// MeshtasticCodec implements Codec for Meshtastic protobuf frames.
 type MeshtasticCodec struct {
 	wantConfigID atomic.Uint32
 	packetID     atomic.Uint32
@@ -35,6 +36,7 @@ func NewMeshtasticCodec() (*MeshtasticCodec, error) {
 	c := &MeshtasticCodec{}
 	c.packetID.Store(seed)
 	c.modemPreset.Store(int32(generated.Config_LoRaConfig_LONG_FAST))
+
 	return c, nil
 }
 
@@ -43,6 +45,7 @@ func (c *MeshtasticCodec) LocalNodeID() string {
 	if localNodeNum == 0 {
 		return ""
 	}
+
 	return formatNodeNum(localNodeNum)
 }
 
@@ -54,11 +57,13 @@ func (c *MeshtasticCodec) EncodeWantConfig() ([]byte, error) {
 		return nil, err
 	}
 	c.wantConfigID.Store(id)
+
 	return payload, nil
 }
 
 func (c *MeshtasticCodec) EncodeHeartbeat() ([]byte, error) {
 	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Heartbeat{Heartbeat: &generated.Heartbeat{}}}
+
 	return proto.Marshal(wire)
 }
 
@@ -203,6 +208,7 @@ func decodeQueueStatus(queueStatus *generated.QueueStatus) (domain.MessageStatus
 		update.Status = domain.MessageStatusFailed
 		update.Reason = res.String()
 	}
+
 	return update, true
 }
 
@@ -320,6 +326,7 @@ func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string
 
 	list := domain.ChannelList{Items: []domain.ChannelInfo{{Index: idx, Title: title}}}
 	snapshot := connectors.ConfigSnapshot{ChannelTitles: []string{title}}
+
 	return list, snapshot, true
 }
 
@@ -336,6 +343,7 @@ func (c *MeshtasticCodec) updateModemPresetFromConfig(cfg *generated.Config) {
 
 func (c *MeshtasticCodec) defaultPresetChannelTitle() string {
 	preset := generated.Config_LoRaConfig_ModemPreset(c.modemPreset.Load())
+
 	return modemPresetTitle(preset)
 }
 
@@ -488,12 +496,14 @@ func parseChatTarget(chatKey string) (to uint32, channel uint32, err error) {
 		if parseErr != nil || idx > math.MaxUint32 {
 			return 0, 0, fmt.Errorf("invalid channel chat key: %q", chatKey)
 		}
+
 		return broadcastNodeNum, uint32(idx), nil
 	case strings.HasPrefix(chatKey, "dm:"):
 		nodeNum, parseErr := parseNodeNum(strings.TrimPrefix(chatKey, "dm:"))
 		if parseErr != nil {
 			return 0, 0, fmt.Errorf("invalid dm chat key: %q", chatKey)
 		}
+
 		return nodeNum, 0, nil
 	default:
 		return 0, 0, fmt.Errorf("unsupported chat key: %q", chatKey)
@@ -510,6 +520,7 @@ func parseNodeNum(raw string) (uint32, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		return uint32(v), nil
 	}
 	if strings.HasPrefix(strings.ToLower(raw), "0x") {
@@ -517,6 +528,7 @@ func parseNodeNum(raw string) (uint32, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		return uint32(v), nil
 	}
 	if strings.IndexFunc(raw, func(r rune) bool {
@@ -526,12 +538,14 @@ func parseNodeNum(raw string) (uint32, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		return uint32(v), nil
 	}
 	v, err := strconv.ParseUint(raw, 10, 32)
 	if err != nil {
 		return 0, err
 	}
+
 	return uint32(v), nil
 }
 
@@ -550,6 +564,7 @@ func chatKeyForPacket(packet *generated.MeshPacket, direction domain.MessageDire
 	if packet.GetTo() != 0 {
 		return domain.ChatKeyForDM(formatNodeNum(packet.GetTo()))
 	}
+
 	return domain.ChatKeyForDM("unknown")
 }
 
@@ -557,6 +572,7 @@ func formatNodeNum(num uint32) string {
 	if num == 0 {
 		return "unknown"
 	}
+
 	return fmt.Sprintf("!%08x", num)
 }
 
@@ -564,6 +580,7 @@ func packetTimestamp(epochSec uint32, fallback time.Time) time.Time {
 	if epochSec == 0 {
 		return fallback
 	}
+
 	return time.Unix(int64(epochSec), 0)
 }
 
@@ -599,6 +616,7 @@ func packetMetaJSON(port generated.PortNum, packet *generated.MeshPacket) string
 	if err != nil {
 		return ""
 	}
+
 	return string(raw)
 }
 
@@ -611,6 +629,7 @@ func packetHops(packet *generated.MeshPacket) (int, bool) {
 	if hopStart < hopLimit {
 		return 0, false
 	}
+
 	return int(hopStart - hopLimit), true
 }
 

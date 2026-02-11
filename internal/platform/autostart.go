@@ -12,6 +12,7 @@ const (
 	startHiddenArg     = "--start-hidden"
 )
 
+// LaunchMode selects how the app is started by the operating system.
 type LaunchMode string
 
 const (
@@ -19,11 +20,13 @@ const (
 	LaunchModeBackground LaunchMode = "background"
 )
 
+// AutostartConfig represents desired autostart registration state.
 type AutostartConfig struct {
 	Enabled bool
 	Mode    LaunchMode
 }
 
+// AutostartManager updates platform autostart registration for the current user.
 type AutostartManager interface {
 	Sync(cfg AutostartConfig) error
 }
@@ -43,6 +46,7 @@ func normalizeLaunchMode(mode LaunchMode) LaunchMode {
 
 func normalizeAutostartConfig(cfg AutostartConfig) AutostartConfig {
 	cfg.Mode = normalizeLaunchMode(cfg.Mode)
+
 	return cfg
 }
 
@@ -50,6 +54,7 @@ func launchArgsForMode(mode LaunchMode) []string {
 	if normalizeLaunchMode(mode) == LaunchModeBackground {
 		return []string{startHiddenArg}
 	}
+
 	return nil
 }
 
@@ -58,6 +63,7 @@ func buildLaunchCommand(cfg AutostartConfig) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
+
 	return executable, launchArgsForMode(cfg.Mode), nil
 }
 

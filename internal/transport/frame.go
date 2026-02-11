@@ -45,6 +45,7 @@ func readFrame(readFull readFullFunc) ([]byte, error) {
 	if err := readFull(payload); err != nil {
 		return nil, fmt.Errorf("read frame payload: %w", err)
 	}
+
 	return payload, nil
 }
 
@@ -69,6 +70,7 @@ func resyncToHeader(readFull readFullFunc) error {
 func ioReadFullFunc(r io.Reader) readFullFunc {
 	return func(buf []byte) error {
 		_, err := io.ReadFull(r, buf)
+
 		return err
 	}
 }

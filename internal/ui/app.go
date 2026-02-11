@@ -221,6 +221,7 @@ func Run(dep RuntimeDependencies) error {
 			dep.Actions.OnQuit()
 		}
 	})
+
 	return nil
 }
 
@@ -244,6 +245,7 @@ func resolveInitialConnStatus(dep RuntimeDependencies) connectors.ConnectionStat
 	if strings.TrimSpace(status.Target) == "" {
 		status.Target = fallback.Target
 	}
+
 	return status
 }
 
@@ -251,6 +253,7 @@ func currentConnStatus(dep RuntimeDependencies) (connectors.ConnectionStatus, bo
 	if dep.Data.CurrentConnStatus == nil {
 		return connectors.ConnectionStatus{}, false
 	}
+
 	return dep.Data.CurrentConnStatus()
 }
 
@@ -272,6 +275,7 @@ func formatConnStatus(status connectors.ConnectionStatus, localShortName string)
 	if status.Err != "" {
 		text += " (" + status.Err + ")"
 	}
+
 	return text
 }
 
@@ -310,6 +314,7 @@ func sidebarStatusIcon(status connectors.ConnectionStatus) resources.UIIcon {
 	if status.State == connectors.ConnectionStateConnected {
 		return resources.UIIconConnected
 	}
+
 	return resources.UIIconDisconnected
 }
 
@@ -317,11 +322,13 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 	if store == nil {
 		return nil
 	}
+
 	return func(nodeID string) string {
 		node, ok := store.Get(nodeID)
 		if !ok {
 			return ""
 		}
+
 		return domain.NodeDisplayName(node)
 	}
 }
@@ -341,6 +348,7 @@ func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) st
 	if !ok {
 		return nodeID
 	}
+
 	return domain.NodeDisplayName(node)
 }
 
@@ -348,5 +356,6 @@ func nodeChanges(store *domain.NodeStore) <-chan struct{} {
 	if store == nil {
 		return nil
 	}
+
 	return store.Changes()
 }

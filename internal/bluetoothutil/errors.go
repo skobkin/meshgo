@@ -14,6 +14,7 @@ func IsDBusErrorName(err error, want string) bool {
 	}
 
 	var dbusErr dbus.Error
+
 	return errors.As(err, &dbusErr) && dbusErr.Name == want
 }
 
@@ -42,5 +43,6 @@ func IsScanAlreadyInProgressError(err error) bool {
 	if IsDBusErrorName(err, "org.bluez.Error.InProgress") {
 		return true
 	}
+
 	return strings.Contains(strings.ToLower(err.Error()), "already in progress")
 }

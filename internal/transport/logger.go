@@ -7,5 +7,6 @@ func transportLogger(name string, attrs ...any) *slog.Logger {
 	if len(attrs) == 0 {
 		return logger
 	}
+
 	return logger.With(attrs...)
 }

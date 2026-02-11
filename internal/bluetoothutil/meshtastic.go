@@ -19,6 +19,7 @@ func mustParseUUID(raw string) bluetooth.UUID {
 	if err != nil {
 		panic(fmt.Sprintf("invalid bluetooth UUID %q: %v", raw, err))
 	}
+
 	return uuid
 }
 

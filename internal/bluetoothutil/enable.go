@@ -12,8 +12,10 @@ func EnableAdapter(adapter *bluetooth.Adapter) error {
 		if isBenignEnableAdapterError(err) {
 			return nil
 		}
+
 		return err
 	}
+
 	return nil
 }
 

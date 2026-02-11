@@ -170,6 +170,7 @@ func run() error {
 
 	if *noSubscribe {
 		logger.Info("no-subscribe mode completed, exiting")
+
 		return nil
 	}
 
@@ -181,6 +182,7 @@ func run() error {
 		case <-ctx.Done():
 		case <-time.After(*listenFor):
 		}
+
 		return nil
 	}
 
@@ -199,6 +201,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			return ctx.Err()
 		case <-timeoutCh:
 			logger.Info("initial phase summary", "in_frames", inFrames, "out_frames", outFrames, "decoded_frames", decodedFrames)
+
 			return fmt.Errorf("timeout waiting for config_complete_id response after %s", timeout)
 		case raw, ok := <-connSub:
 			if !ok {
@@ -250,6 +253,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			)
 			if frame.WantConfigReady {
 				logger.Info("initial phase summary", "in_frames", inFrames, "out_frames", outFrames, "decoded_frames", decodedFrames)
+
 				return nil
 			}
 		}
@@ -278,6 +282,7 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 				b.Unsubscribe(configSub, connectors.TopicConfigSnapshot)
 				b.Unsubscribe(rawInSub, connectors.TopicRawFrameIn)
 				b.Unsubscribe(rawOutSub, connectors.TopicRawFrameOut)
+
 				return
 			case raw := <-connSub:
 				if status, ok := raw.(connectors.ConnectionStatus); ok {
@@ -322,6 +327,7 @@ func logInitialSnapshot(logger *slog.Logger, nodeStore *domain.NodeStore, chatSt
 	for i, node := range nodes {
 		if i >= 10 {
 			logger.Info("node summary truncated", "remaining", len(nodes)-i)
+
 			break
 		}
 		name := domain.NodeDisplayName(node)
@@ -344,6 +350,7 @@ func previewHex(hex string) string {
 	if len(hex) <= maxHexPreviewLen {
 		return hex
 	}
+
 	return hex[:maxHexPreviewLen] + "..."
 }
 
@@ -360,6 +367,7 @@ func connectionTarget(connection config.ConnectionConfig) string {
 		if adapter := strings.TrimSpace(connection.BluetoothAdapter); adapter != "" {
 			return fmt.Sprintf("%s (%s)", baseTarget, adapter)
 		}
+
 		return baseTarget
 	case config.ConnectorIP:
 		return baseTarget

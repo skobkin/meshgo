@@ -8,6 +8,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+// ChatRepo implements domain.ChatRepository using SQLite.
 type ChatRepo struct {
 	db *sql.DB
 }
@@ -42,6 +43,7 @@ func (r *ChatRepo) Upsert(ctx context.Context, c domain.Chat) error {
 	if err != nil {
 		return fmt.Errorf("upsert chat: %w", err)
 	}
+
 	return nil
 }
 
@@ -79,5 +81,6 @@ func (r *ChatRepo) ListSortedByLastSentByMe(ctx context.Context) ([]domain.Chat,
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate chats: %w", err)
 	}
+
 	return out, nil
 }

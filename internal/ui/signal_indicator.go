@@ -23,6 +23,7 @@ func signalQualityFromMetrics(rssi *int, snr *float64) (domain.SignalQuality, bo
 	if quality == domain.SignalUnknown {
 		return quality, false
 	}
+
 	return quality, true
 }
 

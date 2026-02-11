@@ -21,6 +21,7 @@ func TestParseLaunchOptions(t *testing.T) {
 			if err == nil {
 				t.Fatalf("%s: expected error, got nil", tc.name)
 			}
+
 			continue
 		}
 		if err != nil {

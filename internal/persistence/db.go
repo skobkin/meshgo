@@ -18,20 +18,25 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	}
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
+
 		return nil, fmt.Errorf("ping sqlite db: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON;`); err != nil {
 		_ = db.Close()
+
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `PRAGMA journal_mode = WAL;`); err != nil {
 		_ = db.Close()
+
 		return nil, fmt.Errorf("set wal mode: %w", err)
 	}
 	if err := migrate(ctx, db); err != nil {
 		_ = db.Close()
+
 		return nil, err
 	}
+
 	return db, nil
 }
 
@@ -44,6 +49,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 
 	if version >= schemaVersion {
 		slog.Info("db schema is up to date", "version", version)
+
 		return nil
 	}
 
@@ -162,5 +168,6 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("commit migrations: %w", err)
 	}
 	slog.Info("db migration completed", "version", version)
+
 	return nil
 }
