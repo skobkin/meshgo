@@ -17,4 +17,21 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 ![chat view](docs/screenshot_chat.png)
 
+<details>
+<summary>Node list</summary>
+
 ![nodes view](docs/screenshot_nodes.png)
+
+</details>
+<details>
+<summary>Node User settings</summary>
+
+![node user settings](docs/screenshot_node_settings_user.png)
+
+</details>
+<details>
+<summary>App settings</summary>
+
+![app settings](docs/screenshot_app_settings.png)
+
+</details>
