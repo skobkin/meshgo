@@ -101,7 +101,7 @@ func (t *BluetoothTransport) Connect(ctx context.Context) error {
 		return err
 	}
 
-	adapter := resolveBluetoothAdapter(t.adapterID)
+	adapter := bluetoothutil.ResolveAdapter(t.adapterID)
 	if err := adapter.Enable(); err != nil {
 		return fmt.Errorf("enable bluetooth adapter: %w", err)
 	}
@@ -385,14 +385,6 @@ func parseBluetoothAddress(raw string) (bluetooth.Address, error) {
 	}
 
 	return bluetooth.Address{MACAddress: bluetooth.MACAddress{MAC: mac}}, nil
-}
-
-func resolveBluetoothAdapter(adapterID string) *bluetooth.Adapter {
-	trimmed := strings.TrimSpace(adapterID)
-	if trimmed == "" {
-		return bluetooth.DefaultAdapter
-	}
-	return bluetooth.NewAdapter(trimmed)
 }
 
 func mustParseBluetoothUUID(raw string) bluetooth.UUID {

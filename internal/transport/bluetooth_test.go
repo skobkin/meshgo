@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/godbus/dbus/v5"
+	"github.com/skobkin/meshgo/internal/bluetoothutil"
 )
 
 func TestParseBluetoothAddress(t *testing.T) {
@@ -33,13 +34,13 @@ func TestParseBluetoothAddress(t *testing.T) {
 }
 
 func TestResolveBluetoothAdapter(t *testing.T) {
-	if got := resolveBluetoothAdapter(""); got == nil {
+	if got := bluetoothutil.ResolveAdapter(""); got == nil {
 		t.Fatalf("expected default adapter, got nil")
 	}
-	if got := resolveBluetoothAdapter("   "); got == nil {
+	if got := bluetoothutil.ResolveAdapter("   "); got == nil {
 		t.Fatalf("expected default adapter for empty input, got nil")
 	}
-	if got := resolveBluetoothAdapter("hci1"); got == nil {
+	if got := bluetoothutil.ResolveAdapter("hci1"); got == nil {
 		t.Fatalf("expected adapter for explicit id, got nil")
 	}
 }

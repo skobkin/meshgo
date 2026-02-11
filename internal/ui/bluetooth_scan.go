@@ -44,7 +44,7 @@ func (s *TinyGoBluetoothScanner) Scan(ctx context.Context, adapterID string) ([]
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	adapter := resolveBluetoothScanAdapter(adapterID)
+	adapter := bluetoothutil.ResolveAdapter(adapterID)
 	if err := adapter.Enable(); err != nil {
 		return nil, fmt.Errorf("enable bluetooth adapter: %w", err)
 	}
@@ -203,14 +203,6 @@ func bluetoothScanDeviceAt(devices []BluetoothScanDevice, index int) (BluetoothS
 
 func normalizeBluetoothAddress(address string) string {
 	return strings.ToUpper(strings.TrimSpace(address))
-}
-
-func resolveBluetoothScanAdapter(adapterID string) *bluetooth.Adapter {
-	trimmed := strings.TrimSpace(adapterID)
-	if trimmed == "" {
-		return bluetooth.DefaultAdapter
-	}
-	return bluetooth.NewAdapter(trimmed)
 }
 
 func mustParseBluetoothScanUUID(raw string) bluetooth.UUID {
