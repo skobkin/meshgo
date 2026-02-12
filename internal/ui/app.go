@@ -115,6 +115,9 @@ func Run(dep RuntimeDependencies) error {
 		}
 		showUpdateDialog(window, fyApp.Settings().ThemeVariant(), latestUpdateSnapshot, openExternalURL)
 	})
+	if latestUpdateSnapshotKnown && latestUpdateSnapshot.UpdateAvailable {
+		updateButton.SetText(latestUpdateSnapshot.Latest.Version)
+	}
 	if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
 		updateButton.Hide()
 	}
@@ -165,8 +168,10 @@ func Run(dep RuntimeDependencies) error {
 		latestUpdateSnapshot = snapshot
 		latestUpdateSnapshotKnown = true
 		if snapshot.UpdateAvailable {
+			updateButton.SetText(snapshot.Latest.Version)
 			updateButton.Show()
 		} else {
+			updateButton.SetText("")
 			updateButton.Hide()
 		}
 		left.Refresh()
