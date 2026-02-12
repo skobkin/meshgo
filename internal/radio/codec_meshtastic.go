@@ -313,7 +313,7 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
 		node.Role = role
 	}
-	if user.IsUnmessagable != nil {
+	if user != nil && user.IsUnmessagable != nil {
 		v := user.GetIsUnmessagable()
 		node.IsUnmessageable = &v
 	}

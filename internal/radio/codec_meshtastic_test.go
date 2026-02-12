@@ -249,6 +249,33 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 }
 
+func TestMeshtasticCodec_DecodeFromRadioNodeInfoWithoutUserDoesNotPanic(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_NodeInfo{
+			NodeInfo: &generated.NodeInfo{
+				Num:       0x1234abcd,
+				LastHeard: 1_735_123_456,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode node info frame: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
+		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
+	}
+}
+
 func assertFloatPtr(t *testing.T, got *float64, want float64, field string) {
 	t.Helper()
 	if got == nil {
