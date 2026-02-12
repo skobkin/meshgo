@@ -49,6 +49,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	var tooltipManager *hoverTooltipManager
 	pendingScrollChatKey := ""
 	pendingScrollMinCount := 0
+	messageItemHeightByID := make(map[widget.ListItemID]float32)
 
 	chatList := widget.NewList(
 		func() int { return len(chats) },
@@ -104,6 +105,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			onChatSelected(selectedKey)
 		}
 		messages = store.Messages(selectedKey)
+		clear(messageItemHeightByID)
 		chatList.Refresh()
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
@@ -122,12 +124,14 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
 			transportBadge := newTooltipLabel("", "", tooltipManager)
+			messageText := widget.NewRichTextWithText("message")
+			messageText.Wrapping = fyne.TextWrapWord
 			messageLine := container.NewBorder(
 				nil,
 				nil,
 				nil,
 				container.NewHBox(horizontalSpacer(theme.Padding()), transportBadge, horizontalSpacer(theme.Padding())),
-				widget.NewRichTextWithText("message"),
+				messageText,
 			)
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
 			statusBadge := newTooltipLabel("", "", tooltipManager)
@@ -167,6 +171,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			transportSlot := messageLine.Objects[1].(*fyne.Container)
 			transportBadge := transportSlot.Objects[1].(*tooltipWidget)
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
+			messageText.Wrapping = fyne.TextWrapWord
 			messageText.Refresh()
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
@@ -178,9 +183,14 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			metaRight.Objects[0].(*tooltipWidget).SetBadge(messageStatusBadge(msg))
 			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
 
-			// Chat rows can have different heights (e.g. multiline message text),
-			// so we must update list item height per message.
-			messageList.SetItemHeight(id, rowContainer.MinSize().Height)
+			// Chat rows can have different heights (e.g. multiline message text).
+			// Only grow the cached item height to avoid width/height oscillation loops
+			// when the list scrollbar appears/disappears during relayout.
+			rowHeight := rowContainer.MinSize().Height
+			if prev, ok := messageItemHeightByID[id]; !ok || rowHeight > prev+0.5 {
+				messageItemHeightByID[id] = rowHeight
+				messageList.SetItemHeight(id, rowHeight)
+			}
 			rowContainer.Refresh()
 		},
 	)
@@ -297,6 +307,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		}
 		selectedIndex := chatIndexByKey(chats, selectedKey)
 		messages = store.Messages(selectedKey)
+		clear(messageItemHeightByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))

@@ -575,6 +575,45 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 	})
 }
 
+func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
+	store := domain.NewChatStore()
+	store.Load(
+		[]domain.Chat{{Key: "ch:general", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: time.Now()}},
+		map[string][]domain.ChatMessage{
+			"ch:general": {
+				{
+					ChatKey:   "ch:general",
+					Direction: domain.MessageDirectionOut,
+					Body:      "wrap-token " + strings.Repeat("longword ", 48),
+					At:        time.Now(),
+					Status:    domain.MessageStatusSent,
+				},
+			},
+		},
+	)
+
+	tab := newChatsTab(
+		store,
+		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+			result := make(chan radio.SendResult, 1)
+			result <- radio.SendResult{}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		"ch:general",
+		nil,
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	waitForCondition(t, func() bool {
+		return findRichTextBySubstringAndWrapping(tab, "wrap-token", fyne.TextWrapWord) != nil
+	})
+}
+
 func ptrInt(v int) *int {
 	return &v
 }
@@ -616,6 +655,20 @@ func findLabelByPrefix(root fyne.CanvasObject, prefix string) *widget.Label {
 		}
 		if strings.HasPrefix(strings.TrimSpace(label.Text), prefix) {
 			return label
+		}
+	}
+
+	return nil
+}
+
+func findRichTextBySubstringAndWrapping(root fyne.CanvasObject, substring string, wrapping fyne.TextWrap) *widget.RichText {
+	for _, object := range fynetest.LaidOutObjects(root) {
+		richText, ok := object.(*widget.RichText)
+		if !ok {
+			continue
+		}
+		if strings.Contains(richTextSegmentsText(richText.Segments), substring) && richText.Wrapping == wrapping {
+			return richText
 		}
 	}
 
