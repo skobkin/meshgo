@@ -226,6 +226,84 @@ func TestMapTabWidget_ShowsEmptyLabelWhenNoCoordinates(t *testing.T) {
 	}
 }
 
+func TestMapTabWidget_RefreshViewLoadingProgressHidesWhenNothingIsInFlight(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	tab.Resize(fyne.NewSize(800, 600))
+	tab.viewState = mapViewportState{Zoom: 1, X: 0, Y: 0}
+	tab.warmupDone = true
+	tab.tileSource = mapTileSourceOSM
+	tab.loadingLayer.Hide()
+
+	cacheDir := t.TempDir()
+	transport := &mapTileCacheTransport{
+		base:           http.DefaultTransport,
+		cacheDir:       cacheDir,
+		maxBytes:       1024 * 1024,
+		asyncMiss:      true,
+		inFlightByPath: make(map[string]struct{}),
+	}
+	tab.mapClient = &http.Client{Transport: transport}
+
+	state, size, tileSize := tab.warmupSnapshot()
+	urls := visibleMapTileURLs(tab.tileSource, state, size, tileSize)
+	if len(urls) < 2 {
+		t.Fatalf("expected at least two visible URLs")
+	}
+	transport.writeCachedTile(transport.cachePathForURL(urls[0]), []byte("a"))
+	tab.viewLoadingLayer.Show()
+
+	tab.refreshViewLoadingProgress()
+
+	if tab.viewLoadingLayer.Visible() {
+		t.Fatalf("expected view loading layer to hide when no tile requests are in flight")
+	}
+}
+
+func TestMapTabWidget_RefreshViewLoadingProgressShowsWhenTilesAreInFlight(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	tab.Resize(fyne.NewSize(800, 600))
+	tab.viewState = mapViewportState{Zoom: 1, X: 0, Y: 0}
+	tab.warmupDone = true
+	tab.tileSource = mapTileSourceOSM
+	tab.loadingLayer.Hide()
+
+	cacheDir := t.TempDir()
+	transport := &mapTileCacheTransport{
+		base:           http.DefaultTransport,
+		cacheDir:       cacheDir,
+		maxBytes:       1024 * 1024,
+		asyncMiss:      true,
+		inFlightByPath: make(map[string]struct{}),
+	}
+	tab.mapClient = &http.Client{Transport: transport}
+
+	state, size, tileSize := tab.warmupSnapshot()
+	urls := visibleMapTileURLs(tab.tileSource, state, size, tileSize)
+	if len(urls) < 2 {
+		t.Fatalf("expected at least two visible URLs")
+	}
+	transport.writeCachedTile(transport.cachePathForURL(urls[0]), []byte("a"))
+	transport.inFlightByPath[transport.cachePathForURL(urls[1])] = struct{}{}
+
+	tab.refreshViewLoadingProgress()
+
+	if !tab.viewLoadingLayer.Visible() {
+		t.Fatalf("expected view loading layer to be visible while tile requests are in flight")
+	}
+}
+
 func TestMapTabWidget_HandleMapScrollZooms(t *testing.T) {
 	baseMap := xwidget.NewMapWithOptions(
 		xwidget.WithOsmTiles(),

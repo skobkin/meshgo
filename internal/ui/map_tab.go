@@ -627,20 +627,20 @@ func (t *mapTabWidget) refreshViewLoadingProgress() {
 
 	state, size, tileSize := t.warmupSnapshot()
 	urls := visibleMapTileURLs(t.tileSource, state, size, tileSize)
-	cached, total, ok := mapTileClientCachedProgress(t.mapClient, urls)
-	if !ok || total <= 0 || cached >= total {
+	progress, ok := mapTileClientLoadProgress(t.mapClient, urls)
+	if !ok || progress.total <= 0 || progress.cached >= progress.total || progress.inFlight <= 0 {
 		t.viewLoadingLayer.Hide()
 
 		return
 	}
-	progress := float64(cached) / float64(total)
-	if progress < 0 {
-		progress = 0
+	value := float64(progress.cached) / float64(progress.total)
+	if value < 0 {
+		value = 0
 	}
-	if progress > 1 {
-		progress = 1
+	if value > 1 {
+		value = 1
 	}
-	t.viewLoadingBar.SetValue(progress)
+	t.viewLoadingBar.SetValue(value)
 	t.viewLoadingLayer.Show()
 }
 

@@ -194,6 +194,94 @@ func TestMapTileClientCachedProgress(t *testing.T) {
 	}
 }
 
+func TestMapTileClientLoadProgress(t *testing.T) {
+	cacheDir := t.TempDir()
+	transport := &mapTileCacheTransport{
+		base:           http.DefaultTransport,
+		cacheDir:       cacheDir,
+		maxBytes:       1024 * 1024,
+		asyncMiss:      true,
+		inFlightByPath: make(map[string]struct{}),
+	}
+	client := &http.Client{Transport: transport}
+	urlA := "https://tile.example/1/2/3.png"
+	urlB := "https://tile.example/1/2/4.png"
+	urls := []string{urlA, urlB}
+
+	transport.writeCachedTile(transport.cachePathForURL(urlA), []byte("a"))
+	transport.inFlightByPath[transport.cachePathForURL(urlB)] = struct{}{}
+
+	progress, ok := mapTileClientLoadProgress(client, urls)
+	if !ok {
+		t.Fatalf("expected load progress check to be supported")
+	}
+	if progress.total != 2 {
+		t.Fatalf("unexpected total: %d", progress.total)
+	}
+	if progress.cached != 1 {
+		t.Fatalf("unexpected cached count: %d", progress.cached)
+	}
+	if progress.inFlight != 1 {
+		t.Fatalf("unexpected in-flight count: %d", progress.inFlight)
+	}
+}
+
+func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
+	cacheDir := t.TempDir()
+	done := make(chan struct{}, 1)
+	var hits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	transport := &mapTileCacheTransport{
+		base:           http.DefaultTransport,
+		cacheDir:       cacheDir,
+		maxBytes:       1024 * 1024,
+		asyncMiss:      true,
+		inFlightByPath: make(map[string]struct{}),
+	}
+	transport.setOnAsyncTileCached(func() {
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	})
+	client := &http.Client{Transport: transport}
+	url := server.URL + "/0/0/0.png"
+
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("get tile: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected async placeholder response status %d, got %d", http.StatusAccepted, resp.StatusCode)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for async completion callback on failure")
+	}
+
+	progress, ok := mapTileClientLoadProgress(client, []string{url})
+	if !ok {
+		t.Fatalf("expected load progress check to be supported")
+	}
+	if progress.cached != 0 {
+		t.Fatalf("expected no cached tiles, got %d", progress.cached)
+	}
+	if progress.inFlight != 0 {
+		t.Fatalf("expected no in-flight tiles after completion, got %d", progress.inFlight)
+	}
+	if hits != 1 {
+		t.Fatalf("expected one network hit, got %d", hits)
+	}
+}
+
 func mustPNGBytes(t *testing.T) []byte {
 	t.Helper()
 

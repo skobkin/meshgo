@@ -179,6 +179,9 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 		t.mu.Lock()
 		delete(t.inFlightByPath, cachePath)
 		t.mu.Unlock()
+		if callback := t.asyncCallback(); callback != nil {
+			callback()
+		}
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultMapTileTimeout)
@@ -239,9 +242,6 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 		"bytes", len(body),
 		"duration", time.Since(startedAt),
 	)
-	if callback := t.asyncCallback(); callback != nil {
-		callback()
-	}
 }
 
 func (t *mapTileCacheTransport) baseRoundTripper() http.RoundTripper {
@@ -393,15 +393,38 @@ func setMapTileClientAsyncCachedCallback(client *http.Client, callback func()) {
 }
 
 func mapTileClientCachedProgress(client *http.Client, urls []string) (cached int, total int, ok bool) {
-	if client == nil || len(urls) == 0 {
-		return 0, len(urls), false
-	}
-	transport, ok := client.Transport.(*mapTileCacheTransport)
-	if !ok || transport == nil {
+	progress, ok := mapTileClientLoadProgress(client, urls)
+	if !ok {
 		return 0, len(urls), false
 	}
 
-	return transport.cachedCountForURLs(urls), len(urls), true
+	return progress.cached, progress.total, true
+}
+
+type mapTileLoadProgress struct {
+	cached   int
+	inFlight int
+	total    int
+}
+
+func mapTileClientLoadProgress(client *http.Client, urls []string) (mapTileLoadProgress, bool) {
+	if client == nil || len(urls) == 0 {
+		return mapTileLoadProgress{
+			total: len(urls),
+		}, false
+	}
+	transport, ok := client.Transport.(*mapTileCacheTransport)
+	if !ok || transport == nil {
+		return mapTileLoadProgress{
+			total: len(urls),
+		}, false
+	}
+
+	return mapTileLoadProgress{
+		cached:   transport.cachedCountForURLs(urls),
+		inFlight: transport.inFlightCountForURLs(urls),
+		total:    len(urls),
+	}, true
 }
 
 func (t *mapTileCacheTransport) cachedCountForURLs(urls []string) int {
@@ -426,4 +449,22 @@ func (t *mapTileCacheTransport) hasCachedTile(path string) bool {
 	_, err := os.Stat(filepath.Clean(path))
 
 	return err == nil
+}
+
+func (t *mapTileCacheTransport) inFlightCountForURLs(urls []string) int {
+	if t == nil || len(urls) == 0 {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	count := 0
+	for _, rawURL := range urls {
+		path := t.cachePathForURL(rawURL)
+		if _, ok := t.inFlightByPath[path]; ok {
+			count++
+		}
+	}
+
+	return count
 }
