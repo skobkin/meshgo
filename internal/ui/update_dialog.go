@@ -56,9 +56,18 @@ func showUpdateDialog(
 
 	currentLabel := newUpdateVersionText(currentVersion, variant)
 	latestLabel := newUpdateVersionText(latestVersion, variant)
+	dialogTitle := widget.NewLabelWithStyle("Update", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	var updateDialog *widget.PopUp
+	dialogCloseButton := widget.NewButton("X", func() {
+		if updateDialog == nil {
+			return
+		}
+		updateDialog.Hide()
+	})
+	dialogHeader := container.NewHBox(dialogTitle, layout.NewSpacer(), dialogCloseButton)
 
 	updateIcon := widget.NewIcon(resources.UIIconResource(resources.UIIconUpdateAvailable, variant))
-	header := container.NewGridWithColumns(
+	versionsHeader := container.NewGridWithColumns(
 		3,
 		container.NewCenter(currentLabel),
 		container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(36), updateIcon)),
@@ -84,13 +93,18 @@ func showUpdateDialog(
 		downloadButton.Disable()
 	}
 
-	content := container.NewVBox(
-		header,
-		changelogScroll,
+	content := container.NewBorder(
+		container.NewVBox(
+			dialogHeader,
+			versionsHeader,
+		),
 		downloadButton,
+		nil,
+		nil,
+		changelogScroll,
 	)
 
-	updateDialog := dialog.NewCustom("Update", "Close", content, window)
+	updateDialog = widget.NewModalPopUp(content, window.Canvas())
 	updateDialog.Resize(fyne.NewSize(760, 520))
 	updateDialog.Show()
 }
