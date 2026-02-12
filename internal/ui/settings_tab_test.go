@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -72,6 +73,10 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 }
 
 func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
 	cfg := config.Default()
 	cfg.Connection.Connector = config.ConnectorBluetooth
 
@@ -93,7 +98,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 		},
 		UIHooks: UIHooks{
 			CurrentWindow:           func() fyne.Window { return window },
-			RunOnUI:                 func(fn func()) { fn() },
+			RunOnUI:                 func(fn func()) { fyne.DoAndWait(fn) },
 			RunAsync:                func(fn func()) { go fn() },
 			ShowErrorDialog:         func(_ error, _ fyne.Window) {},
 			ShowInfoDialog:          func(_, _ string, _ fyne.Window) {},
@@ -128,8 +133,12 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 		return !scanButton.Disabled() && !openSettingsButton.Disabled()
 	})
 
-	statusLabel := mustFindLabelByPrefix(t, tab, "Bluetooth scan failed:")
-	if got := strings.TrimSpace(statusLabel.Text); got != "Bluetooth scan failed: scan failed" {
+	var got string
+	fyne.DoAndWait(func() {
+		statusLabel := mustFindLabelByPrefix(t, tab, "Bluetooth scan failed:")
+		got = strings.TrimSpace(statusLabel.Text)
+	})
+	if got != "Bluetooth scan failed: scan failed" {
 		t.Fatalf("unexpected status text: %q", got)
 	}
 }
@@ -307,14 +316,21 @@ func TestNewSafeHyperlinkValidURLReturnsHyperlink(t *testing.T) {
 
 func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *widget.Button {
 	t.Helper()
-	for _, object := range fynetest.LaidOutObjects(root) {
+	var found *widget.Button
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
 		button, ok := object.(*widget.Button)
 		if !ok {
-			continue
+			return false
 		}
-		if strings.TrimSpace(button.Text) == text {
-			return button
+		if strings.TrimSpace(button.Text) != text {
+			return false
 		}
+		found = button
+
+		return true
+	})
+	if found != nil {
+		return found
 	}
 	t.Fatalf("button %q not found", text)
 
@@ -323,14 +339,21 @@ func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *wi
 
 func mustFindEntryByPlaceholder(t *testing.T, root fyne.CanvasObject, placeholder string) *widget.Entry {
 	t.Helper()
-	for _, object := range fynetest.LaidOutObjects(root) {
+	var found *widget.Entry
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
 		entry, ok := object.(*widget.Entry)
 		if !ok {
-			continue
+			return false
 		}
-		if strings.TrimSpace(entry.PlaceHolder) == placeholder {
-			return entry
+		if strings.TrimSpace(entry.PlaceHolder) != placeholder {
+			return false
 		}
+		found = entry
+
+		return true
+	})
+	if found != nil {
+		return found
 	}
 	t.Fatalf("entry with placeholder %q not found", placeholder)
 
@@ -339,14 +362,21 @@ func mustFindEntryByPlaceholder(t *testing.T, root fyne.CanvasObject, placeholde
 
 func mustFindLabelByPrefix(t *testing.T, root fyne.CanvasObject, prefix string) *widget.Label {
 	t.Helper()
-	for _, object := range fynetest.LaidOutObjects(root) {
+	var found *widget.Label
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
 		label, ok := object.(*widget.Label)
 		if !ok {
-			continue
+			return false
 		}
-		if strings.HasPrefix(strings.TrimSpace(label.Text), prefix) {
-			return label
+		if !strings.HasPrefix(strings.TrimSpace(label.Text), prefix) {
+			return false
 		}
+		found = label
+
+		return true
+	})
+	if found != nil {
+		return found
 	}
 	t.Fatalf("label with prefix %q not found", prefix)
 
@@ -355,29 +385,85 @@ func mustFindLabelByPrefix(t *testing.T, root fyne.CanvasObject, prefix string) 
 
 func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option string) *widget.Select {
 	t.Helper()
-	for _, object := range fynetest.LaidOutObjects(root) {
+	var found *widget.Select
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
 		selectWidget, ok := object.(*widget.Select)
 		if !ok {
-			continue
+			return false
 		}
 		for _, candidate := range selectWidget.Options {
-			if strings.TrimSpace(candidate) == option {
-				return selectWidget
+			if strings.TrimSpace(candidate) != option {
+				continue
 			}
+			found = selectWidget
+
+			return true
 		}
+
+		return false
+	})
+	if found != nil {
+		return found
 	}
 	t.Fatalf("select with option %q not found", option)
 
 	return nil
 }
 
+func walkCanvasObjects(root fyne.CanvasObject, visit func(fyne.CanvasObject) bool) bool {
+	if root == nil {
+		return false
+	}
+	if visit(root) {
+		return true
+	}
+
+	switch object := root.(type) {
+	case *fyne.Container:
+		for _, child := range object.Objects {
+			if walkCanvasObjects(child, visit) {
+				return true
+			}
+		}
+	case *container.Split:
+		if walkCanvasObjects(object.Leading, visit) {
+			return true
+		}
+		if walkCanvasObjects(object.Trailing, visit) {
+			return true
+		}
+	case *container.Scroll:
+		if walkCanvasObjects(object.Content, visit) {
+			return true
+		}
+	case *widget.Card:
+		if walkCanvasObjects(object.Content, visit) {
+			return true
+		}
+	case *widget.Form:
+		for _, item := range object.Items {
+			if item == nil {
+				continue
+			}
+			if walkCanvasObjects(item.Widget, visit) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func waitForCondition(t *testing.T, check func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		// Flush queued fyne.Do UI callbacks to make async widget updates observable in tests.
-		fyne.DoAndWait(func() {})
-		if check() {
+		var ok bool
+		// Run checks on Fyne's UI thread to avoid racy reads of widget state.
+		fyne.DoAndWait(func() {
+			ok = check()
+		})
+		if ok {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

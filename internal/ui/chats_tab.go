@@ -348,6 +348,12 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		}
 	}
 
+	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
+		chatList.Select(selectedIndex)
+	} else if len(chats) > 0 {
+		chatList.Select(0)
+	}
+
 	chatsLogger.Debug("starting chat store change listener")
 	go func() {
 		for range store.Changes() {
@@ -368,12 +374,6 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 				})
 			}
 		}()
-	}
-
-	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
-		chatList.Select(selectedIndex)
-	} else if len(chats) > 0 {
-		chatList.Select(0)
 	}
 
 	return container.New(layout.NewStackLayout(), split, tooltipLayer)

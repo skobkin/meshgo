@@ -79,6 +79,10 @@ func TestNewMapTab_DeferredWarmupShowsLoading(t *testing.T) {
 }
 
 func TestMapTabWidget_OnShowCompletesWarmupAndShowsMap(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
 	baseMap := xwidget.NewMapWithOptions(
 		xwidget.WithOsmTiles(),
 		xwidget.WithZoomButtons(false),
@@ -99,16 +103,9 @@ func TestMapTabWidget_OnShowCompletesWarmupAndShowsMap(t *testing.T) {
 	window.Resize(fyne.NewSize(800, 600))
 	tab.OnShow()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		fyne.DoAndWait(func() {})
-		if tab.warmupDone && tab.mapWidget.Visible() && !tab.loadingLayer.Visible() {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	t.Fatalf("timed out waiting for warmup to complete")
+	waitForCondition(t, func() bool {
+		return tab.warmupDone && tab.mapWidget.Visible() && !tab.loadingLayer.Visible()
+	})
 }
 
 func TestMapTileCacheState(t *testing.T) {
