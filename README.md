@@ -28,6 +28,8 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 ![map view](docs/screenshot_map.png)
 
+![map tile loading status](docs/screenshot_map_loading_indicator.png)
+
 </details>
 <details>
 <summary>Node User settings</summary>
