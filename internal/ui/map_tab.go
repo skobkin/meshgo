@@ -1015,14 +1015,14 @@ type mapInteractionLayer struct {
 	widget.BaseWidget
 
 	onScroll func(*fyne.ScrollEvent)
-	onDrag   func(fyne.Delta)
+	onDrag   func(fyne.Position, fyne.Delta)
 	bg       *canvas.Rectangle
 }
 
 var _ fyne.Scrollable = (*mapInteractionLayer)(nil)
 var _ fyne.Draggable = (*mapInteractionLayer)(nil)
 
-func newMapInteractionLayer(onScroll func(*fyne.ScrollEvent), onDrag func(fyne.Delta)) *mapInteractionLayer {
+func newMapInteractionLayer(onScroll func(*fyne.ScrollEvent), onDrag func(fyne.Position, fyne.Delta)) *mapInteractionLayer {
 	bg := canvas.NewRectangle(color.Transparent)
 	layer := &mapInteractionLayer{
 		onScroll: onScroll,
@@ -1047,7 +1047,7 @@ func (l *mapInteractionLayer) Dragged(event *fyne.DragEvent) {
 		return
 	}
 
-	l.onDrag(event.Dragged)
+	l.onDrag(event.Position, event.Dragged)
 }
 
 func (l *mapInteractionLayer) DragEnd() {}
@@ -1062,6 +1062,11 @@ func (l *mapInteractionLayer) CreateRenderer() fyne.WidgetRenderer {
 
 func (t *mapTabWidget) handleMapScroll(event *fyne.ScrollEvent) {
 	if t == nil || event == nil {
+		return
+	}
+	if t.isOverControlPanel(event.Position) {
+		t.scrollAccumulator = 0
+
 		return
 	}
 
@@ -1352,8 +1357,14 @@ func mapTileCacheHasTiles(cacheDir string) (bool, error) {
 	return false, err
 }
 
-func (t *mapTabWidget) handleMapDrag(delta fyne.Delta) {
+func (t *mapTabWidget) handleMapDrag(position fyne.Position, delta fyne.Delta) {
 	if t == nil {
+		return
+	}
+	if t.isOverControlPanel(position) {
+		t.dragAccumulatorX = 0
+		t.dragAccumulatorY = 0
+
 		return
 	}
 	if delta.DX == 0 && delta.DY == 0 {
@@ -1400,6 +1411,22 @@ func (t *mapTabWidget) handleMapDrag(delta fyne.Delta) {
 		t.renderMarkers()
 		t.scheduleViewportPersist()
 	}
+}
+
+func (t *mapTabWidget) isOverControlPanel(pos fyne.Position) bool {
+	if t == nil || t.controlPanel == nil || !t.controlPanel.Visible() {
+		return false
+	}
+	panelPos := t.controlPanel.Position()
+	panelSize := t.controlPanel.Size()
+	if panelSize.Width <= 0 || panelSize.Height <= 0 {
+		return false
+	}
+
+	return pos.X >= panelPos.X &&
+		pos.X <= panelPos.X+panelSize.Width &&
+		pos.Y >= panelPos.Y &&
+		pos.Y <= panelPos.Y+panelSize.Height
 }
 
 func (t *mapTabWidget) scheduleViewportPersist() {

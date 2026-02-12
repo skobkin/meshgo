@@ -324,22 +324,22 @@ func TestMapTabWidget_HandleMapDragPansInExpectedDirections(t *testing.T) {
 	tab := newMapTabWidget(baseMap, nil)
 	tab.viewState = mapViewportState{Zoom: 5, X: 0, Y: 0}
 
-	tab.handleMapDrag(fyne.NewDelta(mapDragPanThreshold, 0))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(mapDragPanThreshold, 0))
 	if tab.viewState.X != -1 {
 		t.Fatalf("drag-right should pan west (x-1), got x=%d", tab.viewState.X)
 	}
 
-	tab.handleMapDrag(fyne.NewDelta(-mapDragPanThreshold, 0))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(-mapDragPanThreshold, 0))
 	if tab.viewState.X != 0 {
 		t.Fatalf("drag-left should pan east (x+1), got x=%d", tab.viewState.X)
 	}
 
-	tab.handleMapDrag(fyne.NewDelta(0, mapDragPanThreshold))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(0, mapDragPanThreshold))
 	if tab.viewState.Y != -1 {
 		t.Fatalf("drag-down should pan north (y-1), got y=%d", tab.viewState.Y)
 	}
 
-	tab.handleMapDrag(fyne.NewDelta(0, -mapDragPanThreshold))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(0, -mapDragPanThreshold))
 	if tab.viewState.Y != 0 {
 		t.Fatalf("drag-up should pan south (y+1), got y=%d", tab.viewState.Y)
 	}
@@ -359,8 +359,8 @@ func TestMapTabWidget_ScheduleViewportPersistDebouncesAndSavesLatest(t *testing.
 	}
 
 	tab.viewState = mapViewportState{Zoom: 5, X: 0, Y: 0}
-	tab.handleMapDrag(fyne.NewDelta(mapDragPanThreshold, 0))
-	tab.handleMapDrag(fyne.NewDelta(mapDragPanThreshold, 0))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(mapDragPanThreshold, 0))
+	tab.handleMapDrag(fyne.NewPos(100, 100), fyne.NewDelta(mapDragPanThreshold, 0))
 
 	select {
 	case got := <-updates:
@@ -375,6 +375,35 @@ func TestMapTabWidget_ScheduleViewportPersistDebouncesAndSavesLatest(t *testing.
 	case <-updates:
 		t.Fatalf("expected debounced single update")
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestMapTabWidget_IgnoresDragAndScrollOverControlPanel(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	tab.Resize(fyne.NewSize(800, 600))
+	tab.CreateRenderer().Layout(tab.Size())
+	tab.viewState = mapViewportState{Zoom: 5, X: 4, Y: -3}
+
+	panelPos := tab.controlPanel.Position()
+	eventPos := fyne.NewPos(panelPos.X+1, panelPos.Y+1)
+
+	tab.handleMapDrag(eventPos, fyne.NewDelta(mapDragPanThreshold*2, mapDragPanThreshold*2))
+	if tab.viewState.X != 4 || tab.viewState.Y != -3 {
+		t.Fatalf("drag over control panel should not pan viewport, got x=%d y=%d", tab.viewState.X, tab.viewState.Y)
+	}
+
+	tab.handleMapScroll(&fyne.ScrollEvent{
+		PointEvent: fyne.PointEvent{Position: eventPos},
+		Scrolled:   fyne.NewDelta(0, mapScrollZoomStep),
+	})
+	if tab.viewState.Zoom != 5 || tab.viewState.X != 4 || tab.viewState.Y != -3 {
+		t.Fatalf("scroll over control panel should not affect viewport, got zoom=%d x=%d y=%d", tab.viewState.Zoom, tab.viewState.X, tab.viewState.Y)
 	}
 }
 
