@@ -24,6 +24,12 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 </details>
 <details>
+<summary>Map view</summary>
+
+![map view](docs/screenshot_map.png)
+
+</details>
+<details>
 <summary>Node User settings</summary>
 
 ![node user settings](docs/screenshot_node_settings_user.png)
