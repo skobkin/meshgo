@@ -77,7 +77,7 @@ func showUpdateDialog(
 	updateDialog.Show()
 }
 
-func newUpdateVersionText(version string, variant fyne.ThemeVariaTestUIIconResourceUpdateAvailablent) *canvas.Text {
+func newUpdateVersionText(version string, variant fyne.ThemeVariant) *canvas.Text {
 	label := canvas.NewText(version, theme.DefaultTheme().Color(theme.ColorNameForeground, variant))
 	label.TextSize = 28
 	label.TextStyle = fyne.TextStyle{Bold: true}

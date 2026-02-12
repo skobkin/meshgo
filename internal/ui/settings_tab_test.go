@@ -306,6 +306,8 @@ func waitForCondition(t *testing.T, check func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		// Flush queued fyne.Do UI callbacks to make async widget updates observable in tests.
+		fyne.DoAndWait(func() {})
 		if check() {
 			return
 		}
