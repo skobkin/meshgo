@@ -3,14 +3,36 @@ package resources
 import (
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 )
 
-func TestUIIconResourceUpdateAvailable(t *testing.T) {
-	if got := UIIconResource(UIIconUpdateAvailable, theme.VariantLight); got == nil {
-		t.Fatalf("expected light update icon resource")
+func TestUIIconResource_AllIconsMappedForBothVariants(t *testing.T) {
+	icons := []UIIcon{
+		UIIconChats,
+		UIIconNodes,
+		UIIconMap,
+		UIIconNodeSettings,
+		UIIconAppSettings,
+		UIIconConnected,
+		UIIconDisconnected,
+		UIIconMapNodeMarker,
+		UIIconUpdateAvailable,
 	}
-	if got := UIIconResource(UIIconUpdateAvailable, theme.VariantDark); got == nil {
-		t.Fatalf("expected dark update icon resource")
+
+	variants := []struct {
+		name    string
+		variant fyne.ThemeVariant
+	}{
+		{name: "light", variant: theme.VariantLight},
+		{name: "dark", variant: theme.VariantDark},
+	}
+
+	for _, icon := range icons {
+		for _, variant := range variants {
+			if got := UIIconResource(icon, variant.variant); got == nil {
+				t.Fatalf("expected %s icon resource for %q variant", icon, variant.name)
+			}
+		}
 	}
 }
