@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -12,9 +13,16 @@ import (
 	"sync"
 	"syscall"
 
+	"fyne.io/fyne/v2"
+	fyneapp "fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/dialog"
+
 	"github.com/skobkin/meshgo/internal/app"
+	"github.com/skobkin/meshgo/internal/platform"
 	"github.com/skobkin/meshgo/internal/ui"
 )
+
+const alreadyRunningMessage = "meshgo is already running for this user.\nClose the existing instance before starting another copy."
 
 func main() {
 	if err := run(); err != nil {
@@ -27,6 +35,30 @@ func run() error {
 	opts, err := parseLaunchOptions(os.Args[1:])
 	if err != nil {
 		return fmt.Errorf("parse launch options: %w", err)
+	}
+
+	slog.Info("acquiring single-instance lock", "app_id", app.Name)
+	instanceLock, err := platform.AcquireInstanceLock(app.Name)
+	if err != nil {
+		if errors.Is(err, platform.ErrInstanceAlreadyRunning) {
+			slog.Warn("single-instance lock contention: another app instance is already running", "app_id", app.Name)
+			showAlreadyRunningDialog(alreadyRunningMessage)
+
+			return fmt.Errorf("acquire instance lock: %w", err)
+		}
+		if errors.Is(err, platform.ErrInstanceLockUnsupported) {
+			slog.Warn("single-instance lock is not supported on this platform; continuing without lock", "error", err)
+		} else {
+			return fmt.Errorf("acquire instance lock: %w", err)
+		}
+	} else {
+		slog.Info("single-instance lock acquired", "app_id", app.Name)
+		defer func() {
+			if err := instanceLock.Release(); err != nil {
+				slog.Warn("release instance lock", "error", err)
+			}
+		}()
+
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -56,6 +88,34 @@ func run() error {
 	}
 
 	return nil
+}
+
+func showAlreadyRunningDialog(message string) {
+	_, _ = fmt.Fprintln(os.Stderr, message)
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			slog.Warn("show already-running dialog", "error", recovered)
+		}
+	}()
+
+	fyApp := fyneapp.New()
+	window := fyApp.NewWindow("meshgo")
+	window.Resize(fyne.NewSize(500, 160))
+
+	var quitOnce sync.Once
+	quit := func() {
+		quitOnce.Do(func() {
+			fyApp.Quit()
+		})
+	}
+
+	info := dialog.NewInformation("meshgo is already running", message, window)
+	info.SetOnClosed(quit)
+	window.SetCloseIntercept(quit)
+	window.Show()
+	info.Show()
+	fyApp.Run()
 }
 
 type launchOptions struct {
