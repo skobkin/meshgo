@@ -126,3 +126,45 @@ func TestProjectCoordinateToScreen_TracksMapPanExactlyByOneTile(t *testing.T) {
 		t.Fatalf("expected one tile shift (%d), got %v", mapTileSize, shift)
 	}
 }
+
+func TestMapTileLogicalSizeForScale_MatchesMapRendererBehavior(t *testing.T) {
+	tests := []struct {
+		scale float32
+		want  float64
+	}{
+		{scale: 1.0, want: 256},
+		{scale: 1.25, want: 204.8},
+		{scale: 2.0, want: 256},
+		{scale: 2.5, want: 204.8},
+		{scale: 0, want: 256},
+	}
+
+	for _, tt := range tests {
+		got := mapTileLogicalSizeForScale(tt.scale)
+		if math.Abs(got-tt.want) > 0.001 {
+			t.Fatalf("scale=%v: expected %v, got %v", tt.scale, tt.want, got)
+		}
+	}
+}
+
+func TestProjectCoordinateToScreenWithTileSize_TracksPanWithFractionalScale(t *testing.T) {
+	center := mapCoordinate{Latitude: 37.7749, Longitude: -122.4194}
+	view := centerCoordinateToViewport(center, 8)
+	size := fyne.NewSize(1000, 700)
+	tileSize := mapTileLogicalSizeForScale(1.25)
+
+	before, ok := projectCoordinateToScreenWithTileSize(center, view, size, tileSize)
+	if !ok {
+		t.Fatalf("expected projection before pan")
+	}
+	view.PanEast()
+	after, ok := projectCoordinateToScreenWithTileSize(center, view, size, tileSize)
+	if !ok {
+		t.Fatalf("expected projection after pan")
+	}
+
+	shift := before.X - after.X
+	if math.Abs(float64(shift)-tileSize) > 0.01 {
+		t.Fatalf("expected one tile shift (%v), got %v", tileSize, shift)
+	}
+}

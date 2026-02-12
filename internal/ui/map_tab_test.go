@@ -145,6 +145,18 @@ func TestMapTileCacheState(t *testing.T) {
 	}
 }
 
+func TestVisibleMapTileURLs_UsesEffectiveLogicalTileSize(t *testing.T) {
+	view := mapViewportState{Zoom: 7, X: 12, Y: -4}
+	size := fyne.NewSize(1000, 700)
+
+	defaultURLs := visibleMapTileURLs(mapTileSourceOSM, view, size, float64(mapTileSize))
+	fractionalScaleURLs := visibleMapTileURLs(mapTileSourceOSM, view, size, mapTileLogicalSizeForScale(1.25))
+
+	if len(fractionalScaleURLs) <= len(defaultURLs) {
+		t.Fatalf("expected more visible tiles at fractional scale, default=%d fractional=%d", len(defaultURLs), len(fractionalScaleURLs))
+	}
+}
+
 func TestMapTabWidget_InitialCenterUsesLocalNodePosition(t *testing.T) {
 	baseMap := xwidget.NewMapWithOptions(
 		xwidget.WithOsmTiles(),

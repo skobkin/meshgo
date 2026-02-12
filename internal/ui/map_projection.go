@@ -173,25 +173,67 @@ func centerCoordinateToViewport(center mapCoordinate, zoom int) mapViewportState
 }
 
 func projectCoordinateToScreen(coord mapCoordinate, view mapViewportState, canvasSize fyne.Size) (fyne.Position, bool) {
+	return projectCoordinateToScreenWithTileSize(coord, view, canvasSize, float64(mapTileSize))
+}
+
+func projectCoordinateToScreenWithTileSize(
+	coord mapCoordinate,
+	view mapViewportState,
+	canvasSize fyne.Size,
+	tileSize float64,
+) (fyne.Position, bool) {
 	if canvasSize.Width <= 0 || canvasSize.Height <= 0 {
 		return fyne.Position{}, false
 	}
+	if tileSize <= 0 {
+		tileSize = float64(mapTileSize)
+	}
 
-	midTileX := (int(canvasSize.Width) - mapTileSize*2) / 2
-	midTileY := (int(canvasSize.Height) - mapTileSize*2) / 2
+	w := float64(canvasSize.Width)
+	h := float64(canvasSize.Height)
+	midTileX := (w - tileSize*2) / 2
+	midTileY := (h - tileSize*2) / 2
 	if view.Zoom == 0 {
-		midTileX += mapTileSize / 2
-		midTileY += mapTileSize / 2
+		midTileX += tileSize / 2
+		midTileY += tileSize / 2
 	}
 	offset := mapTileOffset(view.Zoom)
 	mx := float64(view.X + offset)
 	my := float64(view.Y + offset)
 	tileX, tileY := latLonToTile(coord, view.Zoom)
 
-	screenX := float64(midTileX) + (tileX-mx)*mapTileSize
-	screenY := float64(midTileY) + (tileY-my)*mapTileSize
+	screenX := midTileX + (tileX-mx)*tileSize
+	screenY := midTileY + (tileY-my)*tileSize
 
 	return fyne.NewPos(float32(screenX), float32(screenY)), true
+}
+
+func mapTileLogicalSizeForScale(scale float32) float64 {
+	if scale <= 0 {
+		scale = 1
+	}
+
+	scaledTileFactor := int(scale)
+	if scaledTileFactor < 1 {
+		scaledTileFactor = 1
+	}
+
+	return float64(mapTileSize*scaledTileFactor) / float64(scale)
+}
+
+func mapTileLogicalSizeForObject(obj fyne.CanvasObject) float64 {
+	scale := float32(1)
+	if obj != nil {
+		if app := fyne.CurrentApp(); app != nil {
+			if driver := app.Driver(); driver != nil {
+				if c := driver.CanvasForObject(obj); c != nil {
+					scale = c.Scale()
+				}
+			}
+		}
+	}
+
+	return mapTileLogicalSizeForScale(scale)
 }
 
 func mapTileOffset(zoom int) int {

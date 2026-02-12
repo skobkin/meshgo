@@ -370,8 +370,8 @@ func (t *mapTabWidget) OnShow() {
 	}
 
 	t.showLoadingState("Loading map tiles...", 0, false)
-	state, size, scale := t.warmupSnapshot()
-	urls := visibleMapTileURLs(t.tileSource, state, size, scale)
+	state, size, tileSize := t.warmupSnapshot()
+	urls := visibleMapTileURLs(t.tileSource, state, size, tileSize)
 	mapLogger.Info(
 		"starting map tile warmup",
 		"tile_count", len(urls),
@@ -380,13 +380,13 @@ func (t *mapTabWidget) OnShow() {
 		"y", state.Y,
 		"canvas_width", int(size.Width),
 		"canvas_height", int(size.Height),
-		"canvas_scale", scale,
+		"tile_size", tileSize,
 	)
 
-	go t.runTileWarmup(urls, state, size, scale)
+	go t.runTileWarmup(urls, state, size, tileSize)
 }
 
-func (t *mapTabWidget) warmupSnapshot() (mapViewportState, fyne.Size, int) {
+func (t *mapTabWidget) warmupSnapshot() (mapViewportState, fyne.Size, float64) {
 	size := t.Size()
 	if size.Width <= 0 || size.Height <= 0 {
 		size = t.lastCanvasSize
@@ -395,22 +395,10 @@ func (t *mapTabWidget) warmupSnapshot() (mapViewportState, fyne.Size, int) {
 		size = fyne.NewSize(1000, 700)
 	}
 
-	scale := 1
-	if app := fyne.CurrentApp(); app != nil {
-		if driver := app.Driver(); driver != nil {
-			if c := driver.CanvasForObject(t); c != nil {
-				scale = int(c.Scale())
-				if scale < 1 {
-					scale = 1
-				}
-			}
-		}
-	}
-
-	return t.viewState, size, scale
+	return t.viewState, size, mapTileLogicalSizeForObject(t.mapWidget)
 }
 
-func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size fyne.Size, scale int) {
+func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size fyne.Size, tileSize float64) {
 	startedAt := time.Now()
 	progress := func(done, total int) {
 		if total <= 0 {
@@ -452,7 +440,7 @@ func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size
 				"y", state.Y,
 				"canvas_width", int(size.Width),
 				"canvas_height", int(size.Height),
-				"canvas_scale", scale,
+				"tile_size", tileSize,
 			)
 
 			return
@@ -471,7 +459,7 @@ func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size
 				"y", state.Y,
 				"canvas_width", int(size.Width),
 				"canvas_height", int(size.Height),
-				"canvas_scale", scale,
+				"tile_size", tileSize,
 			)
 			if !t.firstShownAt.IsZero() {
 				mapLogger.Warn(
@@ -504,7 +492,7 @@ func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size
 			"y", state.Y,
 			"canvas_width", int(size.Width),
 			"canvas_height", int(size.Height),
-			"canvas_scale", scale,
+			"tile_size", tileSize,
 		)
 	})
 }
@@ -637,8 +625,8 @@ func (t *mapTabWidget) refreshViewLoadingProgress() {
 		return
 	}
 
-	state, size, scale := t.warmupSnapshot()
-	urls := visibleMapTileURLs(t.tileSource, state, size, scale)
+	state, size, tileSize := t.warmupSnapshot()
+	urls := visibleMapTileURLs(t.tileSource, state, size, tileSize)
 	cached, total, ok := mapTileClientCachedProgress(t.mapClient, urls)
 	if !ok || total <= 0 || cached >= total {
 		t.viewLoadingLayer.Hide()
@@ -766,6 +754,7 @@ func (t *mapTabWidget) renderMarkers() {
 	positionedNodes := 0
 	visibleMarkers := 0
 	size := t.markerLayer.Size()
+	tileSize := mapTileLogicalSizeForObject(t.mapWidget)
 	for _, node := range t.nodes {
 		coord, ok := nodeCoordinate(node)
 		if !ok {
@@ -773,7 +762,7 @@ func (t *mapTabWidget) renderMarkers() {
 		}
 		positionedNodes++
 
-		pos, ok := projectCoordinateToScreen(coord, t.viewState, size)
+		pos, ok := projectCoordinateToScreenWithTileSize(coord, t.viewState, size, tileSize)
 		if !ok {
 			continue
 		}
@@ -1186,7 +1175,7 @@ func mapZoomFocusPanSteps(norm float32) int {
 	return steps
 }
 
-func visibleMapTileURLs(tileSource string, view mapViewportState, canvasSize fyne.Size, scale int) []string {
+func visibleMapTileURLs(tileSource string, view mapViewportState, canvasSize fyne.Size, tileSize float64) []string {
 	if tileSource == "" {
 		return nil
 	}
@@ -1196,35 +1185,34 @@ func visibleMapTileURLs(tileSource string, view mapViewportState, canvasSize fyn
 	if view.Zoom > 19 {
 		view.Zoom = 19
 	}
-	if scale < 1 {
-		scale = 1
+	if tileSize <= 0 {
+		tileSize = float64(mapTileSize)
 	}
-	w := int(canvasSize.Width)
-	h := int(canvasSize.Height)
+	w := float64(canvasSize.Width)
+	h := float64(canvasSize.Height)
 	if w <= 0 {
 		w = 1000
 	}
 	if h <= 0 {
 		h = 700
 	}
-	tilePixels := mapTileSize * scale
 
-	midTileX := (w - tilePixels*2) / 2
-	midTileY := (h - tilePixels*2) / 2
+	midTileX := (w - tileSize*2) / 2
+	midTileY := (h - tileSize*2) / 2
 	if view.Zoom == 0 {
-		midTileX += tilePixels / 2
-		midTileY += tilePixels / 2
+		midTileX += tileSize / 2
+		midTileY += tileSize / 2
 	}
 
 	count := 1 << view.Zoom
 	mx := view.X + int(float32(count)/2-0.5)
 	my := view.Y + int(float32(count)/2-0.5)
-	firstTileX := mx - int(math.Ceil(float64(midTileX)/float64(tilePixels)))
-	firstTileY := my - int(math.Ceil(float64(midTileY)/float64(tilePixels)))
+	firstTileX := mx - int(math.Ceil(midTileX/tileSize))
+	firstTileY := my - int(math.Ceil(midTileY/tileSize))
 
 	tiles := make([]string, 0, 32)
-	for x := firstTileX; (x-firstTileX)*tilePixels <= w+tilePixels; x++ {
-		for y := firstTileY; (y-firstTileY)*tilePixels <= h+tilePixels; y++ {
+	for x := firstTileX; float64(x-firstTileX)*tileSize <= w+tileSize; x++ {
+		for y := firstTileY; float64(y-firstTileY)*tileSize <= h+tileSize; y++ {
 			if x < 0 || y < 0 || x >= count || y >= count {
 				continue
 			}
