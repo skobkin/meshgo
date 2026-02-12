@@ -576,10 +576,15 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 	waitForCondition(t, func() bool {
 		statusLabel = findLabelByPrefix(tab, "Send failed: ")
 
-		return statusLabel != nil
+		return statusLabel != nil &&
+			strings.TrimSpace(statusLabel.Text) == "Send failed: send failed" &&
+			!sendButton.Disabled() &&
+			!entry.Disabled()
 	})
 
-	entry.SetText("second")
+	fyne.DoAndWait(func() {
+		entry.SetText("second")
+	})
 	fynetest.Tap(sendButton)
 
 	waitForCondition(t, func() bool {
