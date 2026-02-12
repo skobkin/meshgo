@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"  // register GIF decoder for image metadata probing
@@ -36,6 +37,7 @@ const (
 var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
 var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 var updateDialogLogger = slog.With("component", "ui.update_dialog")
+var errMarkdownImageTooLarge = errors.New("image too large")
 
 func showUpdateDialog(
 	window fyne.Window,
@@ -355,8 +357,25 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 	}
 	scheme := strings.ToLower(strings.TrimSpace(source.Scheme()))
 	if scheme == "http" || scheme == "https" {
+		rawURL := source.String()
 		lazyMarkdownLogger.Debug("loading remote markdown image", "source", markdownImageSource(source))
-		request, err := http.NewRequest(http.MethodGet, source.String(), nil)
+		if tooLarge, err := remoteMarkdownImageTooLarge(rawURL); err != nil {
+			lazyMarkdownLogger.Debug(
+				"markdown image size preflight failed; continuing with guarded download",
+				"source", markdownImageSource(source),
+				"error", err,
+			)
+		} else if tooLarge {
+			lazyMarkdownLogger.Warn(
+				"skipping markdown image: exceeds size limit from HEAD preflight",
+				"source", markdownImageSource(source),
+				"max_bytes", maxMarkdownImageBytes,
+			)
+
+			return nil, errMarkdownImageTooLarge
+		}
+
+		request, err := http.NewRequest(http.MethodGet, rawURL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("create image request: %w", err)
 		}
@@ -370,8 +389,18 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 		if response.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("request image: unexpected status %d", response.StatusCode)
 		}
+		if response.ContentLength > maxMarkdownImageBytes {
+			lazyMarkdownLogger.Warn(
+				"skipping markdown image: exceeds size limit from GET headers",
+				"source", markdownImageSource(source),
+				"content_length", response.ContentLength,
+				"max_bytes", maxMarkdownImageBytes,
+			)
 
-		content, err := readLimitedBytes(response.Body)
+			return nil, errMarkdownImageTooLarge
+		}
+
+		content, err := readLimitedBytes(response.Body, source)
 		if err != nil {
 			return nil, err
 		}
@@ -389,7 +418,7 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 		_ = reader.Close()
 	}()
 
-	content, err := readLimitedBytes(reader)
+	content, err := readLimitedBytes(reader, source)
 	if err != nil {
 		return nil, err
 	}
@@ -398,17 +427,43 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 	return content, nil
 }
 
-func readLimitedBytes(reader io.Reader) ([]byte, error) {
+func readLimitedBytes(reader io.Reader, source fyne.URI) ([]byte, error) {
 	limited := io.LimitReader(reader, maxMarkdownImageBytes+1)
 	content, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, err
 	}
 	if len(content) > maxMarkdownImageBytes {
-		return nil, fmt.Errorf("image too large")
+		lazyMarkdownLogger.Warn(
+			"skipping markdown image: exceeds size limit while reading body",
+			"source", markdownImageSource(source),
+			"max_bytes", maxMarkdownImageBytes,
+		)
+
+		return nil, errMarkdownImageTooLarge
 	}
 
 	return content, nil
+}
+
+func remoteMarkdownImageTooLarge(rawURL string) (bool, error) {
+	request, err := http.NewRequest(http.MethodHead, rawURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("create image head request: %w", err)
+	}
+	response, err := markdownImageHTTPClient.Do(request)
+	if err != nil {
+		return false, fmt.Errorf("head request image: %w", err)
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return false, nil
+	}
+
+	return response.ContentLength > maxMarkdownImageBytes, nil
 }
 
 func newMarkdownImagePlaceholder(text string) fyne.CanvasObject {
