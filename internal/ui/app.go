@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -21,10 +23,17 @@ import (
 
 const sidebarConnIconSize float32 = 32
 
+var appLogger = slog.With("component", "ui.app")
+
 func Run(dep RuntimeDependencies) error {
 	fyApp := fyneapp.NewWithID("meshgo")
 	initialVariant := fyApp.Settings().ThemeVariant()
 	fyApp.SetIcon(resources.AppIconResource(initialVariant))
+	appLogger.Info(
+		"starting UI runtime",
+		"start_hidden", dep.Launch.StartHidden,
+		"initial_theme", initialVariant,
+	)
 
 	initialStatus := resolveInitialConnStatus(dep)
 	currentStatus := initialStatus
@@ -89,6 +98,7 @@ func Run(dep RuntimeDependencies) error {
 		if name == active {
 			return
 		}
+		appLogger.Debug("switching sidebar tab", "from", active, "to", name)
 		tabContent[active].Hide()
 		active = name
 		tabContent[active].Show()
@@ -111,8 +121,16 @@ func Run(dep RuntimeDependencies) error {
 
 	updateButton := newIconNavButton(resources.UIIconResource(resources.UIIconUpdateAvailable, initialVariant), 48, func() {
 		if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
+			appLogger.Debug("update button tap ignored: no available update")
+
 			return
 		}
+		appLogger.Info(
+			"opening update dialog",
+			"current_version", strings.TrimSpace(latestUpdateSnapshot.CurrentVersion),
+			"latest_version", strings.TrimSpace(latestUpdateSnapshot.Latest.Version),
+			"release_count", len(latestUpdateSnapshot.Releases),
+		)
 		showUpdateDialog(window, fyApp.Settings().ThemeVariant(), latestUpdateSnapshot, openExternalURL)
 	})
 	if latestUpdateSnapshotKnown && latestUpdateSnapshot.UpdateAvailable {
@@ -148,6 +166,7 @@ func Run(dep RuntimeDependencies) error {
 
 	setTrayIcon := func(_ fyne.ThemeVariant) {}
 	applyThemeResources := func(variant fyne.ThemeVariant) {
+		appLogger.Debug("applying theme resources", "theme", variant)
 		connStatusMu.RLock()
 		status := currentStatus
 		connStatusMu.RUnlock()
@@ -165,8 +184,25 @@ func Run(dep RuntimeDependencies) error {
 	}
 
 	applyUpdateSnapshot := func(snapshot meshapp.UpdateSnapshot) {
+		prevSnapshot := latestUpdateSnapshot
+		prevKnown := latestUpdateSnapshotKnown
 		latestUpdateSnapshot = snapshot
 		latestUpdateSnapshotKnown = true
+		if !prevKnown || prevSnapshot.UpdateAvailable != snapshot.UpdateAvailable || prevSnapshot.Latest.Version != snapshot.Latest.Version {
+			appLogger.Info(
+				"applied update snapshot",
+				"current_version", strings.TrimSpace(snapshot.CurrentVersion),
+				"latest_version", strings.TrimSpace(snapshot.Latest.Version),
+				"update_available", snapshot.UpdateAvailable,
+				"release_count", len(snapshot.Releases),
+			)
+		} else {
+			appLogger.Debug(
+				"refreshed unchanged update snapshot",
+				"latest_version", strings.TrimSpace(snapshot.Latest.Version),
+				"update_available", snapshot.UpdateAvailable,
+			)
+		}
 		if snapshot.UpdateAvailable {
 			updateButton.SetText(snapshot.Latest.Version)
 			updateButton.Show()
@@ -178,9 +214,11 @@ func Run(dep RuntimeDependencies) error {
 	}
 
 	fyApp.Settings().AddListener(func(_ fyne.Settings) {
+		appLogger.Debug("theme settings changed")
 		applyThemeResources(fyApp.Settings().ThemeVariant())
 	})
 
+	appLogger.Debug("starting UI event listeners")
 	stopUIListeners := startUIEventListeners(
 		dep.Data.Bus,
 		func(status connectors.ConnectionStatus) {
@@ -200,6 +238,7 @@ func Run(dep RuntimeDependencies) error {
 	if status, ok := currentConnStatus(dep); ok {
 		setConnStatus(status)
 	}
+	appLogger.Debug("starting update snapshot listener")
 	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
 		fyne.Do(func() {
 			applyUpdateSnapshot(snapshot)
@@ -215,6 +254,7 @@ func Run(dep RuntimeDependencies) error {
 	var shutdownOnce sync.Once
 	quit := func() {
 		shutdownOnce.Do(func() {
+			appLogger.Info("quitting UI runtime")
 			stopUIListeners()
 			stopUpdateSnapshots()
 			if dep.Actions.OnQuit != nil {
@@ -225,6 +265,7 @@ func Run(dep RuntimeDependencies) error {
 	}
 
 	window.SetCloseIntercept(func() {
+		appLogger.Debug("main window close intercepted: hiding to tray")
 		window.Hide()
 	})
 
@@ -235,10 +276,12 @@ func Run(dep RuntimeDependencies) error {
 		setTrayIcon(initialVariant)
 		desk.SetSystemTrayMenu(fyne.NewMenu("meshgo",
 			fyne.NewMenuItem("Show", func() {
+				appLogger.Debug("system tray show action invoked")
 				window.Show()
 				window.RequestFocus()
 			}),
 			fyne.NewMenuItem("Quit", func() {
+				appLogger.Debug("system tray quit action invoked")
 				quit()
 			}),
 		))
@@ -247,9 +290,11 @@ func Run(dep RuntimeDependencies) error {
 
 	window.Show()
 	if dep.Launch.StartHidden {
+		appLogger.Info("launch option start_hidden is enabled: hiding main window")
 		window.Hide()
 	}
 	fyApp.Run()
+	appLogger.Info("UI runtime stopped")
 	shutdownOnce.Do(func() {
 		stopUIListeners()
 		stopUpdateSnapshots()
@@ -267,11 +312,17 @@ func startUIEventListeners(
 	onNodeInfo func(),
 ) func() {
 	if messageBus == nil {
+		appLogger.Debug("skipping UI event listeners: message bus is nil")
+
 		return func() {}
 	}
 
 	connSub := messageBus.Subscribe(connectors.TopicConnStatus)
 	nodeSub := messageBus.Subscribe(connectors.TopicNodeInfo)
+	appLogger.Debug(
+		"subscribed to UI bus topics",
+		"topics", []string{connectors.TopicConnStatus, connectors.TopicNodeInfo},
+	)
 	done := make(chan struct{})
 	var stopOnce sync.Once
 
@@ -282,10 +333,14 @@ func startUIEventListeners(
 				return
 			case raw, ok := <-connSub:
 				if !ok {
+					appLogger.Debug("connection status subscription closed")
+
 					return
 				}
 				status, ok := raw.(connectors.ConnectionStatus)
 				if !ok {
+					appLogger.Debug("ignoring unexpected connection status payload", "payload_type", fmt.Sprintf("%T", raw))
+
 					continue
 				}
 				select {
@@ -307,6 +362,8 @@ func startUIEventListeners(
 				return
 			case _, ok := <-nodeSub:
 				if !ok {
+					appLogger.Debug("node info subscription closed")
+
 					return
 				}
 				select {
@@ -323,6 +380,7 @@ func startUIEventListeners(
 
 	return func() {
 		stopOnce.Do(func() {
+			appLogger.Debug("stopping UI event listeners")
 			close(done)
 			messageBus.Unsubscribe(connSub, connectors.TopicConnStatus)
 			messageBus.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
@@ -474,6 +532,8 @@ func startUpdateSnapshotListener(
 	onSnapshot func(meshapp.UpdateSnapshot),
 ) func() {
 	if snapshots == nil {
+		appLogger.Debug("skipping update snapshot listener: channel is nil")
+
 		return func() {}
 	}
 
@@ -487,6 +547,8 @@ func startUpdateSnapshotListener(
 				return
 			case snapshot, ok := <-snapshots:
 				if !ok {
+					appLogger.Debug("update snapshot channel closed")
+
 					return
 				}
 				select {
@@ -503,6 +565,7 @@ func startUpdateSnapshotListener(
 
 	return func() {
 		stopOnce.Do(func() {
+			appLogger.Debug("stopping update snapshot listener")
 			close(done)
 		})
 	}

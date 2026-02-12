@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,8 @@ const (
 	mapViewportPersistDebounce = 500 * time.Millisecond
 )
 
+var mapLogger = slog.With("component", "ui.map")
+
 func newMapTab(
 	store *domain.NodeStore,
 	localNodeID func() string,
@@ -45,6 +48,7 @@ func newMapTab(
 	onViewportChanged func(zoom, x, y int),
 ) fyne.CanvasObject {
 	if store == nil {
+		mapLogger.Warn("map tab is unavailable: node store is nil")
 		placeholder := widget.NewLabel("Map is unavailable")
 		placeholder.Wrapping = fyne.TextWrapWord
 
@@ -60,9 +64,21 @@ func newMapTab(
 	)
 
 	tab := newMapTabWidget(baseMap, localNodeID)
+	mapLogger.Info(
+		"initializing map tab",
+		"tile_cache_dir", paths.MapTilesDir,
+		"initial_viewport_set", initialViewport.Set,
+		"initial_theme", initialVariant,
+	)
 	tab.applyThemeVariant(initialVariant)
 	tab.onViewportChanged = onViewportChanged
 	if initialViewport.Set {
+		mapLogger.Debug(
+			"applying initial map viewport",
+			"zoom", initialViewport.Zoom,
+			"x", initialViewport.X,
+			"y", initialViewport.Y,
+		)
 		tab.panToViewport(mapViewportState{
 			Zoom: initialViewport.Zoom,
 			X:    initialViewport.X,
@@ -76,6 +92,7 @@ func newMapTab(
 		for range store.Changes() {
 			snapshot := store.SnapshotSorted()
 			fyne.Do(func() {
+				mapLogger.Debug("applying node store changes to map", "node_count", len(snapshot))
 				tab.setNodes(snapshot, false)
 			})
 		}
@@ -200,13 +217,17 @@ func (t *mapTabWidget) newControlPanel() *fyne.Container {
 
 func (t *mapTabWidget) setNodes(nodes []domain.Node, initial bool) {
 	t.nodes = append([]domain.Node(nil), nodes...)
+	mapLogger.Debug("updating map nodes", "initial", initial, "node_count", len(t.nodes))
 	if initial || !t.autoCentered {
 		zoom := t.viewState.Zoom
 		if zoom == 0 {
 			zoom = mapDefaultZoom
 		}
 		if t.centerToPreferred(zoom) {
+			mapLogger.Info("auto-centered map viewport", "zoom", t.viewState.Zoom, "x", t.viewState.X, "y", t.viewState.Y)
 			t.autoCentered = true
+		} else {
+			mapLogger.Debug("skipped auto-centering: no suitable node coordinates")
 		}
 	}
 	t.renderMarkers()
@@ -225,6 +246,7 @@ func (t *mapTabWidget) applyThemeVariant(variant fyne.ThemeVariant) {
 	if t == nil || t.markerVariant == variant {
 		return
 	}
+	mapLogger.Debug("applying map marker theme", "from", t.markerVariant, "to", variant)
 	t.markerVariant = variant
 	t.renderMarkers()
 }
@@ -236,9 +258,12 @@ func (t *mapTabWidget) centerToPreferred(zoom int) bool {
 	}
 	center, ok := chooseMapCenter(t.nodes, localID)
 	if !ok {
+		mapLogger.Debug("map center was not resolved", "node_count", len(t.nodes), "local_node_id", localID)
+
 		return false
 	}
 
+	mapLogger.Debug("map center resolved", "lat", center.Latitude, "lng", center.Longitude, "zoom", zoom)
 	target := centerCoordinateToViewport(center, zoom)
 	t.panToViewport(target)
 
@@ -246,6 +271,15 @@ func (t *mapTabWidget) centerToPreferred(zoom int) bool {
 }
 
 func (t *mapTabWidget) panToViewport(target mapViewportState) {
+	mapLogger.Debug(
+		"panning map to viewport",
+		"from_zoom", t.viewState.Zoom,
+		"from_x", t.viewState.X,
+		"from_y", t.viewState.Y,
+		"to_zoom", target.Zoom,
+		"to_x", target.X,
+		"to_y", target.Y,
+	)
 	t.setZoom(target.Zoom)
 	for t.viewState.X < target.X {
 		t.mapWidget.PanEast()
@@ -289,6 +323,7 @@ func (t *mapTabWidget) renderMarkers() {
 	t.markerLayer.Objects = nil
 
 	positionedNodes := 0
+	visibleMarkers := 0
 	size := t.markerLayer.Size()
 	for _, node := range t.nodes {
 		coord, ok := nodeCoordinate(node)
@@ -304,6 +339,7 @@ func (t *mapTabWidget) renderMarkers() {
 		if !isMarkerVisible(pos, size) {
 			continue
 		}
+		visibleMarkers++
 
 		marker := newMapMarkerWidget(mapMarkerResource(t.markerVariant), mapMarkerTooltip(node), t.tooltipManager)
 		markerSize := marker.MinSize()
@@ -322,6 +358,15 @@ func (t *mapTabWidget) renderMarkers() {
 	}
 	t.markerLayer.Refresh()
 	t.emptyLayer.Refresh()
+	mapLogger.Debug(
+		"rendered map markers",
+		"total_nodes", len(t.nodes),
+		"positioned_nodes", positionedNodes,
+		"visible_markers", visibleMarkers,
+		"zoom", t.viewState.Zoom,
+		"x", t.viewState.X,
+		"y", t.viewState.Y,
+	)
 }
 
 func isMarkerVisible(pos fyne.Position, size fyne.Size) bool {
@@ -590,6 +635,7 @@ func (t *mapTabWidget) handleMapScroll(event *fyne.ScrollEvent) {
 		if t.tooltipManager != nil {
 			t.tooltipManager.Hide(nil)
 		}
+		mapLogger.Debug("map viewport changed by scroll", "zoom", t.viewState.Zoom, "x", t.viewState.X, "y", t.viewState.Y)
 		t.renderMarkers()
 		t.scheduleViewportPersist()
 	}
@@ -715,6 +761,7 @@ func (t *mapTabWidget) handleMapDrag(delta fyne.Delta) {
 		if t.tooltipManager != nil {
 			t.tooltipManager.Hide(nil)
 		}
+		mapLogger.Debug("map viewport changed by drag", "zoom", t.viewState.Zoom, "x", t.viewState.X, "y", t.viewState.Y)
 		t.renderMarkers()
 		t.scheduleViewportPersist()
 	}
@@ -727,11 +774,15 @@ func (t *mapTabWidget) scheduleViewportPersist() {
 
 	state := t.viewState
 	seq := atomic.AddUint64(&t.viewportPersistSeq, 1)
+	mapLogger.Debug("scheduled map viewport persistence", "seq", seq, "zoom", state.Zoom, "x", state.X, "y", state.Y)
 	go func(localSeq uint64, localState mapViewportState) {
 		time.Sleep(mapViewportPersistDebounce)
 		if atomic.LoadUint64(&t.viewportPersistSeq) != localSeq {
+			mapLogger.Debug("skipping stale map viewport persistence", "seq", localSeq)
+
 			return
 		}
+		mapLogger.Info("persisting map viewport", "zoom", localState.Zoom, "x", localState.X, "y", localState.Y)
 		t.onViewportChanged(localState.Zoom, localState.X, localState.Y)
 	}(seq, state)
 }

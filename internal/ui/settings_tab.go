@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"sort"
 	"strconv"
@@ -30,10 +31,20 @@ const (
 )
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
+var settingsLogger = slog.With("component", "ui.settings")
+var externalURLLogger = slog.With("component", "ui.external_url")
 
 func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
 	current := dep.Data.Config
 	current.ApplyDefaults()
+	settingsLogger.Debug(
+		"building settings tab",
+		"connector", current.Connection.Connector,
+		"log_level", strings.ToLower(strings.TrimSpace(current.Logging.Level)),
+		"log_to_file", current.Logging.LogToFile,
+		"autostart_enabled", current.UI.Autostart.Enabled,
+		"autostart_mode", current.UI.Autostart.Mode,
+	)
 
 	connectorSelect := widget.NewSelect([]string{
 		connectorOptionIP,
@@ -135,18 +146,27 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	scanBluetoothButton := widget.NewButton("Scan", nil)
 	openBluetoothSettingsButton := widget.NewButton("Open Bluetooth Settings", func() {
+		settingsLogger.Info(
+			"opening Bluetooth settings from UI",
+			"adapter", strings.TrimSpace(bluetoothAdapterEntry.Text),
+		)
 		if err := openBluetoothSettingsFn(); err != nil {
+			settingsLogger.Warn("open Bluetooth settings failed", "error", err)
 			status.SetText("Failed to open Bluetooth settings: " + err.Error())
 
 			return
 		}
+		settingsLogger.Debug("opened Bluetooth settings")
 		status.SetText("")
 	})
 	bluetoothActionRow := container.NewHBox(scanBluetoothButton, openBluetoothSettingsButton)
 
 	scanBluetoothButton.OnTapped = func() {
+		adapterID := strings.TrimSpace(bluetoothAdapterEntry.Text)
+		settingsLogger.Info("starting Bluetooth scan", "adapter", adapterID)
 		window := currentWindowFn()
 		if window == nil {
+			settingsLogger.Warn("Bluetooth scan failed: active window unavailable")
 			status.SetText("Bluetooth scan failed: active window is unavailable")
 
 			return
@@ -167,7 +187,6 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		)
 		progress.Show()
 
-		adapterID := strings.TrimSpace(bluetoothAdapterEntry.Text)
 		runAsync(func() {
 			devices, err := bluetoothScanner.Scan(context.Background(), adapterID)
 			runOnUI(func() {
@@ -177,11 +196,13 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				openBluetoothSettingsButton.Enable()
 
 				if err != nil {
+					settingsLogger.Warn("Bluetooth scan failed", "adapter", adapterID, "error", err)
 					status.SetText("Bluetooth scan failed: " + err.Error())
 					showErrorDialogFn(err, window)
 
 					return
 				}
+				settingsLogger.Info("Bluetooth scan finished", "adapter", adapterID, "devices_found", len(devices))
 				if len(devices) == 0 {
 					status.SetText("No Bluetooth devices found")
 					showInfoDialogFn("Bluetooth scan", "No Bluetooth devices found", window)
@@ -199,8 +220,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	refreshPorts := func() {
 		selectedPort := strings.TrimSpace(serialPortSelect.Selected)
+		settingsLogger.Debug("refreshing serial ports list", "selected_port", selectedPort)
 		ports, err := serial.GetPortsList()
 		if err != nil {
+			settingsLogger.Warn("refreshing serial ports failed", "error", err)
 			status.SetText("Failed to list serial ports: " + err.Error())
 
 			return
@@ -223,10 +246,12 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		}
 
 		if len(ports) == 0 {
+			settingsLogger.Info("serial ports refresh completed: no ports detected")
 			status.SetText("No serial ports detected")
 
 			return
 		}
+		settingsLogger.Info("serial ports refreshed", "ports_detected", len(ports))
 		status.SetText("")
 	}
 
@@ -265,6 +290,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	connectorSelect.OnChanged = func(value string) {
 		next := connectorTypeFromOption(value)
+		settingsLogger.Debug("connector changed", "selected", strings.TrimSpace(value), "connector", next)
 		setConnectorFields(next)
 		if next == config.ConnectorSerial {
 			refreshPorts()
@@ -283,12 +309,21 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	saveButton := widget.NewButton("Save", func() {
 		connector := connectorTypeFromOption(connectorSelect.Selected)
+		settingsLogger.Info(
+			"settings save requested",
+			"connector", connector,
+			"log_level", strings.TrimSpace(levelSelect.Selected),
+			"log_to_file", logToFile.Checked,
+			"autostart_enabled", autostartEnabled.Checked,
+			"autostart_mode", autostartModeFromOption(autostartModeSelect.Selected),
+		)
 
 		baud := current.Connection.SerialBaud
 		if connector == config.ConnectorSerial {
 			var err error
 			baud, err = parseSerialBaud(serialBaudSelect.Selected)
 			if err != nil {
+				settingsLogger.Warn("settings save failed: invalid serial baud", "value", strings.TrimSpace(serialBaudSelect.Selected), "error", err)
 				status.SetText("Save failed: " + err.Error())
 
 				return
@@ -308,37 +343,50 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Autostart.Mode = autostartModeFromOption(autostartModeSelect.Selected)
 
 		saveConfig := func(clearDatabase bool) {
+			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "connector", cfg.Connection.Connector)
 			if clearDatabase {
 				if dep.Actions.OnClearDB == nil {
+					settingsLogger.Warn("settings save failed: database clear action unavailable")
 					status.SetText("Save failed: database clear is not available")
 
 					return
 				}
 				if err := dep.Actions.OnClearDB(); err != nil {
+					settingsLogger.Warn("settings save failed: database clear failed", "error", err)
 					status.SetText("Save failed: database clear failed: " + err.Error())
 
 					return
 				}
+				settingsLogger.Info("database cleared before transport switch")
 			}
 			if err := dep.Actions.OnSave(cfg); err != nil {
 				var warning *app.AutostartSyncWarning
 				if errors.As(err, &warning) {
+					settingsLogger.Info("settings saved with warning", "warning", warning.Error())
 					current = cfg
 					status.SetText("Saved with warning: " + warning.Error())
 
 					return
 				}
+				settingsLogger.Warn("settings save failed", "error", err)
 				status.SetText("Save failed: " + err.Error())
 
 				return
 			}
+			settingsLogger.Info("settings saved successfully", "connector", cfg.Connection.Connector)
 			current = cfg
 			status.SetText("Saved")
 		}
 
 		if connector != current.Connection.Connector {
+			settingsLogger.Info(
+				"transport change requires confirmation",
+				"from", current.Connection.Connector,
+				"to", connector,
+			)
 			window := currentWindow()
 			if window == nil {
+				settingsLogger.Warn("settings save failed: active window unavailable for transport confirmation")
 				status.SetText("Save failed: active window is unavailable")
 
 				return
@@ -348,10 +396,12 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				"Changing transport will clear the local database before reconnecting. Continue?",
 				func(ok bool) {
 					if !ok {
+						settingsLogger.Info("transport switch canceled by user")
 						status.SetText("Save canceled")
 
 						return
 					}
+					settingsLogger.Info("transport switch confirmed by user")
 					saveConfig(true)
 				},
 				window,
@@ -365,16 +415,20 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	saveButton.Importance = widget.HighImportance
 
 	clearDBButton := widget.NewButton("Clear database", func() {
+		settingsLogger.Info("clear database requested from settings UI")
 		if dep.Actions.OnClearDB == nil {
+			settingsLogger.Warn("clear database unavailable: action is not configured")
 			status.SetText("Database clear is not available")
 
 			return
 		}
 		if err := dep.Actions.OnClearDB(); err != nil {
+			settingsLogger.Warn("database clear failed", "error", err)
 			status.SetText("Database clear failed: " + err.Error())
 
 			return
 		}
+		settingsLogger.Info("database cleared from settings UI")
 		status.SetText("Database cleared")
 	})
 	if dep.Actions.OnClearDB == nil {
@@ -401,7 +455,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	))
 
 	logo := newLinkImage(resources.LogoTextResource(), fyne.NewSize(220, 80), func() {
+		settingsLogger.Debug("opening source URL from settings logo", "url", app.SourceURL)
 		if err := openExternalURL(app.SourceURL); err != nil {
+			settingsLogger.Warn("open source URL failed", "url", app.SourceURL, "error", err)
 			status.SetText("Failed to open source website: " + err.Error())
 		}
 	})
@@ -434,6 +490,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 }
 
 func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice)) {
+	settingsLogger.Debug("showing Bluetooth scan dialog", "device_count", len(devices))
 	selected := 0
 
 	list := widget.NewList(
@@ -484,12 +541,17 @@ func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDe
 		dialogContent,
 		func(ok bool) {
 			if !ok {
+				settingsLogger.Debug("Bluetooth scan dialog canceled")
+
 				return
 			}
 			device, ok := bluetoothScanDeviceAt(devices, selected)
 			if !ok {
+				settingsLogger.Debug("Bluetooth scan dialog selection ignored: invalid index", "selected", selected)
+
 				return
 			}
+			settingsLogger.Info("Bluetooth device selected", "address", strings.TrimSpace(device.Address), "name", strings.TrimSpace(device.Name))
 			onSelect(device)
 		},
 		window,
@@ -499,18 +561,26 @@ func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDe
 }
 
 func openExternalURL(rawURL string) error {
+	externalURLLogger.Debug("opening external URL", "url", strings.TrimSpace(rawURL))
 	parsed, err := parseExternalURL(rawURL)
 	if err != nil {
+		externalURLLogger.Warn("invalid external URL", "url", strings.TrimSpace(rawURL), "error", err)
+
 		return err
 	}
 
 	currentApp := fyne.CurrentApp()
 	if currentApp == nil {
+		externalURLLogger.Warn("opening external URL failed: application is not initialized", "url", parsed.String())
+
 		return fmt.Errorf("application is not initialized")
 	}
 	if err := currentApp.OpenURL(parsed); err != nil {
+		externalURLLogger.Warn("opening external URL failed", "url", parsed.String(), "error", err)
+
 		return fmt.Errorf("open url: %w", err)
 	}
+	externalURLLogger.Info("opened external URL", "url", parsed.String())
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/color"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
 )
+
+var chatsLogger = slog.With("component", "ui.chats")
 
 func newChatsTab(store *domain.ChatStore, sender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
@@ -32,6 +35,11 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	if selectedKey == "" && len(chats) > 0 {
 		selectedKey = chats[0].Key
 	}
+	chatsLogger.Info(
+		"building chats tab",
+		"chat_count", len(chats),
+		"initial_selected_chat", selectedKey,
+	)
 	markChatRead(store, readIncomingUpToByKey, selectedKey)
 	unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 	messages := store.Messages(selectedKey)
@@ -82,6 +90,12 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		if id < 0 || id >= len(chats) {
 			return
 		}
+		chatsLogger.Debug(
+			"chat selected",
+			"index", id,
+			"chat_key", chats[id].Key,
+			"chat_title", chats[id].Title,
+		)
 		tooltipManager.Hide(nil)
 		selectedKey = chats[id].Key
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
@@ -198,15 +212,22 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	sendCurrent := func() {
 		text := strings.TrimSpace(entry.Text)
 		if selectedKey == "" {
+			chatsLogger.Debug("send ignored: no selected chat")
+
 			return
 		}
 		if text == "" {
+			chatsLogger.Debug("send ignored: empty message text")
+
 			return
 		}
 		if len([]byte(text)) > 200 {
+			chatsLogger.Info("send blocked: message exceeds 200 bytes", "chat_key", selectedKey, "bytes", len([]byte(text)))
+
 			return
 		}
 
+		chatsLogger.Info("sending chat message", "chat_key", selectedKey, "bytes", len([]byte(text)))
 		pendingScrollChatKey = selectedKey
 		pendingScrollMinCount = len(messages) + 1
 		sendStatusLabel.SetText("")
@@ -215,6 +236,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			res := <-sender.SendText(chatKey, body)
 			if res.Err != nil {
 				fyne.Do(func() {
+					chatsLogger.Warn("chat message send failed", "chat_key", chatKey, "bytes", len([]byte(body)), "error", res.Err)
 					if pendingScrollChatKey == chatKey {
 						pendingScrollChatKey = ""
 						pendingScrollMinCount = 0
@@ -226,6 +248,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 				return
 			}
 			fyne.Do(func() {
+				chatsLogger.Info("chat message sent", "chat_key", chatKey, "bytes", len([]byte(body)))
 				sendStatusLabel.SetText("")
 				entry.SetText("")
 				setSending(false)
@@ -253,6 +276,11 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 	split.Offset = 0.32
 
 	refreshFromStore := func() {
+		chatsLogger.Debug(
+			"refreshing chats tab from store",
+			"selected_chat", selectedKey,
+			"chat_count", len(chats),
+		)
 		tooltipManager.Hide(nil)
 		updatedChats := store.ChatListSorted()
 		chats = updatedChats
@@ -282,12 +310,18 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		if pendingScrollChatKey != "" &&
 			selectedKey == pendingScrollChatKey &&
 			len(messages) >= pendingScrollMinCount {
+			chatsLogger.Debug(
+				"auto-scrolling to latest message after send",
+				"chat_key", selectedKey,
+				"message_count", len(messages),
+			)
 			scrollMessageListToEnd(messageList, len(messages))
 			pendingScrollChatKey = ""
 			pendingScrollMinCount = 0
 		}
 	}
 
+	chatsLogger.Debug("starting chat store change listener")
 	go func() {
 		for range store.Changes() {
 			fyne.Do(func() {
@@ -296,6 +330,7 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 		}
 	}()
 	if nodeChanges != nil {
+		chatsLogger.Debug("starting node change listener for chat labels")
 		go func() {
 			for range nodeChanges {
 				fyne.Do(func() {

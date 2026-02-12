@@ -35,6 +35,7 @@ const (
 
 var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
 var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
+var updateDialogLogger = slog.With("component", "ui.update_dialog")
 
 func showUpdateDialog(
 	window fyne.Window,
@@ -43,6 +44,8 @@ func showUpdateDialog(
 	openURL func(string) error,
 ) {
 	if window == nil {
+		updateDialogLogger.Warn("skipping update dialog: window is nil")
+
 		return
 	}
 
@@ -61,6 +64,7 @@ func showUpdateDialog(
 	dialogTitle := widget.NewLabelWithStyle("Update", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	var updateDialog *widget.PopUp
 	dialogCloseButton := widget.NewButton("X", func() {
+		updateDialogLogger.Debug("closing update dialog")
 		if updateDialog == nil {
 			return
 		}
@@ -83,16 +87,28 @@ func showUpdateDialog(
 
 	downloadURL := strings.TrimSpace(snapshot.Latest.HTMLURL)
 	downloadButton := widget.NewButton("Download", func() {
+		updateDialogLogger.Info(
+			"download button clicked",
+			"url", downloadURL,
+			"latest_version", strings.TrimSpace(snapshot.Latest.Version),
+		)
 		if openURL == nil {
+			updateDialogLogger.Warn("download action skipped: openURL callback is nil")
+
 			return
 		}
 		if err := openURL(downloadURL); err != nil {
+			updateDialogLogger.Warn("download action failed", "url", downloadURL, "error", err)
 			dialog.ShowError(err, window)
+
+			return
 		}
+		updateDialogLogger.Info("download URL opened", "url", downloadURL)
 	})
 	downloadButton.Importance = widget.HighImportance
 	if downloadURL == "" {
 		downloadButton.Disable()
+		updateDialogLogger.Debug("download button disabled: release URL is empty")
 	}
 
 	content := container.NewBorder(
@@ -108,6 +124,12 @@ func showUpdateDialog(
 
 	updateDialog = widget.NewModalPopUp(content, window.Canvas())
 	updateDialog.Resize(fyne.NewSize(760, 520))
+	updateDialogLogger.Info(
+		"showing update dialog",
+		"current_version", currentVersion,
+		"latest_version", latestVersion,
+		"release_count", len(snapshot.Releases),
+	)
 	updateDialog.Show()
 }
 

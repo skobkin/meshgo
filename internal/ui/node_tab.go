@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,8 @@ import (
 )
 
 const nodeSettingsOpTimeout = 12 * time.Second
+
+var nodeSettingsTabLogger = slog.With("component", "ui.node_settings_tab")
 
 type nodeSettingsSaveGate struct {
 	mu   sync.Mutex
@@ -51,6 +54,7 @@ func (g *nodeSettingsSaveGate) ActivePage() string {
 }
 
 func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
+	nodeSettingsTabLogger.Info("building node settings tab")
 	saveGate := &nodeSettingsSaveGate{}
 
 	radioTabs := container.NewAppTabs(
@@ -101,6 +105,7 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 
 func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) fyne.CanvasObject {
 	const pageID = "device.user"
+	nodeSettingsTabLogger.Debug("building node user settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
 
 	status := widget.NewLabel("Loading local node user settings…")
 	status.Wrapping = fyne.TextWrapWord
@@ -223,6 +228,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	refreshFromLocalStore := func() {
 		target, ok := localTarget()
 		if !ok {
+			nodeSettingsTabLogger.Debug("local node settings are unavailable: local node ID is unknown")
 			status.SetText("Local node ID is not available yet.")
 
 			return
@@ -249,6 +255,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		mu.Unlock()
 		if shouldApply {
 			applyForm(next)
+			nodeSettingsTabLogger.Debug("loaded node user settings from local store", "node_id", next.NodeID)
 			status.SetText("Loaded local node user settings.")
 		}
 		updateConnectionLabel()
@@ -272,6 +279,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	unmessageableBox.OnChanged = func(_ bool) { markDirty() }
 
 	cancelButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node user settings edit canceled", "page_id", pageID)
 		var settings app.NodeUserSettings
 		mu.Lock()
 		settings = baseline
@@ -284,12 +292,15 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	}
 
 	saveButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node user settings save requested", "page_id", pageID)
 		if dep.Actions.NodeSettings == nil {
+			nodeSettingsTabLogger.Warn("node user settings save unavailable: service is not configured")
 			status.SetText("Save is unavailable: node settings service is not configured.")
 
 			return
 		}
 		if !isConnected() {
+			nodeSettingsTabLogger.Info("node user settings save blocked: device is disconnected", "page_id", pageID)
 			status.SetText("Save is unavailable while disconnected.")
 			updateButtons()
 
@@ -297,11 +308,13 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		}
 		target, ok := localTarget()
 		if !ok {
+			nodeSettingsTabLogger.Warn("node user settings save failed: local node ID is unknown", "page_id", pageID)
 			status.SetText("Save failed: local node ID is not known yet.")
 
 			return
 		}
 		if saveGate != nil && !saveGate.TryAcquire(pageID) {
+			nodeSettingsTabLogger.Info("node user settings save blocked: another page save is active", "page_id", pageID, "active_page", saveGate.ActivePage())
 			status.SetText("Another settings save is in progress on a different page.")
 			updateButtons()
 
@@ -313,6 +326,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		current = currentFromForm()
 		next := current
 		mu.Unlock()
+		nodeSettingsTabLogger.Info("saving node user settings", "page_id", pageID, "node_id", target.NodeID)
 		status.SetText("Saving user settings…")
 		updateButtons()
 
@@ -327,8 +341,10 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 					saveGate.Release(pageID)
 				}
 				if err != nil {
+					nodeSettingsTabLogger.Warn("saving node user settings failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
 					status.SetText("Save failed: " + err.Error())
 				} else {
+					nodeSettingsTabLogger.Info("saved node user settings", "page_id", pageID, "node_id", target.NodeID)
 					baseline = settings
 					current = settings
 					dirty = false
@@ -342,23 +358,28 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	}
 
 	reloadButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node user settings reload requested", "page_id", pageID)
 		target, ok := localTarget()
 		if !ok {
+			nodeSettingsTabLogger.Warn("node user settings reload failed: local node ID is unknown", "page_id", pageID)
 			status.SetText("Reload failed: local node ID is not known yet.")
 
 			return
 		}
 		if dep.Actions.NodeSettings == nil {
+			nodeSettingsTabLogger.Info("node settings service is unavailable: reloading from local store", "page_id", pageID, "node_id", target.NodeID)
 			refreshFromLocalStore()
 
 			return
 		}
 		if !isConnected() {
+			nodeSettingsTabLogger.Info("node user settings reload blocked: device is disconnected", "page_id", pageID, "node_id", target.NodeID)
 			status.SetText("Reload from device is unavailable while disconnected.")
 
 			return
 		}
 
+		nodeSettingsTabLogger.Info("reloading node user settings from device", "page_id", pageID, "node_id", target.NodeID)
 		status.SetText("Reloading user settings from device…")
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
@@ -366,6 +387,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 			loaded, err := dep.Actions.NodeSettings.LoadUserSettings(ctx, target)
 			fyne.Do(func() {
 				if err != nil {
+					nodeSettingsTabLogger.Warn("reloading node user settings from device failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
 					status.SetText("Reload failed: " + err.Error())
 					updateButtons()
 
@@ -379,6 +401,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 				settings = current
 				mu.Unlock()
 				applyForm(settings)
+				nodeSettingsTabLogger.Info("reloaded node user settings from device", "page_id", pageID, "node_id", target.NodeID)
 				status.SetText("Reloaded user settings from device.")
 				updateButtons()
 			})
@@ -388,6 +411,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	refreshFromLocalStore()
 
 	if dep.Data.NodeStore != nil {
+		nodeSettingsTabLogger.Debug("starting node settings page listener for local node store changes", "page_id", pageID)
 		go func() {
 			for range dep.Data.NodeStore.Changes() {
 				fyne.Do(func() {
@@ -397,10 +421,12 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		}()
 	}
 	if dep.Data.Bus != nil {
+		nodeSettingsTabLogger.Debug("starting node settings page listener for connection status updates", "page_id", pageID)
 		connSub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
 		go func() {
 			for range connSub {
 				fyne.Do(func() {
+					nodeSettingsTabLogger.Debug("received connection status update for node settings page", "page_id", pageID)
 					updateConnectionLabel()
 					updateButtons()
 				})
