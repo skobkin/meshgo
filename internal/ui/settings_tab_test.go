@@ -213,6 +213,75 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 	}
 }
 
+func TestSettingsTabClearCacheSuccess(t *testing.T) {
+	cfg := config.Default()
+
+	calls := 0
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnClearCache: func() error {
+				calls++
+
+				return nil
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
+	fynetest.Tap(clearCacheButton)
+
+	if calls != 1 {
+		t.Fatalf("expected clear cache action to be called once, got %d", calls)
+	}
+
+	statusLabel := mustFindLabelByPrefix(t, tab, "Cache cleared")
+	if got := strings.TrimSpace(statusLabel.Text); got != "Cache cleared" {
+		t.Fatalf("unexpected status text: %q", got)
+	}
+}
+
+func TestSettingsTabClearCacheFailure(t *testing.T) {
+	cfg := config.Default()
+
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnClearCache: func() error {
+				return errors.New("boom")
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
+	fynetest.Tap(clearCacheButton)
+
+	statusLabel := mustFindLabelByPrefix(t, tab, "Cache clear failed:")
+	if got := strings.TrimSpace(statusLabel.Text); got != "Cache clear failed: boom" {
+		t.Fatalf("unexpected status text: %q", got)
+	}
+}
+
+func TestSettingsTabClearCacheDisabledWhenUnavailable(t *testing.T) {
+	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
+	if !clearCacheButton.Disabled() {
+		t.Fatalf("expected clear cache button to be disabled when action is unavailable")
+	}
+}
+
 func TestNewSafeHyperlinkInvalidURLUsesFallbackButton(t *testing.T) {
 	status := widget.NewLabel("")
 	link := newSafeHyperlink("Source", "://not-a-url", status)

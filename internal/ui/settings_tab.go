@@ -435,6 +435,27 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		clearDBButton.Disable()
 	}
 
+	clearCacheButton := widget.NewButton("Clear cache", func() {
+		settingsLogger.Info("clear cache requested from settings UI")
+		if dep.Actions.OnClearCache == nil {
+			settingsLogger.Warn("clear cache unavailable: action is not configured")
+			status.SetText("Cache clear is not available")
+
+			return
+		}
+		if err := dep.Actions.OnClearCache(); err != nil {
+			settingsLogger.Warn("cache clear failed", "error", err)
+			status.SetText("Cache clear failed: " + err.Error())
+
+			return
+		}
+		settingsLogger.Info("cache cleared from settings UI")
+		status.SetText("Cache cleared")
+	})
+	if dep.Actions.OnClearCache == nil {
+		clearCacheButton.Disable()
+	}
+
 	loggingForm := widget.NewForm(
 		widget.NewFormItem("Log Level", levelSelect),
 		widget.NewFormItem("Log to file", logToFile),
@@ -450,8 +471,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	))
 	startupBlock := widget.NewCard("Startup", "", startupForm)
 	loggingBlock := widget.NewCard("Logging", "", loggingForm)
-	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewVBox(
+	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewGridWithColumns(2,
 		clearDBButton,
+		clearCacheButton,
 	))
 
 	logo := newLinkImage(resources.LogoTextResource(), fyne.NewSize(220, 80), func() {

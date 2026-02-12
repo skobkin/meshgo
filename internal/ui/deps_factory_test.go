@@ -81,6 +81,9 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	if dep.Actions.OnClearDB == nil {
 		t.Fatalf("expected clear db action to be mapped")
 	}
+	if dep.Actions.OnClearCache == nil {
+		t.Fatalf("expected clear cache action to be mapped")
+	}
 	if dep.Platform.BluetoothScanner == nil {
 		t.Fatalf("expected bluetooth scanner to be initialized")
 	}
@@ -117,6 +120,9 @@ func TestBuildRuntimeDependencies_NilRuntimeStillMapsLaunchAndQuit(t *testing.T)
 	}
 	if dep.Actions.OnMapViewportChanged != nil {
 		t.Fatalf("expected map viewport action to stay nil for nil runtime")
+	}
+	if dep.Actions.OnClearCache != nil {
+		t.Fatalf("expected clear cache action to stay nil for nil runtime")
 	}
 	if dep.Data.CurrentConnStatus != nil {
 		t.Fatalf("expected status provider to stay nil for nil runtime")

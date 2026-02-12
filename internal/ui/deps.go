@@ -39,6 +39,7 @@ type ActionDependencies struct {
 	OnChatSelected       func(chatKey string)
 	OnMapViewportChanged func(zoom, x, y int)
 	OnClearDB            func() error
+	OnClearCache         func() error
 	OnQuit               func()
 	NodeSettings         interface {
 		LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)

@@ -42,6 +42,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	dep.Actions.OnChatSelected = rt.RememberSelectedChat
 	dep.Actions.OnMapViewportChanged = rt.RememberMapViewport
 	dep.Actions.OnClearDB = rt.ClearDatabase
+	dep.Actions.OnClearCache = rt.ClearCache
 
 	if rt.Connectivity.Radio != nil {
 		dep.Actions.Sender = rt.Connectivity.Radio

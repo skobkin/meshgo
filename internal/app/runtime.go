@@ -3,8 +3,11 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -355,6 +358,94 @@ func (r *Runtime) ClearDatabase() error {
 	slog.Info("database cleared")
 
 	return nil
+}
+
+func (r *Runtime) ClearCache() error {
+	cacheDir := r.Core.Paths.CacheDir
+	if cacheDir == "" {
+		return fmt.Errorf("cache dir is not configured")
+	}
+	if err := validateCacheClearTarget(cacheDir); err != nil {
+		return err
+	}
+
+	mapTilesDir := r.Core.Paths.MapTilesDir
+	if mapTilesDir != "" && !isPathWithinDir(cacheDir, mapTilesDir) {
+		return fmt.Errorf("map tiles cache dir %q is outside cache dir %q", mapTilesDir, cacheDir)
+	}
+	slog.Info("cache clear requested", "cache_dir", cacheDir)
+
+	if err := clearDirectoryContents(cacheDir); err != nil {
+		return fmt.Errorf("clear app cache dir %q contents: %w", cacheDir, err)
+	}
+	if err := os.MkdirAll(cacheDir, 0o750); err != nil {
+		return fmt.Errorf("recreate app cache dir %q: %w", cacheDir, err)
+	}
+	if mapTilesDir != "" {
+		if err := os.MkdirAll(mapTilesDir, 0o750); err != nil {
+			return fmt.Errorf("recreate map tiles cache dir %q: %w", mapTilesDir, err)
+		}
+	}
+
+	slog.Info("cache cleared", "cache_dir", cacheDir)
+
+	return nil
+}
+
+func validateCacheClearTarget(target string) error {
+	if !filepath.IsAbs(target) {
+		return fmt.Errorf("cache dir %q must be absolute", target)
+	}
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("resolve user cache dir: %w", err)
+	}
+	expected := filepath.Join(cacheRoot, Name)
+	cleanTarget := filepath.Clean(target)
+	cleanExpected := filepath.Clean(expected)
+	if cleanTarget != cleanExpected {
+		return fmt.Errorf("cache dir %q is outside app cache dir %q", target, cleanExpected)
+	}
+
+	info, err := os.Lstat(cleanTarget)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("cache dir %q must not be a symlink", cleanTarget)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("inspect cache dir %q: %w", cleanTarget, err)
+	}
+
+	return nil
+}
+
+func clearDirectoryContents(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func isPathWithinDir(root, path string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func (r *Runtime) Close() error {
