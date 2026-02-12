@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg" // register JPEG decoder for image metadata probing
 	_ "image/png"  // register PNG decoder for image metadata probing
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ const (
 )
 
 var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
+var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 
 func showUpdateDialog(
 	window fyne.Window,
@@ -140,9 +142,36 @@ func buildUpdateChangelogText(releases []meshapp.ReleaseInfo) string {
 
 func newLazyMarkdownRichText(markdown string) *widget.RichText {
 	text := widget.NewRichTextFromMarkdown(markdown)
+	imageCount := countMarkdownImageSegments(text.Segments)
+	lazyMarkdownLogger.Info(
+		"prepared lazy markdown",
+		"chars", len(markdown),
+		"image_segments", imageCount,
+	)
+	lazyMarkdownLogger.Debug(
+		"rewriting markdown image segments",
+		"segment_count", len(text.Segments),
+		"image_segments", imageCount,
+	)
 	text.Segments = rewriteMarkdownImageSegments(text.Segments)
 
 	return text
+}
+
+func countMarkdownImageSegments(segments []widget.RichTextSegment) int {
+	count := 0
+	for _, segment := range segments {
+		switch current := segment.(type) {
+		case *widget.ImageSegment:
+			count++
+		case *widget.ListSegment:
+			count += countMarkdownImageSegments(current.Items)
+		case *widget.ParagraphSegment:
+			count += countMarkdownImageSegments(current.Texts)
+		}
+	}
+
+	return count
 }
 
 func rewriteMarkdownImageSegments(segments []widget.RichTextSegment) []widget.RichTextSegment {
@@ -188,6 +217,11 @@ func (s *lazyMarkdownImageSegment) Textual() string {
 func (s *lazyMarkdownImageSegment) Update(fyne.CanvasObject) {}
 
 func (s *lazyMarkdownImageSegment) Visual() fyne.CanvasObject {
+	lazyMarkdownLogger.Debug(
+		"creating lazy markdown image placeholder",
+		"source", markdownImageSource(s.Source),
+		"title", strings.TrimSpace(s.Title),
+	)
 	loading := newMarkdownImagePlaceholder("Loading image...")
 	root, contentIndex := alignObject(s.Alignment, loading)
 	s.loadImageAsync(root, contentIndex)
@@ -206,13 +240,31 @@ func (s *lazyMarkdownImageSegment) Unselect() {}
 func (s *lazyMarkdownImageSegment) loadImageAsync(root *fyne.Container, contentIndex int) {
 	source := s.Source
 	title := strings.TrimSpace(s.Title)
+	lazyMarkdownLogger.Debug(
+		"starting async markdown image load",
+		"source", markdownImageSource(source),
+		"title", title,
+	)
 	go func() {
 		object, err := loadMarkdownImageObject(source)
 		fyne.Do(func() {
 			if contentIndex >= len(root.Objects) {
+				lazyMarkdownLogger.Debug(
+					"skipping markdown image update: stale content index",
+					"source", markdownImageSource(source),
+					"content_index", contentIndex,
+					"object_count", len(root.Objects),
+				)
+
 				return
 			}
 			if err != nil {
+				lazyMarkdownLogger.Info(
+					"markdown image load failed",
+					"source", markdownImageSource(source),
+					"title", title,
+					"error", err,
+				)
 				text := "Image unavailable"
 				if title != "" {
 					text += ": " + title
@@ -222,6 +274,11 @@ func (s *lazyMarkdownImageSegment) loadImageAsync(root *fyne.Container, contentI
 
 				return
 			}
+			lazyMarkdownLogger.Info(
+				"markdown image loaded",
+				"source", markdownImageSource(source),
+				"title", title,
+			)
 			root.Objects[contentIndex] = object
 			root.Refresh()
 		})
@@ -276,6 +333,7 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 	}
 	scheme := strings.ToLower(strings.TrimSpace(source.Scheme()))
 	if scheme == "http" || scheme == "https" {
+		lazyMarkdownLogger.Debug("loading remote markdown image", "source", markdownImageSource(source))
 		request, err := http.NewRequest(http.MethodGet, source.String(), nil)
 		if err != nil {
 			return nil, fmt.Errorf("create image request: %w", err)
@@ -291,9 +349,16 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 			return nil, fmt.Errorf("request image: unexpected status %d", response.StatusCode)
 		}
 
-		return readLimitedBytes(response.Body)
+		content, err := readLimitedBytes(response.Body)
+		if err != nil {
+			return nil, err
+		}
+		lazyMarkdownLogger.Debug("downloaded remote markdown image", "source", markdownImageSource(source), "bytes", len(content))
+
+		return content, nil
 	}
 
+	lazyMarkdownLogger.Debug("loading local markdown image", "source", markdownImageSource(source))
 	reader, err := storage.Reader(source)
 	if err != nil {
 		return nil, fmt.Errorf("open image: %w", err)
@@ -302,7 +367,13 @@ func readMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 		_ = reader.Close()
 	}()
 
-	return readLimitedBytes(reader)
+	content, err := readLimitedBytes(reader)
+	if err != nil {
+		return nil, err
+	}
+	lazyMarkdownLogger.Debug("loaded local markdown image", "source", markdownImageSource(source), "bytes", len(content))
+
+	return content, nil
 }
 
 func readLimitedBytes(reader io.Reader) ([]byte, error) {
@@ -353,4 +424,12 @@ func markdownImageDisplaySize(content []byte) fyne.Size {
 	}
 
 	return fyne.NewSize(width, height)
+}
+
+func markdownImageSource(source fyne.URI) string {
+	if source == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(source.String())
 }
