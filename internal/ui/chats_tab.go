@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -291,22 +292,37 @@ func newChatsTab(store *domain.ChatStore, sender interface {
 			"selected_chat", selectedKey,
 			"chat_count", len(chats),
 		)
-		tooltipManager.Hide(nil)
 		updatedChats := store.ChatListSorted()
+		nextSelectedKey := selectedKey
+		if nextSelectedKey == "" && len(updatedChats) > 0 {
+			nextSelectedKey = updatedChats[0].Key
+		}
+		if nextSelectedKey != "" && !hasChat(updatedChats, nextSelectedKey) {
+			nextSelectedKey = ""
+			if len(updatedChats) > 0 {
+				nextSelectedKey = updatedChats[0].Key
+			}
+		}
+		updatedMessages := store.Messages(nextSelectedKey)
+		if slices.Equal(chats, updatedChats) &&
+			nextSelectedKey == selectedKey &&
+			slices.Equal(messages, updatedMessages) {
+			chatsLogger.Debug(
+				"skipping chat refresh: store snapshot unchanged",
+				"selected_chat", selectedKey,
+				"chat_count", len(chats),
+			)
+
+			return
+		}
+
+		tooltipManager.Hide(nil)
 		chats = updatedChats
 		pruneReadIncomingByChat(readIncomingUpToByKey, chats)
 		previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
-		if selectedKey == "" && len(chats) > 0 {
-			selectedKey = chats[0].Key
-		}
-		if selectedKey != "" && !hasChat(chats, selectedKey) {
-			selectedKey = ""
-			if len(chats) > 0 {
-				selectedKey = chats[0].Key
-			}
-		}
+		selectedKey = nextSelectedKey
 		selectedIndex := chatIndexByKey(chats, selectedKey)
-		messages = store.Messages(selectedKey)
+		messages = updatedMessages
 		clear(messageItemHeightByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
