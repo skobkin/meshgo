@@ -41,3 +41,9 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 ![app settings](docs/screenshot_app_settings.png)
 
 </details>
+<details>
+<summary>Update dialog</summary>
+
+![update dialog](docs/screenshot_update_dialog.png)
+
+</details>
