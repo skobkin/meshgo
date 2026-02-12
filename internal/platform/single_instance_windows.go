@@ -64,12 +64,7 @@ func windowsCurrentUserSID() (string, error) {
 		return "", fmt.Errorf("read current user token: %w", err)
 	}
 
-	sid, err := tokenUser.User.Sid.String()
-	if err != nil {
-		return "", fmt.Errorf("convert current user sid: %w", err)
-	}
-
-	return sid, nil
+	return tokenUser.User.Sid.String(), nil
 }
 
 func windowsInstanceMutexName(appID, userSID string) string {
