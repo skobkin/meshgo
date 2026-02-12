@@ -39,6 +39,51 @@ func TestAppConfigApplyDefaultsNormalizesAutostartMode(t *testing.T) {
 	}
 }
 
+func TestAppConfigApplyDefaultsNormalizesMapViewport(t *testing.T) {
+	cfg := AppConfig{
+		UI: UIConfig{
+			MapViewport: MapViewportConfig{
+				Set:  true,
+				Zoom: 55,
+				X:    10,
+				Y:    -4,
+			},
+		},
+	}
+
+	cfg.ApplyDefaults()
+	if !cfg.UI.MapViewport.Set {
+		t.Fatalf("expected map viewport to stay set")
+	}
+	if cfg.UI.MapViewport.Zoom != 19 {
+		t.Fatalf("expected zoom to clamp to 19, got %d", cfg.UI.MapViewport.Zoom)
+	}
+	if cfg.UI.MapViewport.X != 10 || cfg.UI.MapViewport.Y != -4 {
+		t.Fatalf("expected pan offsets to remain unchanged")
+	}
+}
+
+func TestAppConfigApplyDefaultsClearsUnsetMapViewport(t *testing.T) {
+	cfg := AppConfig{
+		UI: UIConfig{
+			MapViewport: MapViewportConfig{
+				Set:  false,
+				Zoom: 9,
+				X:    1,
+				Y:    2,
+			},
+		},
+	}
+
+	cfg.ApplyDefaults()
+	if cfg.UI.MapViewport.Set {
+		t.Fatalf("expected map viewport to remain unset")
+	}
+	if cfg.UI.MapViewport.Zoom != 0 || cfg.UI.MapViewport.X != 0 || cfg.UI.MapViewport.Y != 0 {
+		t.Fatalf("expected unset viewport to normalize to zero values, got %+v", cfg.UI.MapViewport)
+	}
+}
+
 func TestAppConfigValidate(t *testing.T) {
 	tests := []struct {
 		name    string

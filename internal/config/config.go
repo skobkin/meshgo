@@ -43,14 +43,23 @@ type ConnectionConfig struct {
 
 // UIConfig stores persistent UI preferences.
 type UIConfig struct {
-	LastSelectedChat string          `json:"last_selected_chat"`
-	Autostart        AutostartConfig `json:"autostart"`
+	LastSelectedChat string            `json:"last_selected_chat"`
+	Autostart        AutostartConfig   `json:"autostart"`
+	MapViewport      MapViewportConfig `json:"map_viewport"`
 }
 
 // AutostartConfig stores autostart preferences saved in user config.
 type AutostartConfig struct {
 	Enabled bool          `json:"enabled"`
 	Mode    AutostartMode `json:"mode"`
+}
+
+// MapViewportConfig stores the latest map tab viewport selected by user.
+type MapViewportConfig struct {
+	Set  bool `json:"set"`
+	Zoom int  `json:"zoom"`
+	X    int  `json:"x"`
+	Y    int  `json:"y"`
 }
 
 // AppConfig is the root persisted application configuration.
@@ -80,6 +89,7 @@ func Default() AppConfig {
 				Enabled: false,
 				Mode:    AutostartModeNormal,
 			},
+			MapViewport: MapViewportConfig{},
 		},
 	}
 }
@@ -117,6 +127,7 @@ func (c *AppConfig) ApplyDefaults() {
 		c.Logging.Level = "info"
 	}
 	c.UI.Autostart.Mode = normalizeAutostartMode(c.UI.Autostart.Mode)
+	c.UI.MapViewport = normalizeMapViewport(c.UI.MapViewport)
 }
 
 func normalizeAutostartMode(mode AutostartMode) AutostartMode {
@@ -126,6 +137,20 @@ func normalizeAutostartMode(mode AutostartMode) AutostartMode {
 	default:
 		return AutostartModeNormal
 	}
+}
+
+func normalizeMapViewport(viewport MapViewportConfig) MapViewportConfig {
+	if !viewport.Set {
+		return MapViewportConfig{}
+	}
+	if viewport.Zoom < 0 {
+		viewport.Zoom = 0
+	}
+	if viewport.Zoom > 19 {
+		viewport.Zoom = 19
+	}
+
+	return viewport
 }
 
 func (c AppConfig) Validate() error {

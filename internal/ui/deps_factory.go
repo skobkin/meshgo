@@ -23,6 +23,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 
 	dep.Data = DataDependencies{
 		Config:            rt.Core.Config,
+		Paths:             rt.Core.Paths,
 		ChatStore:         rt.Domain.ChatStore,
 		NodeStore:         rt.Domain.NodeStore,
 		Bus:               rt.Domain.Bus,
@@ -37,6 +38,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 
 	dep.Actions.OnSave = rt.SaveAndApplyConfig
 	dep.Actions.OnChatSelected = rt.RememberSelectedChat
+	dep.Actions.OnMapViewportChanged = rt.RememberMapViewport
 	dep.Actions.OnClearDB = rt.ClearDatabase
 
 	if rt.Connectivity.Radio != nil {

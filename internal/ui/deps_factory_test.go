@@ -16,6 +16,14 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	rt := &meshapp.Runtime{
 		Core: meshapp.RuntimeCore{
 			Config: cfg,
+			Paths: meshapp.Paths{
+				RootDir:     "/tmp/meshgo",
+				ConfigFile:  "/tmp/meshgo/config.json",
+				DBFile:      "/tmp/meshgo/app.db",
+				LogFile:     "/tmp/meshgo/app.log",
+				CacheDir:    "/tmp/meshgo-cache",
+				MapTilesDir: "/tmp/meshgo-cache/tiles",
+			},
 		},
 		Domain: meshapp.RuntimeDomain{
 			ChatStore: domain.NewChatStore(),
@@ -36,6 +44,9 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	}
 	if dep.Data.ChatStore != rt.Domain.ChatStore {
 		t.Fatalf("expected chat store to be mapped")
+	}
+	if dep.Data.Paths.MapTilesDir != "/tmp/meshgo-cache/tiles" {
+		t.Fatalf("expected paths to be mapped")
 	}
 	if dep.Data.NodeStore != rt.Domain.NodeStore {
 		t.Fatalf("expected node store to be mapped")
@@ -60,6 +71,9 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	}
 	if dep.Actions.OnChatSelected == nil {
 		t.Fatalf("expected chat selected action to be mapped")
+	}
+	if dep.Actions.OnMapViewportChanged == nil {
+		t.Fatalf("expected map viewport action to be mapped")
 	}
 	if dep.Actions.OnClearDB == nil {
 		t.Fatalf("expected clear db action to be mapped")
@@ -97,6 +111,9 @@ func TestBuildRuntimeDependencies_NilRuntimeStillMapsLaunchAndQuit(t *testing.T)
 	}
 	if dep.Actions.Sender != nil {
 		t.Fatalf("expected sender to stay nil for nil runtime")
+	}
+	if dep.Actions.OnMapViewportChanged != nil {
+		t.Fatalf("expected map viewport action to stay nil for nil runtime")
 	}
 	if dep.Data.CurrentConnStatus != nil {
 		t.Fatalf("expected status provider to stay nil for nil runtime")

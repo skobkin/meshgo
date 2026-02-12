@@ -21,6 +21,7 @@ type MessageSender interface {
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
 	Config            config.AppConfig
+	Paths             app.Paths
 	ChatStore         *domain.ChatStore
 	NodeStore         *domain.NodeStore
 	Bus               bus.MessageBus
@@ -31,12 +32,13 @@ type DataDependencies struct {
 
 // ActionDependencies contains user-triggered operations invoked from UI.
 type ActionDependencies struct {
-	Sender         MessageSender
-	OnSave         func(cfg config.AppConfig) error
-	OnChatSelected func(chatKey string)
-	OnClearDB      func() error
-	OnQuit         func()
-	NodeSettings   interface {
+	Sender               MessageSender
+	OnSave               func(cfg config.AppConfig) error
+	OnChatSelected       func(chatKey string)
+	OnMapViewportChanged func(zoom, x, y int)
+	OnClearDB            func() error
+	OnQuit               func()
+	NodeSettings         interface {
 		LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)
 		SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
 	}

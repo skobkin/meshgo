@@ -4,8 +4,11 @@ go 1.25.0
 
 require (
 	fyne.io/fyne/v2 v2.7.2
+	fyne.io/x/fyne v0.0.0-20260128204654-7fd4ce591d29
 	github.com/cskr/pubsub v1.0.2
+	github.com/godbus/dbus/v5 v5.1.0
 	go.bug.st/serial v1.6.4
+	golang.org/x/sys v0.41.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.45.0
 	tinygo.org/x/bluetooth v0.14.0
@@ -28,13 +31,11 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-text/render v0.2.0 // indirect
 	github.com/go-text/typesetting v0.2.1 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hack-pad/go-indexeddb v0.3.2 // indirect
 	github.com/hack-pad/safejs v0.1.0 // indirect
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade // indirect
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
@@ -55,7 +56,6 @@ require (
 	golang.org/x/exp v0.0.0-20260209203927-2842357ff358 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.67.7 // indirect

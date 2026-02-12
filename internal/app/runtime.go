@@ -211,6 +211,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 
 	r.mu.Lock()
 	cfg.UI.LastSelectedChat = r.Core.Config.UI.LastSelectedChat
+	cfg.UI.MapViewport = r.Core.Config.UI.MapViewport
 	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 
@@ -251,6 +252,39 @@ func (r *Runtime) RememberSelectedChat(chatKey string) {
 	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
 		r.mu.Unlock()
 		slog.Warn("save selected chat", "error", err)
+
+		return
+	}
+	r.Core.Config = cfg
+	r.mu.Unlock()
+}
+
+func (r *Runtime) RememberMapViewport(zoom, x, y int) {
+	if zoom < 0 {
+		zoom = 0
+	}
+	if zoom > 19 {
+		zoom = 19
+	}
+
+	r.mu.Lock()
+	current := r.Core.Config.UI.MapViewport
+	if current.Set && current.Zoom == zoom && current.X == x && current.Y == y {
+		r.mu.Unlock()
+
+		return
+	}
+
+	cfg := r.Core.Config
+	cfg.UI.MapViewport = config.MapViewportConfig{
+		Set:  true,
+		Zoom: zoom,
+		X:    x,
+		Y:    y,
+	}
+	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
+		r.mu.Unlock()
+		slog.Warn("save map viewport", "error", err, "zoom", zoom, "x", x, "y", y)
 
 		return
 	}

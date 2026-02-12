@@ -138,6 +138,117 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryPowerPacket(t *testing.T) {
 	assertFloatPtr(t, node.Voltage, 12.34, "voltage")
 }
 
+func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	positionPayload, err := proto.Marshal(&generated.Position{
+		LatitudeI:  proto.Int32(37_774_9000),
+		LongitudeI: proto.Int32(-122_419_4000),
+	})
+	if err != nil {
+		t.Fatalf("marshal position: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From:   0x1234abcd,
+				RxTime: 1_735_123_456,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_POSITION_APP,
+						Payload: positionPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode position packet: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
+	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
+}
+
+func TestMeshtasticCodec_DecodeFromRadioPositionPacketInvalidCoordinatesIgnored(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	positionPayload, err := proto.Marshal(&generated.Position{
+		LatitudeI:  proto.Int32(910_000_000),
+		LongitudeI: proto.Int32(0),
+	})
+	if err != nil {
+		t.Fatalf("marshal position: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From: 0x1234abcd,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_POSITION_APP,
+						Payload: positionPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode position packet: %v", err)
+	}
+	if frame.NodeUpdate != nil {
+		t.Fatalf("expected no node update for invalid coordinates")
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_NodeInfo{
+			NodeInfo: &generated.NodeInfo{
+				Num:       0x1234abcd,
+				LastHeard: 1_735_123_456,
+				User: &generated.User{
+					LongName:  "Alpha",
+					ShortName: "ALPH",
+				},
+				Position: &generated.Position{
+					LatitudeI:  proto.Int32(37_774_9000),
+					LongitudeI: proto.Int32(-122_419_4000),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode node info frame: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
+	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
+}
+
 func assertFloatPtr(t *testing.T, got *float64, want float64, field string) {
 	t.Helper()
 	if got == nil {

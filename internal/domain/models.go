@@ -84,6 +84,8 @@ type Node struct {
 	NodeID          string
 	LongName        string
 	ShortName       string
+	Latitude        *float64
+	Longitude       *float64
 	BatteryLevel    *uint32
 	Voltage         *float64
 	Temperature     *float64

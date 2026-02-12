@@ -18,6 +18,7 @@ import (
 )
 
 const broadcastNodeNum = ^uint32(0)
+const meshtasticPositionScale = 1e-7
 
 // MeshtasticCodec implements Codec for Meshtastic protobuf frames.
 type MeshtasticCodec struct {
@@ -229,6 +230,10 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		if nodeUpdate, ok := decodeNodeTelemetryFromPacket(packet, decoded.GetPayload(), now); ok {
 			out.NodeUpdate = &nodeUpdate
 		}
+	case generated.PortNum_POSITION_APP:
+		if nodeUpdate, ok := decodeNodePositionFromPacket(packet, decoded.GetPayload(), now); ok {
+			out.NodeUpdate = &nodeUpdate
+		}
 	case generated.PortNum_ADMIN_APP:
 		var admin generated.AdminMessage
 		if err := proto.Unmarshal(decoded.GetPayload(), &admin); err != nil {
@@ -312,6 +317,7 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 		v := user.GetIsUnmessagable()
 		node.IsUnmessageable = &v
 	}
+	applyPositionCoordinates(&node, nodeInfo.GetPosition())
 	applyDeviceMetrics(&node, nodeInfo.GetDeviceMetrics())
 
 	if snr := nodeInfo.GetSnr(); snr != 0 {
@@ -462,6 +468,60 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 	}
 
 	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+}
+
+func decodeNodePositionFromPacket(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
+	if packet.GetFrom() == 0 {
+		return domain.NodeUpdate{}, false
+	}
+
+	var position generated.Position
+	if err := proto.Unmarshal(payload, &position); err != nil {
+		return domain.NodeUpdate{}, false
+	}
+	node := domain.Node{
+		NodeID:      formatNodeNum(packet.GetFrom()),
+		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
+		UpdatedAt:   now,
+	}
+	if !applyPositionCoordinates(&node, &position) {
+		return domain.NodeUpdate{}, false
+	}
+	if rssi := packet.GetRxRssi(); rssi != 0 {
+		rssiVal := int(rssi)
+		node.RSSI = &rssiVal
+	}
+	if snr := packet.GetRxSnr(); snr != 0 {
+		snrVal := float64(snr)
+		node.SNR = &snrVal
+	}
+
+	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+}
+
+func isValidNodeCoordinate(lat, lon float64) bool {
+	if math.IsNaN(lat) || math.IsNaN(lon) || math.IsInf(lat, 0) || math.IsInf(lon, 0) {
+		return false
+	}
+
+	return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+}
+
+func applyPositionCoordinates(node *domain.Node, position *generated.Position) bool {
+	if node == nil || position == nil || position.LatitudeI == nil || position.LongitudeI == nil {
+		return false
+	}
+
+	lat := float64(position.GetLatitudeI()) * meshtasticPositionScale
+	lon := float64(position.GetLongitudeI()) * meshtasticPositionScale
+	if !isValidNodeCoordinate(lat, lon) {
+		return false
+	}
+
+	node.Latitude = &lat
+	node.Longitude = &lon
+
+	return true
 }
 
 func applyDeviceMetrics(node *domain.Node, dm *generated.DeviceMetrics) {

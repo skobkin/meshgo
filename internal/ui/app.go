@@ -45,7 +45,7 @@ func Run(dep RuntimeDependencies) error {
 		dep.Actions.OnChatSelected,
 	)
 	nodesTab := newNodesTab(dep.Data.NodeStore, DefaultNodeRowRenderer())
-	mapTab := disabledTab("Map is not implemented yet")
+	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, dep.Actions.OnMapViewportChanged)
 	nodeSettingsTab := newNodeTab(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
@@ -74,9 +74,7 @@ func Run(dep RuntimeDependencies) error {
 	tabContent[active].Show()
 
 	navButtons := make(map[string]*iconNavButton, len(order))
-	disabledTabs := map[string]bool{
-		"Map": true,
-	}
+	disabledTabs := map[string]bool{}
 
 	updateNavSelection := func() {
 		for name, button := range navButtons {
@@ -285,10 +283,6 @@ func startUIEventListeners(
 			messageBus.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
 		})
 	}
-}
-
-func disabledTab(text string) fyne.CanvasObject {
-	return container.NewCenter(widget.NewLabel(text))
 }
 
 func initialConnStatus(dep RuntimeDependencies) connectors.ConnectionStatus {

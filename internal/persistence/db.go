@@ -9,7 +9,7 @@ import (
 	_ "modernc.org/sqlite" // register sqlite driver
 )
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
@@ -68,6 +68,8 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				node_id TEXT PRIMARY KEY,
 				long_name TEXT,
 				short_name TEXT,
+				latitude REAL NULL,
+				longitude REAL NULL,
 				battery_level INTEGER NULL,
 				voltage REAL NULL,
 				temperature REAL NULL,
@@ -105,7 +107,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS messages_chat_at_idx ON messages(chat_key, at ASC);`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS messages_chat_device_unique_idx ON messages(chat_key, device_message_id) WHERE device_message_id IS NOT NULL;`,
-			`PRAGMA user_version = 4;`,
+			`PRAGMA user_version = 5;`,
 		}
 
 		for _, stmt := range stmts {
@@ -161,6 +163,20 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 4
+		}
+		if version < 5 {
+			slog.Info("applying db migration", "from", version, "to", 5)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN latitude REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN longitude REAL NULL;`,
+				`PRAGMA user_version = 5;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 5
 		}
 	}
 
