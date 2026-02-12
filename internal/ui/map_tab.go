@@ -1,10 +1,17 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"image/color"
+	"io"
 	"log/slog"
 	"math"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,9 +42,17 @@ const (
 	mapZoomFocusBoostRatio     = float32(0.65)
 	mapDragPanThreshold        = float32(96)
 	mapViewportPersistDebounce = 500 * time.Millisecond
+	mapTileSourceOSM           = "https://tile.openstreetmap.org/%d/%d/%d.png"
+	mapWarmupParallelism       = 8
+	mapWarmupRequestTimeout    = 8 * time.Second
+	mapLoadingProgressWidth    = float32(360)
+	mapLoadingProgressHeight   = float32(18)
+	mapTileRefreshDebounce     = 120 * time.Millisecond
+	mapViewLoadingDebounce     = 90 * time.Millisecond
 )
 
 var mapLogger = slog.With("component", "ui.map")
+var errMapTileFound = errors.New("map tile found")
 
 func newMapTab(
 	store *domain.NodeStore,
@@ -64,6 +79,8 @@ func newMapTab(
 	)
 
 	tab := newMapTabWidget(baseMap, localNodeID)
+	tab.enableDeferredTileWarmup(mapClient, mapTileSourceOSM, paths.MapTilesDir)
+	setMapTileClientAsyncCachedCallback(mapClient, tab.scheduleAsyncMapRefresh)
 	mapLogger.Info(
 		"initializing map tab",
 		"tile_cache_dir", paths.MapTilesDir,
@@ -105,6 +122,8 @@ type mapTabWidget struct {
 	widget.BaseWidget
 
 	mapWidget      *xwidget.Map
+	mapClient      *http.Client
+	tileSource     string
 	viewState      mapViewportState
 	nodes          []domain.Node
 	localNodeID    func() string
@@ -125,8 +144,93 @@ type mapTabWidget struct {
 	emptyLabel       *widget.Label
 	emptyLayer       *fyne.Container
 	controlPanel     *fyne.Container
+	loadingLabel     *widget.Label
+	loadingProgress  *widget.ProgressBar
+	retryButton      *widget.Button
+	loadingLayer     *fyne.Container
+	viewLoadingBar   *widget.ProgressBar
+	viewLoadingLayer *fyne.Container
 
 	markerVariant fyne.ThemeVariant
+
+	loadingEnabled   bool
+	warmupDone       bool
+	warmupInFlight   atomic.Bool
+	firstShownAt     time.Time
+	firstFrameLogged bool
+	asyncRefreshSeq  uint64
+	viewLoadingSeq   uint64
+	tileCacheDir     string
+	benchmarkCache   string
+	benchmarkTiles   int
+	benchmarkOK      int
+	benchmarkFailed  int
+	benchmarkWarmup  time.Duration
+	prefetchURLsFn   func(context.Context, *http.Client, []string, func(done, total int)) (okCount, failedCount int)
+}
+
+type mapProgressPlacement int
+
+const (
+	mapProgressPlacementCenter mapProgressPlacement = iota
+	mapProgressPlacementTop
+)
+
+type mapProgressIndicator struct {
+	layer  *fyne.Container
+	label  *widget.Label
+	bar    *widget.ProgressBar
+	action *widget.Button
+}
+
+func newMapProgressIndicator(placement mapProgressPlacement, labelText, actionText string) *mapProgressIndicator {
+	bar := widget.NewProgressBar()
+	bar.Min = 0
+	bar.Max = 1
+	barWrap := container.NewGridWrap(
+		fyne.NewSize(mapLoadingProgressWidth, mapLoadingProgressHeight),
+		bar,
+	)
+
+	parts := make([]fyne.CanvasObject, 0, 3)
+	var label *widget.Label
+	if labelText != "" {
+		label = widget.NewLabel(labelText)
+		label.Alignment = fyne.TextAlignCenter
+		label.Wrapping = fyne.TextWrapWord
+		parts = append(parts, label)
+	}
+	parts = append(parts, barWrap)
+
+	var action *widget.Button
+	if actionText != "" {
+		action = widget.NewButton(actionText, nil)
+		action.Hide()
+		parts = append(parts, action)
+	}
+
+	content := container.NewVBox(parts...)
+	var layer *fyne.Container
+	switch placement {
+	case mapProgressPlacementTop:
+		layer = container.NewBorder(
+			container.NewPadded(container.NewCenter(content)),
+			nil,
+			nil,
+			nil,
+			nil,
+		)
+	default:
+		layer = container.NewCenter(container.NewPadded(content))
+	}
+	layer.Hide()
+
+	return &mapProgressIndicator{
+		layer:  layer,
+		label:  label,
+		bar:    bar,
+		action: action,
+	}
 }
 
 func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabWidget {
@@ -134,16 +238,28 @@ func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabW
 	tooltipLayer := container.NewWithoutLayout()
 	emptyLabel := widget.NewLabel("No node positions yet")
 	emptyLayer := container.NewCenter(emptyLabel)
+	startupProgress := newMapProgressIndicator(mapProgressPlacementCenter, "Loading map tiles...", "Retry")
+	viewProgress := newMapProgressIndicator(mapProgressPlacementTop, "", "")
 
 	tab := &mapTabWidget{
-		mapWidget:      mapWidget,
-		localNodeID:    localNodeID,
-		tooltipManager: newHoverTooltipManager(tooltipLayer),
-		markerLayer:    markerLayer,
-		tooltipLayer:   tooltipLayer,
-		emptyLabel:     emptyLabel,
-		emptyLayer:     emptyLayer,
-		markerVariant:  theme.VariantDark,
+		mapWidget:        mapWidget,
+		localNodeID:      localNodeID,
+		tooltipManager:   newHoverTooltipManager(tooltipLayer),
+		markerLayer:      markerLayer,
+		tooltipLayer:     tooltipLayer,
+		emptyLabel:       emptyLabel,
+		emptyLayer:       emptyLayer,
+		loadingLabel:     startupProgress.label,
+		loadingProgress:  startupProgress.bar,
+		retryButton:      startupProgress.action,
+		loadingLayer:     startupProgress.layer,
+		viewLoadingBar:   viewProgress.bar,
+		viewLoadingLayer: viewProgress.layer,
+		markerVariant:    theme.VariantDark,
+		prefetchURLsFn:   prefetchMapTileURLs,
+	}
+	if tab.retryButton != nil {
+		tab.retryButton.OnTapped = tab.OnShow
 	}
 	tab.interactionLayer = newMapInteractionLayer(tab.handleMapScroll, tab.handleMapDrag)
 	tab.controlPanel = tab.newControlPanel()
@@ -213,6 +329,331 @@ func (t *mapTabWidget) newControlPanel() *fyne.Container {
 		panGrid,
 		recenter,
 	)
+}
+
+func (t *mapTabWidget) enableDeferredTileWarmup(mapClient *http.Client, tileSource, tileCacheDir string) {
+	if t == nil {
+		return
+	}
+	t.loadingEnabled = true
+	t.mapClient = mapClient
+	t.tileSource = tileSource
+	t.tileCacheDir = tileCacheDir
+	t.warmupDone = false
+	t.firstFrameLogged = false
+	t.showLoadingState("Loading map tiles...", 0, false)
+}
+
+func (t *mapTabWidget) OnShow() {
+	if t == nil || !t.loadingEnabled {
+		return
+	}
+	mapLogger.Info("map tab opened", "warmup_done", t.warmupDone)
+	if t.warmupDone {
+		return
+	}
+	if !t.warmupInFlight.CompareAndSwap(false, true) {
+		return
+	}
+	if t.firstShownAt.IsZero() {
+		t.firstShownAt = time.Now()
+		cacheState, err := mapTileCacheState(t.tileCacheDir)
+		if err != nil {
+			mapLogger.Warn("detecting map cache state failed", "cache_dir", t.tileCacheDir, "error", err)
+		}
+		t.benchmarkCache = cacheState
+		mapLogger.Info(
+			"map open benchmark started",
+			"benchmark", "map_open",
+			"cache_state", t.benchmarkCache,
+		)
+	}
+
+	t.showLoadingState("Loading map tiles...", 0, false)
+	state, size, scale := t.warmupSnapshot()
+	urls := visibleMapTileURLs(t.tileSource, state, size, scale)
+	mapLogger.Info(
+		"starting map tile warmup",
+		"tile_count", len(urls),
+		"zoom", state.Zoom,
+		"x", state.X,
+		"y", state.Y,
+		"canvas_width", int(size.Width),
+		"canvas_height", int(size.Height),
+		"canvas_scale", scale,
+	)
+
+	go t.runTileWarmup(urls, state, size, scale)
+}
+
+func (t *mapTabWidget) warmupSnapshot() (mapViewportState, fyne.Size, int) {
+	size := t.Size()
+	if size.Width <= 0 || size.Height <= 0 {
+		size = t.lastCanvasSize
+	}
+	if size.Width <= 0 || size.Height <= 0 {
+		size = fyne.NewSize(1000, 700)
+	}
+
+	scale := 1
+	if app := fyne.CurrentApp(); app != nil {
+		if driver := app.Driver(); driver != nil {
+			if c := driver.CanvasForObject(t); c != nil {
+				scale = int(c.Scale())
+				if scale < 1 {
+					scale = 1
+				}
+			}
+		}
+	}
+
+	return t.viewState, size, scale
+}
+
+func (t *mapTabWidget) runTileWarmup(urls []string, state mapViewportState, size fyne.Size, scale int) {
+	startedAt := time.Now()
+	progress := func(done, total int) {
+		if total <= 0 {
+			return
+		}
+		value := float64(done) / float64(total)
+		fyne.Do(func() {
+			if t.loadingProgress != nil {
+				t.loadingProgress.SetValue(value)
+			}
+		})
+	}
+
+	var okCount, failedCount int
+	if len(urls) > 0 && t.prefetchURLsFn != nil && t.mapClient != nil {
+		okCount, failedCount = t.prefetchURLsFn(context.Background(), t.mapClient, urls, progress)
+	}
+	elapsed := time.Since(startedAt)
+
+	fyne.Do(func() {
+		t.warmupInFlight.Store(false)
+		t.benchmarkTiles = len(urls)
+		t.benchmarkOK = okCount
+		t.benchmarkFailed = failedCount
+		t.benchmarkWarmup = elapsed
+
+		if len(urls) == 0 {
+			t.warmupDone = true
+			t.showMapState()
+			t.mapWidget.Refresh()
+			mapLogger.Info(
+				"completed map tile warmup",
+				"tile_count", len(urls),
+				"ok_count", okCount,
+				"failed_count", failedCount,
+				"duration", elapsed,
+				"zoom", state.Zoom,
+				"x", state.X,
+				"y", state.Y,
+				"canvas_width", int(size.Width),
+				"canvas_height", int(size.Height),
+				"canvas_scale", scale,
+			)
+
+			return
+		}
+
+		if okCount == 0 && failedCount > 0 {
+			t.showLoadingState("Map tiles are taking longer than expected.", 0, true)
+			mapLogger.Warn(
+				"map tile warmup did not fetch any visible tiles",
+				"tile_count", len(urls),
+				"ok_count", okCount,
+				"failed_count", failedCount,
+				"duration", elapsed,
+				"zoom", state.Zoom,
+				"x", state.X,
+				"y", state.Y,
+				"canvas_width", int(size.Width),
+				"canvas_height", int(size.Height),
+				"canvas_scale", scale,
+			)
+			if !t.firstShownAt.IsZero() {
+				mapLogger.Warn(
+					"map open benchmark incomplete",
+					"benchmark", "map_open",
+					"cache_state", t.benchmarkCache,
+					"result", "no_visible_tiles",
+					"elapsed", time.Since(t.firstShownAt),
+					"warmup_tile_count", t.benchmarkTiles,
+					"warmup_ok", t.benchmarkOK,
+					"warmup_failed", t.benchmarkFailed,
+				)
+			}
+
+			return
+		}
+
+		t.warmupDone = true
+		t.showMapState()
+		t.mapWidget.Refresh()
+		t.renderMarkers()
+		mapLogger.Info(
+			"completed map tile warmup",
+			"tile_count", len(urls),
+			"ok_count", okCount,
+			"failed_count", failedCount,
+			"duration", elapsed,
+			"zoom", state.Zoom,
+			"x", state.X,
+			"y", state.Y,
+			"canvas_width", int(size.Width),
+			"canvas_height", int(size.Height),
+			"canvas_scale", scale,
+		)
+	})
+}
+
+func (t *mapTabWidget) showLoadingState(text string, progress float64, allowRetry bool) {
+	if t == nil {
+		return
+	}
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 1 {
+		progress = 1
+	}
+	if t.loadingLabel != nil {
+		t.loadingLabel.SetText(text)
+	}
+	if t.loadingProgress != nil {
+		t.loadingProgress.SetValue(progress)
+	}
+	if t.retryButton != nil {
+		if allowRetry {
+			t.retryButton.Show()
+		} else {
+			t.retryButton.Hide()
+		}
+	}
+	if t.mapWidget != nil {
+		t.mapWidget.Hide()
+	}
+	if t.interactionLayer != nil {
+		t.interactionLayer.Hide()
+	}
+	if t.markerLayer != nil {
+		t.markerLayer.Hide()
+	}
+	if t.emptyLayer != nil {
+		t.emptyLayer.Hide()
+	}
+	if t.controlPanel != nil {
+		t.controlPanel.Hide()
+	}
+	if t.tooltipLayer != nil {
+		t.tooltipLayer.Hide()
+	}
+	if t.viewLoadingLayer != nil {
+		t.viewLoadingLayer.Hide()
+	}
+	if t.loadingLayer != nil {
+		t.loadingLayer.Show()
+	}
+	t.Refresh()
+}
+
+func (t *mapTabWidget) showMapState() {
+	if t == nil {
+		return
+	}
+	if t.loadingLayer != nil {
+		t.loadingLayer.Hide()
+	}
+	if t.mapWidget != nil {
+		t.mapWidget.Show()
+	}
+	if t.interactionLayer != nil {
+		t.interactionLayer.Show()
+	}
+	if t.markerLayer != nil {
+		t.markerLayer.Show()
+	}
+	if t.emptyLayer != nil {
+		t.emptyLayer.Show()
+	}
+	if t.controlPanel != nil {
+		t.controlPanel.Show()
+	}
+	if t.tooltipLayer != nil {
+		t.tooltipLayer.Show()
+	}
+	t.Refresh()
+	t.scheduleViewLoadingProgressRefresh()
+}
+
+func (t *mapTabWidget) scheduleAsyncMapRefresh() {
+	if t == nil || !t.warmupDone {
+		return
+	}
+	seq := atomic.AddUint64(&t.asyncRefreshSeq, 1)
+	go func(localSeq uint64) {
+		time.Sleep(mapTileRefreshDebounce)
+		if atomic.LoadUint64(&t.asyncRefreshSeq) != localSeq {
+			return
+		}
+		fyne.Do(func() {
+			if t == nil || !t.warmupDone || t.mapWidget == nil || !t.mapWidget.Visible() {
+				return
+			}
+			t.mapWidget.Refresh()
+			t.scheduleViewLoadingProgressRefresh()
+		})
+	}(seq)
+}
+
+func (t *mapTabWidget) scheduleViewLoadingProgressRefresh() {
+	if t == nil || !t.warmupDone {
+		return
+	}
+	seq := atomic.AddUint64(&t.viewLoadingSeq, 1)
+	go func(localSeq uint64) {
+		time.Sleep(mapViewLoadingDebounce)
+		if atomic.LoadUint64(&t.viewLoadingSeq) != localSeq {
+			return
+		}
+		fyne.Do(func() {
+			if t == nil || !t.warmupDone {
+				return
+			}
+			t.refreshViewLoadingProgress()
+		})
+	}(seq)
+}
+
+func (t *mapTabWidget) refreshViewLoadingProgress() {
+	if t == nil || !t.warmupDone || t.mapClient == nil || t.viewLoadingLayer == nil || t.viewLoadingBar == nil {
+		return
+	}
+	if t.loadingLayer != nil && t.loadingLayer.Visible() {
+		t.viewLoadingLayer.Hide()
+
+		return
+	}
+
+	state, size, scale := t.warmupSnapshot()
+	urls := visibleMapTileURLs(t.tileSource, state, size, scale)
+	cached, total, ok := mapTileClientCachedProgress(t.mapClient, urls)
+	if !ok || total <= 0 || cached >= total {
+		t.viewLoadingLayer.Hide()
+
+		return
+	}
+	progress := float64(cached) / float64(total)
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 1 {
+		progress = 1
+	}
+	t.viewLoadingBar.SetValue(progress)
+	t.viewLoadingLayer.Show()
 }
 
 func (t *mapTabWidget) setNodes(nodes []domain.Node, initial bool) {
@@ -367,6 +808,7 @@ func (t *mapTabWidget) renderMarkers() {
 		"x", t.viewState.X,
 		"y", t.viewState.Y,
 	)
+	t.scheduleViewLoadingProgressRefresh()
 }
 
 func isMarkerVisible(pos fyne.Position, size fyne.Size) bool {
@@ -402,6 +844,8 @@ func (t *mapTabWidget) CreateRenderer() fyne.WidgetRenderer {
 		t.markerLayer,
 		t.emptyLayer,
 		t.controlPanel,
+		t.loadingLayer,
+		t.viewLoadingLayer,
 		t.tooltipLayer,
 	}
 
@@ -422,6 +866,8 @@ func (r *mapTabRenderer) Layout(size fyne.Size) {
 		r.tab.interactionLayer,
 		r.tab.markerLayer,
 		r.tab.emptyLayer,
+		r.tab.loadingLayer,
+		r.tab.viewLoadingLayer,
 		r.tab.tooltipLayer,
 	} {
 		obj.Move(fyne.NewPos(0, 0))
@@ -439,6 +885,29 @@ func (r *mapTabRenderer) Layout(size fyne.Size) {
 	if r.tab.lastCanvasSize != size {
 		r.tab.lastCanvasSize = size
 		r.tab.renderMarkers()
+	}
+	if r.tab.loadingEnabled && r.tab.warmupDone && !r.tab.firstFrameLogged && size.Width > 0 && size.Height > 0 {
+		r.tab.firstFrameLogged = true
+		elapsed := time.Duration(0)
+		if !r.tab.firstShownAt.IsZero() {
+			elapsed = time.Since(r.tab.firstShownAt)
+		}
+		mapLogger.Info(
+			"rendered first visible map frame",
+			"elapsed_since_tab_open", elapsed,
+			"canvas_width", int(size.Width),
+			"canvas_height", int(size.Height),
+		)
+		mapLogger.Info(
+			"map open benchmark",
+			"benchmark", "map_open",
+			"cache_state", r.tab.benchmarkCache,
+			"elapsed_to_first_frame", elapsed,
+			"warmup_duration", r.tab.benchmarkWarmup,
+			"warmup_tile_count", r.tab.benchmarkTiles,
+			"warmup_ok", r.tab.benchmarkOK,
+			"warmup_failed", r.tab.benchmarkFailed,
+		)
 	}
 }
 
@@ -715,6 +1184,184 @@ func mapZoomFocusPanSteps(norm float32) int {
 	}
 
 	return steps
+}
+
+func visibleMapTileURLs(tileSource string, view mapViewportState, canvasSize fyne.Size, scale int) []string {
+	if tileSource == "" {
+		return nil
+	}
+	if view.Zoom < 0 {
+		view.Zoom = 0
+	}
+	if view.Zoom > 19 {
+		view.Zoom = 19
+	}
+	if scale < 1 {
+		scale = 1
+	}
+	w := int(canvasSize.Width)
+	h := int(canvasSize.Height)
+	if w <= 0 {
+		w = 1000
+	}
+	if h <= 0 {
+		h = 700
+	}
+	tilePixels := mapTileSize * scale
+
+	midTileX := (w - tilePixels*2) / 2
+	midTileY := (h - tilePixels*2) / 2
+	if view.Zoom == 0 {
+		midTileX += tilePixels / 2
+		midTileY += tilePixels / 2
+	}
+
+	count := 1 << view.Zoom
+	mx := view.X + int(float32(count)/2-0.5)
+	my := view.Y + int(float32(count)/2-0.5)
+	firstTileX := mx - int(math.Ceil(float64(midTileX)/float64(tilePixels)))
+	firstTileY := my - int(math.Ceil(float64(midTileY)/float64(tilePixels)))
+
+	tiles := make([]string, 0, 32)
+	for x := firstTileX; (x-firstTileX)*tilePixels <= w+tilePixels; x++ {
+		for y := firstTileY; (y-firstTileY)*tilePixels <= h+tilePixels; y++ {
+			if x < 0 || y < 0 || x >= count || y >= count {
+				continue
+			}
+			tiles = append(tiles, fmt.Sprintf(tileSource, view.Zoom, x, y))
+		}
+	}
+
+	return tiles
+}
+
+func prefetchMapTileURLs(
+	ctx context.Context,
+	client *http.Client,
+	urls []string,
+	onProgress func(done, total int),
+) (okCount, failedCount int) {
+	if len(urls) == 0 {
+		return 0, 0
+	}
+	if client == nil {
+		return 0, len(urls)
+	}
+
+	workers := mapWarmupParallelism
+	if workers > len(urls) {
+		workers = len(urls)
+	}
+
+	jobs := make(chan string)
+	results := make(chan error, len(urls))
+	var wg sync.WaitGroup
+	worker := func() {
+		defer wg.Done()
+		for rawURL := range jobs {
+			results <- prefetchMapTileURL(ctx, client, rawURL)
+		}
+	}
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go worker()
+	}
+
+	go func() {
+		defer close(jobs)
+		for _, rawURL := range urls {
+			jobs <- rawURL
+		}
+	}()
+
+	done := 0
+	total := len(urls)
+	for i := 0; i < total; i++ {
+		err := <-results
+		done++
+		if err != nil {
+			failedCount++
+		} else {
+			okCount++
+		}
+		if onProgress != nil {
+			onProgress(done, total)
+		}
+	}
+	wg.Wait()
+
+	return okCount, failedCount
+}
+
+func prefetchMapTileURL(parent context.Context, client *http.Client, rawURL string) error {
+	reqCtx, cancel := context.WithTimeout(parent, mapWarmupRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("User-Agent", "meshgo map warmup")
+	req.Header.Set(mapTileFetchModeHeader, mapTileFetchModeSync)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request tile: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func mapTileCacheState(cacheDir string) (string, error) {
+	if cacheDir == "" {
+		return "disabled", nil
+	}
+	warm, err := mapTileCacheHasTiles(cacheDir)
+	if err != nil {
+		return "unknown", err
+	}
+	if warm {
+		return "warm", nil
+	}
+
+	return "cold", nil
+}
+
+func mapTileCacheHasTiles(cacheDir string) (bool, error) {
+	err := filepath.WalkDir(cacheDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+
+			return walkErr
+		}
+		if d == nil || d.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".tile" {
+			return errMapTileFound
+		}
+
+		return nil
+	})
+	if err == nil {
+		return false, nil
+	}
+	if errors.Is(err, errMapTileFound) {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	return false, err
 }
 
 func (t *mapTabWidget) handleMapDrag(delta fyne.Delta) {

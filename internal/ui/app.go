@@ -102,6 +102,9 @@ func Run(dep RuntimeDependencies) error {
 		tabContent[active].Hide()
 		active = name
 		tabContent[active].Show()
+		if onShow, ok := tabContent[active].(interface{ OnShow() }); ok {
+			onShow.OnShow()
+		}
 		updateNavSelection()
 		rightStack.Refresh()
 	}

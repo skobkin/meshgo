@@ -2,11 +2,14 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/png"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,6 +52,96 @@ func TestNewMapTab_UsesSavedViewportWhenProvided(t *testing.T) {
 	}
 	if !tab.autoCentered {
 		t.Fatalf("expected auto centering to be disabled when saved viewport exists")
+	}
+}
+
+func TestNewMapTab_DeferredWarmupShowsLoading(t *testing.T) {
+	store := domain.NewNodeStore()
+	tabObj := newMapTab(
+		store,
+		nil,
+		meshapp.Paths{},
+		config.MapViewportConfig{},
+		theme.VariantDark,
+		nil,
+	)
+	tab, ok := tabObj.(*mapTabWidget)
+	if !ok {
+		t.Fatalf("expected map tab widget")
+	}
+
+	if tab.mapWidget.Visible() {
+		t.Fatalf("expected map widget to stay hidden until warmup completes")
+	}
+	if !tab.loadingLayer.Visible() {
+		t.Fatalf("expected loading placeholder to be visible before warmup")
+	}
+}
+
+func TestMapTabWidget_OnShowCompletesWarmupAndShowsMap(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	tab.enableDeferredTileWarmup(stubTileClient(t), mapTileSourceOSM, t.TempDir())
+	tab.prefetchURLsFn = func(_ context.Context, _ *http.Client, urls []string, onProgress func(done, total int)) (int, int) {
+		if onProgress != nil {
+			onProgress(len(urls), len(urls))
+		}
+
+		return len(urls), 0
+	}
+
+	window := fynetest.NewTempWindow(t, tab)
+	window.Resize(fyne.NewSize(800, 600))
+	tab.OnShow()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		fyne.DoAndWait(func() {})
+		if tab.warmupDone && tab.mapWidget.Visible() && !tab.loadingLayer.Visible() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for warmup to complete")
+}
+
+func TestMapTileCacheState(t *testing.T) {
+	state, err := mapTileCacheState("")
+	if err != nil {
+		t.Fatalf("disabled state error: %v", err)
+	}
+	if state != "disabled" {
+		t.Fatalf("expected disabled state, got %q", state)
+	}
+
+	coldDir := t.TempDir()
+	state, err = mapTileCacheState(coldDir)
+	if err != nil {
+		t.Fatalf("cold state error: %v", err)
+	}
+	if state != "cold" {
+		t.Fatalf("expected cold state, got %q", state)
+	}
+
+	warmDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(warmDir, "aa", "bb"), 0o750); err != nil {
+		t.Fatalf("mkdir warm dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(warmDir, "aa", "bb", "sample.tile"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write warm tile: %v", err)
+	}
+	state, err = mapTileCacheState(warmDir)
+	if err != nil {
+		t.Fatalf("warm state error: %v", err)
+	}
+	if state != "warm" {
+		t.Fatalf("expected warm state, got %q", state)
 	}
 }
 
