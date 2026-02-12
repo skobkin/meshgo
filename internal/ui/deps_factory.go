@@ -51,7 +51,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 				rt.Domain.Bus,
 				rt.Connectivity.Radio,
 				rt.CurrentConnStatus,
-				rt.Core.LogManager.Logger("node-settings"),
+				rt.Core.LogManager.Logger("ui.node_settings"),
 			)
 		} else {
 			dep.Actions.NodeSettings = meshapp.NewNodeSettingsService(

@@ -66,7 +66,7 @@ func NewNodeSettingsService(
 	logger *slog.Logger,
 ) *NodeSettingsService {
 	if logger == nil {
-		logger = slog.Default().With("component", "node-settings")
+		logger = slog.Default().With("component", "ui.node_settings")
 	}
 
 	return &NodeSettingsService{
