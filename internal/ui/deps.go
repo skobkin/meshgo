@@ -20,14 +20,16 @@ type MessageSender interface {
 
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
-	Config            config.AppConfig
-	Paths             app.Paths
-	ChatStore         *domain.ChatStore
-	NodeStore         *domain.NodeStore
-	Bus               bus.MessageBus
-	LastSelectedChat  string
-	LocalNodeID       func() string
-	CurrentConnStatus func() (connectors.ConnectionStatus, bool)
+	Config                config.AppConfig
+	Paths                 app.Paths
+	ChatStore             *domain.ChatStore
+	NodeStore             *domain.NodeStore
+	Bus                   bus.MessageBus
+	LastSelectedChat      string
+	LocalNodeID           func() string
+	CurrentConnStatus     func() (connectors.ConnectionStatus, bool)
+	CurrentUpdateSnapshot func() (app.UpdateSnapshot, bool)
+	UpdateSnapshots       <-chan app.UpdateSnapshot
 }
 
 // ActionDependencies contains user-triggered operations invoked from UI.

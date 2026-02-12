@@ -34,6 +34,8 @@ type Runtime struct {
 	connStatusMu    sync.RWMutex
 	connStatus      connectors.ConnectionStatus
 	connStatusKnown bool
+
+	updateChecker *UpdateChecker
 }
 
 // RuntimeCore contains app-level configuration, paths, logging, and startup integrations.
@@ -166,6 +168,12 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	rt.Connectivity.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.Connectivity.ConnectionTransport, codec)
 	rt.Connectivity.Radio.Start(ctx)
 
+	rt.updateChecker = NewUpdateChecker(UpdateCheckerConfig{
+		CurrentVersion: BuildVersion(),
+		Logger:         logMgr.Logger("updates"),
+	})
+	rt.updateChecker.Start(ctx)
+
 	return rt, nil
 }
 
@@ -201,6 +209,22 @@ func (r *Runtime) CurrentConnStatus() (connectors.ConnectionStatus, bool) {
 	r.connStatusMu.RUnlock()
 
 	return status, known
+}
+
+func (r *Runtime) CurrentUpdateSnapshot() (UpdateSnapshot, bool) {
+	if r == nil || r.updateChecker == nil {
+		return UpdateSnapshot{}, false
+	}
+
+	return r.updateChecker.CurrentSnapshot()
+}
+
+func (r *Runtime) UpdateSnapshots() <-chan UpdateSnapshot {
+	if r == nil || r.updateChecker == nil {
+		return nil
+	}
+
+	return r.updateChecker.Snapshots()
 }
 
 func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {

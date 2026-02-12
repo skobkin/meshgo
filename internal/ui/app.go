@@ -29,6 +29,9 @@ func Run(dep RuntimeDependencies) error {
 	initialStatus := resolveInitialConnStatus(dep)
 	currentStatus := initialStatus
 	var connStatusMu sync.RWMutex
+
+	latestUpdateSnapshot, latestUpdateSnapshotKnown := currentUpdateSnapshot(dep)
+
 	window := fyApp.NewWindow("")
 	window.Resize(fyne.NewSize(1000, 700))
 
@@ -105,8 +108,20 @@ func Run(dep RuntimeDependencies) error {
 		navButtons[name] = button
 		left.Add(button)
 	}
+
+	updateButton := newIconNavButton(resources.UIIconResource(resources.UIIconUpdateAvailable, initialVariant), 48, func() {
+		if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
+			return
+		}
+		showUpdateDialog(window, fyApp.Settings().ThemeVariant(), latestUpdateSnapshot, openExternalURL)
+	})
+	if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
+		updateButton.Hide()
+	}
+
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
+	left.Add(updateButton)
 	sidebarConnIcon := widget.NewIcon(resources.UIIconResource(sidebarStatusIcon(currentStatus), initialVariant))
 	left.Add(container.NewCenter(container.NewGridWrap(
 		fyne.NewSquareSize(sidebarConnIconSize),
@@ -139,10 +154,22 @@ func Run(dep RuntimeDependencies) error {
 			icon := resources.UIIconResource(tabIcons[tabName], variant)
 			button.SetIcon(icon)
 		}
+		updateButton.SetIcon(resources.UIIconResource(resources.UIIconUpdateAvailable, variant))
 		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
 			mapWidget.applyThemeVariant(variant)
 		}
 		setConnStatusIcon(sidebarConnIcon, status, variant)
+	}
+
+	applyUpdateSnapshot := func(snapshot meshapp.UpdateSnapshot) {
+		latestUpdateSnapshot = snapshot
+		latestUpdateSnapshotKnown = true
+		if snapshot.UpdateAvailable {
+			updateButton.Show()
+		} else {
+			updateButton.Hide()
+		}
+		left.Refresh()
 	}
 
 	fyApp.Settings().AddListener(func(_ fyne.Settings) {
@@ -168,6 +195,14 @@ func Run(dep RuntimeDependencies) error {
 	if status, ok := currentConnStatus(dep); ok {
 		setConnStatus(status)
 	}
+	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
+		fyne.Do(func() {
+			applyUpdateSnapshot(snapshot)
+		})
+	})
+	if snapshot, ok := currentUpdateSnapshot(dep); ok {
+		applyUpdateSnapshot(snapshot)
+	}
 
 	content := container.NewBorder(nil, nil, left, nil, rightStack)
 	window.SetContent(content)
@@ -176,6 +211,7 @@ func Run(dep RuntimeDependencies) error {
 	quit := func() {
 		shutdownOnce.Do(func() {
 			stopUIListeners()
+			stopUpdateSnapshots()
 			if dep.Actions.OnQuit != nil {
 				dep.Actions.OnQuit()
 			}
@@ -211,6 +247,7 @@ func Run(dep RuntimeDependencies) error {
 	fyApp.Run()
 	shutdownOnce.Do(func() {
 		stopUIListeners()
+		stopUpdateSnapshots()
 		if dep.Actions.OnQuit != nil {
 			dep.Actions.OnQuit()
 		}
@@ -417,4 +454,51 @@ func nodeChanges(store *domain.NodeStore) <-chan struct{} {
 	}
 
 	return store.Changes()
+}
+
+func currentUpdateSnapshot(dep RuntimeDependencies) (meshapp.UpdateSnapshot, bool) {
+	if dep.Data.CurrentUpdateSnapshot == nil {
+		return meshapp.UpdateSnapshot{}, false
+	}
+
+	return dep.Data.CurrentUpdateSnapshot()
+}
+
+func startUpdateSnapshotListener(
+	snapshots <-chan meshapp.UpdateSnapshot,
+	onSnapshot func(meshapp.UpdateSnapshot),
+) func() {
+	if snapshots == nil {
+		return func() {}
+	}
+
+	done := make(chan struct{})
+	var stopOnce sync.Once
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case snapshot, ok := <-snapshots:
+				if !ok {
+					return
+				}
+				select {
+				case <-done:
+					return
+				default:
+				}
+				if onSnapshot != nil {
+					onSnapshot(snapshot)
+				}
+			}
+		}
+	}()
+
+	return func() {
+		stopOnce.Do(func() {
+			close(done)
+		})
+	}
 }

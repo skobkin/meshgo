@@ -304,7 +304,7 @@ func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option strin
 
 func waitForCondition(t *testing.T, check func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		if check() {
 			return

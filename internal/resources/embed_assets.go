@@ -29,6 +29,9 @@ var uiDarkDisconnected []byte
 //go:embed ui/dark/map_node_marker.svg
 var uiDarkMapNodeMarker []byte
 
+//go:embed ui/dark/update_available.svg
+var uiDarkUpdateAvailable []byte
+
 //go:embed ui/light/chats.svg
 var uiLightChats []byte
 
@@ -52,6 +55,9 @@ var uiLightDisconnected []byte
 
 //go:embed ui/light/map_node_marker.svg
 var uiLightMapNodeMarker []byte
+
+//go:embed ui/light/update_available.svg
+var uiLightUpdateAvailable []byte
 
 //go:embed ui/dark/icon_32.png
 var uiDarkIcon32 []byte

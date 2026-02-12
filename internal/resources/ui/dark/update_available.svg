@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <g stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- central down arrow (raised a bit) -->
+    <path d="M24 18 V30"/>
+    <path d="M18 24 L24 30 L30 24"/>
+
+    <!-- circular arrows -->
+    <path d="M36.26 34.28 A16 16 0 0 1 8.96 18.53"/>
+    <path d="M8.96 18.53 L9.36 23.01"/>
+    <path d="M8.96 18.53 L5.78 21.71"/>
+
+    <path d="M11.74 13.72 A16 16 0 0 1 39.04 29.47"/>
+    <path d="M39.04 29.47 L38.64 24.99"/>
+    <path d="M39.04 29.47 L42.22 26.29"/>
+  </g>
+</svg>

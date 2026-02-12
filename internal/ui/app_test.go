@@ -3,10 +3,12 @@ package ui
 import (
 	"io"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
@@ -230,4 +232,79 @@ func TestStartUIEventListenersNilBusReturnsNoopStop(t *testing.T) {
 	stop := startUIEventListeners(nil, nil, nil)
 	stop()
 	stop()
+}
+
+func TestCurrentUpdateSnapshot(t *testing.T) {
+	expected := meshapp.UpdateSnapshot{
+		CurrentVersion:  "0.6.0",
+		UpdateAvailable: true,
+		Latest: meshapp.ReleaseInfo{
+			Version: "0.7.0",
+		},
+	}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			CurrentUpdateSnapshot: func() (meshapp.UpdateSnapshot, bool) {
+				return expected, true
+			},
+		},
+	}
+
+	got, ok := currentUpdateSnapshot(dep)
+	if !ok {
+		t.Fatalf("expected snapshot to be present")
+	}
+	if got.Latest.Version != "0.7.0" {
+		t.Fatalf("expected latest version 0.7.0, got %q", got.Latest.Version)
+	}
+}
+
+func TestBuildUpdateChangelogText(t *testing.T) {
+	text := buildUpdateChangelogText([]meshapp.ReleaseInfo{
+		{Version: "0.7.0", Body: "First body"},
+		{Version: "0.6.1", Body: "Second body"},
+	})
+
+	if text == "" {
+		t.Fatalf("expected changelog text")
+	}
+	if !containsAll(text, "0.7.0", "First body", "0.6.1", "Second body") {
+		t.Fatalf("unexpected changelog text: %q", text)
+	}
+}
+
+func TestStartUpdateSnapshotListenerStopPreventsFurtherCallbacks(t *testing.T) {
+	snapshots := make(chan meshapp.UpdateSnapshot, 4)
+	var calls atomic.Int64
+	stop := startUpdateSnapshotListener(snapshots, func(_ meshapp.UpdateSnapshot) {
+		calls.Add(1)
+	})
+
+	snapshots <- meshapp.UpdateSnapshot{CurrentVersion: "0.6.0"}
+	waitForCondition(t, func() bool {
+		return calls.Load() == 1
+	})
+
+	stop()
+
+	before := calls.Load()
+	snapshots <- meshapp.UpdateSnapshot{CurrentVersion: "0.7.0"}
+	time.Sleep(100 * time.Millisecond)
+
+	if calls.Load() != before {
+		t.Fatalf("expected no new update callbacks after stop: before=%d after=%d", before, calls.Load())
+	}
+}
+
+func containsAll(text string, parts ...string) bool {
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if !strings.Contains(text, part) {
+			return false
+		}
+	}
+
+	return true
 }

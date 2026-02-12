@@ -22,13 +22,15 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	}
 
 	dep.Data = DataDependencies{
-		Config:            rt.Core.Config,
-		Paths:             rt.Core.Paths,
-		ChatStore:         rt.Domain.ChatStore,
-		NodeStore:         rt.Domain.NodeStore,
-		Bus:               rt.Domain.Bus,
-		LastSelectedChat:  rt.Core.Config.UI.LastSelectedChat,
-		CurrentConnStatus: rt.CurrentConnStatus,
+		Config:                rt.Core.Config,
+		Paths:                 rt.Core.Paths,
+		ChatStore:             rt.Domain.ChatStore,
+		NodeStore:             rt.Domain.NodeStore,
+		Bus:                   rt.Domain.Bus,
+		LastSelectedChat:      rt.Core.Config.UI.LastSelectedChat,
+		CurrentConnStatus:     rt.CurrentConnStatus,
+		CurrentUpdateSnapshot: rt.CurrentUpdateSnapshot,
+		UpdateSnapshots:       rt.UpdateSnapshots(),
 	}
 
 	dep.Platform = PlatformDependencies{

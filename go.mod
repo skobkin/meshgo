@@ -8,6 +8,7 @@ require (
 	github.com/cskr/pubsub v1.0.2
 	github.com/godbus/dbus/v5 v5.1.0
 	go.bug.st/serial v1.6.4
+	golang.org/x/mod v0.33.0
 	golang.org/x/sys v0.41.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.45.0
