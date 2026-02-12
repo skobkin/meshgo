@@ -12,15 +12,17 @@ import (
 
 	"fyne.io/fyne/v2"
 	fynetest "fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	xwidget "fyne.io/x/fyne/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 func TestNewMapTabNilStoreShowsPlaceholder(t *testing.T) {
-	tab := newMapTab(nil, nil, meshapp.Paths{}, config.MapViewportConfig{}, nil)
+	tab := newMapTab(nil, nil, meshapp.Paths{}, config.MapViewportConfig{}, theme.VariantDark, nil)
 	_ = fynetest.NewTempWindow(t, tab)
 
 	if !hasLabelText(tab, "Map is unavailable") {
@@ -35,6 +37,7 @@ func TestNewMapTab_UsesSavedViewportWhenProvided(t *testing.T) {
 		nil,
 		meshapp.Paths{},
 		config.MapViewportConfig{Set: true, Zoom: 6, X: 5, Y: -3},
+		theme.VariantDark,
 		nil,
 	)
 	tab, ok := tabObj.(*mapTabWidget)
@@ -271,7 +274,7 @@ func TestMapTabWidget_ScheduleViewportPersistDebouncesAndSavesLatest(t *testing.
 }
 
 func TestMapMarkerWidget_HoverKeepsTipAnchorAndChangesVisualState(t *testing.T) {
-	marker := newMapMarkerWidget(mapMarkerPinResource, "node", nil)
+	marker := newMapMarkerWidget(mapMarkerResource(theme.VariantDark), "node", nil)
 	baseSize := marker.MinSize()
 	marker.Resize(baseSize)
 	marker.Move(fyne.NewPos(100, 200))
@@ -303,6 +306,46 @@ func TestMapMarkerWidget_HoverKeepsTipAnchorAndChangesVisualState(t *testing.T) 
 	resetTipY := marker.Position().Y + marker.Size().Height
 	if resetTipX != baseTipX || resetTipY != baseTipY {
 		t.Fatalf("expected marker tip to remain anchored after reset")
+	}
+}
+
+func TestMapTabWidget_ApplyThemeVariantRerendersMarkerResources(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	lat := 37.7749
+	lon := -122.4194
+	tab.setNodes([]domain.Node{
+		{NodeID: "!local", Latitude: &lat, Longitude: &lon},
+	}, true)
+
+	window := fynetest.NewTempWindow(t, tab)
+	window.Resize(fyne.NewSize(800, 600))
+	tab.Refresh()
+
+	if len(tab.markerLayer.Objects) == 0 {
+		t.Fatalf("expected at least one marker")
+	}
+	lightExpected := resources.UIIconResource(resources.UIIconMapNodeMarker, theme.VariantLight)
+	if lightExpected == nil {
+		t.Fatalf("expected light map marker resource")
+	}
+
+	tab.applyThemeVariant(theme.VariantLight)
+
+	marker, ok := tab.markerLayer.Objects[0].(*mapMarkerWidget)
+	if !ok {
+		t.Fatalf("expected marker widget type")
+	}
+	if marker.icon.Resource == nil {
+		t.Fatalf("expected marker icon resource")
+	}
+	if marker.icon.Resource.Name() != lightExpected.Name() {
+		t.Fatalf("expected light marker resource %q, got %q", lightExpected.Name(), marker.icon.Resource.Name())
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 const (
@@ -35,13 +36,12 @@ const (
 	mapViewportPersistDebounce = 500 * time.Millisecond
 )
 
-var mapMarkerPinResource = fyne.NewStaticResource("resources/ui/map/node_marker.svg", []byte(`<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1.5C6.5 1.5 3.7 4.3 3.7 7.8C3.7 12.6 10 18.5 10 18.5C10 18.5 16.3 12.6 16.3 7.8C16.3 4.3 13.5 1.5 10 1.5Z" fill="#D64545"/><circle cx="10" cy="7.8" r="2.4" fill="#FFF8F8"/></svg>`))
-
 func newMapTab(
 	store *domain.NodeStore,
 	localNodeID func() string,
 	paths meshapp.Paths,
 	initialViewport config.MapViewportConfig,
+	initialVariant fyne.ThemeVariant,
 	onViewportChanged func(zoom, x, y int),
 ) fyne.CanvasObject {
 	if store == nil {
@@ -60,6 +60,7 @@ func newMapTab(
 	)
 
 	tab := newMapTabWidget(baseMap, localNodeID)
+	tab.applyThemeVariant(initialVariant)
 	tab.onViewportChanged = onViewportChanged
 	if initialViewport.Set {
 		tab.panToViewport(mapViewportState{
@@ -107,6 +108,8 @@ type mapTabWidget struct {
 	emptyLabel       *widget.Label
 	emptyLayer       *fyne.Container
 	controlPanel     *fyne.Container
+
+	markerVariant fyne.ThemeVariant
 }
 
 func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabWidget {
@@ -123,6 +126,7 @@ func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabW
 		tooltipLayer:   tooltipLayer,
 		emptyLabel:     emptyLabel,
 		emptyLayer:     emptyLayer,
+		markerVariant:  theme.VariantDark,
 	}
 	tab.interactionLayer = newMapInteractionLayer(tab.handleMapScroll, tab.handleMapDrag)
 	tab.controlPanel = tab.newControlPanel()
@@ -208,6 +212,23 @@ func (t *mapTabWidget) setNodes(nodes []domain.Node, initial bool) {
 	t.renderMarkers()
 }
 
+func mapMarkerResource(variant fyne.ThemeVariant) fyne.Resource {
+	res := resources.UIIconResource(resources.UIIconMapNodeMarker, variant)
+	if res != nil {
+		return res
+	}
+
+	return resources.UIIconResource(resources.UIIconMapNodeMarker, theme.VariantDark)
+}
+
+func (t *mapTabWidget) applyThemeVariant(variant fyne.ThemeVariant) {
+	if t == nil || t.markerVariant == variant {
+		return
+	}
+	t.markerVariant = variant
+	t.renderMarkers()
+}
+
 func (t *mapTabWidget) centerToPreferred(zoom int) bool {
 	localID := ""
 	if t.localNodeID != nil {
@@ -284,7 +305,7 @@ func (t *mapTabWidget) renderMarkers() {
 			continue
 		}
 
-		marker := newMapMarkerWidget(mapMarkerPinResource, mapMarkerTooltip(node), t.tooltipManager)
+		marker := newMapMarkerWidget(mapMarkerResource(t.markerVariant), mapMarkerTooltip(node), t.tooltipManager)
 		markerSize := marker.MinSize()
 		marker.Resize(markerSize)
 		marker.Move(fyne.NewPos(

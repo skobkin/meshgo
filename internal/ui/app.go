@@ -45,7 +45,7 @@ func Run(dep RuntimeDependencies) error {
 		dep.Actions.OnChatSelected,
 	)
 	nodesTab := newNodesTab(dep.Data.NodeStore, DefaultNodeRowRenderer())
-	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, dep.Actions.OnMapViewportChanged)
+	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, initialVariant, dep.Actions.OnMapViewportChanged)
 	nodeSettingsTab := newNodeTab(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
@@ -138,6 +138,9 @@ func Run(dep RuntimeDependencies) error {
 		for tabName, button := range navButtons {
 			icon := resources.UIIconResource(tabIcons[tabName], variant)
 			button.SetIcon(icon)
+		}
+		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
+			mapWidget.applyThemeVariant(variant)
 		}
 		setConnStatusIcon(sidebarConnIcon, status, variant)
 	}
