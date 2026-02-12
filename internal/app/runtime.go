@@ -334,6 +334,7 @@ func (r *Runtime) ClearDatabase() error {
 		_ = tx.Rollback()
 	}()
 
+	//goland:noinspection SqlWithoutWhere
 	stmts := []string{
 		`DELETE FROM messages;`,
 		`DELETE FROM chats;`,
