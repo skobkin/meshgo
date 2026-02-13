@@ -322,7 +322,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 
 	allNodes := store.SnapshotSorted()
 	appliedFilter := ""
-	nodes := filterNodesByName(allNodes, appliedFilter)
+	nodes := filterNodes(allNodes, appliedFilter)
 	title := widget.NewLabel(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 
 	list := widget.NewList(
@@ -359,7 +359,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 
 	applyFilter := func(value string) {
 		appliedFilter = value
-		nodes = filterNodesByName(allNodes, appliedFilter)
+		nodes = filterNodes(allNodes, appliedFilter)
 		title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 		list.Refresh()
 	}
@@ -386,7 +386,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 		for range store.Changes() {
 			fyne.Do(func() {
 				allNodes = store.SnapshotSorted()
-				nodes = filterNodesByName(allNodes, appliedFilter)
+				nodes = filterNodes(allNodes, appliedFilter)
 				title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 				list.Refresh()
 			})
@@ -406,7 +406,7 @@ func nodeCountLabelText(total int, visible int, rawFilter string) string {
 	return fmt.Sprintf("Nodes (%d/%d)", visible, total)
 }
 
-func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {
+func filterNodes(nodes []domain.Node, rawFilter string) []domain.Node {
 	needle := strings.ToLower(strings.TrimSpace(rawFilter))
 	if needle == "" {
 		out := make([]domain.Node, len(nodes))
@@ -417,9 +417,10 @@ func filterNodesByName(nodes []domain.Node, rawFilter string) []domain.Node {
 
 	out := make([]domain.Node, 0, len(nodes))
 	for _, node := range nodes {
+		nodeID := strings.ToLower(strings.TrimSpace(node.NodeID))
 		shortName := strings.ToLower(strings.TrimSpace(node.ShortName))
 		longName := strings.ToLower(strings.TrimSpace(node.LongName))
-		if strings.Contains(shortName, needle) || strings.Contains(longName, needle) {
+		if strings.Contains(nodeID, needle) || strings.Contains(shortName, needle) || strings.Contains(longName, needle) {
 			out = append(out, node)
 		}
 	}
