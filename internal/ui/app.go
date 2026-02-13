@@ -486,7 +486,7 @@ func transportDisplayName(name string) string {
 }
 
 func formatWindowTitle(status connectors.ConnectionStatus, localShortName string) string {
-	return "MeshGo - " + formatConnStatus(status, localShortName)
+	return fmt.Sprintf("MeshGo %s - %s", meshapp.BuildVersion(), formatConnStatus(status, localShortName))
 }
 
 func applyConnStatusUI(
