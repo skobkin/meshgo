@@ -38,6 +38,8 @@
 - Prefer table-driven tests for codec/domain logic.
 - Run focused tests during iteration, then `go test ./...` before opening a PR.
 - Coverage target is pragmatic: new logic paths should include tests, especially decode/migration/store behavior.
+- Fyne race-detector rule: tests that drive real GUI interactions (`fynetest.NewTempWindow`, `fynetest.Tap`, async UI state checks) are flaky under `go test -race`; guard only those tests with `if raceDetectorEnabled { t.Skip("Fyne GUI interaction tests are not stable under the race detector") }` and keep pure logic/UI formatting tests runnable under `-race`.
+- Reuse existing race flag wiring in `internal/ui/race_enabled_test.go` and `internal/ui/race_disabled_test.go`; do not add ad-hoc race checks in individual tests.
 
 ## Completion Checklist
 - Before finishing work and saying it is done, run the same baseline checks as CI:
