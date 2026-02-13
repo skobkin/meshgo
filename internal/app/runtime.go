@@ -249,6 +249,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 
 	r.mu.Lock()
+	prevConnector := r.Core.Config.Connection.Connector
 	cfg.UI.LastSelectedChat = r.Core.Config.UI.LastSelectedChat
 	cfg.UI.MapViewport = r.Core.Config.UI.MapViewport
 	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
@@ -267,6 +268,14 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		if err := r.Connectivity.ConnectionTransport.Apply(cfg.Connection); err != nil {
 			return err
 		}
+	}
+	if cfg.Connection.Connector != prevConnector {
+		r.resetInMemoryStores()
+		slog.Info(
+			"cleared in-memory stores after transport switch",
+			"from", prevConnector,
+			"to", cfg.Connection.Connector,
+		)
 	}
 	if err := r.syncAutostart(cfg, "settings_save"); err != nil {
 		slog.Warn("sync autostart after save", "error", err)
@@ -363,15 +372,20 @@ func (r *Runtime) ClearDatabase() error {
 		return fmt.Errorf("commit clear db tx: %w", err)
 	}
 
+	slog.Info("database tables cleared")
+	r.resetInMemoryStores()
+	slog.Info("in-memory stores cleared", "trigger", "database_clear")
+
+	return nil
+}
+
+func (r *Runtime) resetInMemoryStores() {
 	if r.Domain.ChatStore != nil {
 		r.Domain.ChatStore.Reset()
 	}
 	if r.Domain.NodeStore != nil {
 		r.Domain.NodeStore.Reset()
 	}
-	slog.Info("database cleared")
-
-	return nil
 }
 
 func (r *Runtime) ClearCache() error {
