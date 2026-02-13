@@ -278,6 +278,12 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		)
 	}
 	if err := r.syncAutostart(cfg, "settings_save"); err != nil {
+		var devWarning *AutostartDevBuildSkipWarning
+		if errors.As(err, &devWarning) {
+			slog.Info("autostart sync skipped after save in dev build", "enabled", devWarning.Enabled)
+
+			return devWarning
+		}
 		slog.Warn("sync autostart after save", "error", err)
 
 		return &AutostartSyncWarning{Err: err}

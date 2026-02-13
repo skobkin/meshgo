@@ -13,6 +13,22 @@ type AutostartSyncWarning struct {
 	Err error
 }
 
+// AutostartDevBuildSkipWarning signals that autostart sync was intentionally skipped in dev builds.
+type AutostartDevBuildSkipWarning struct {
+	Enabled bool
+}
+
+func (w *AutostartDevBuildSkipWarning) Error() string {
+	if w == nil {
+		return "autostart sync skipped in dev build"
+	}
+	if w.Enabled {
+		return "autostart sync skipped in dev build: dev builds do not support autorun sync"
+	}
+
+	return "autostart sync skipped in dev build"
+}
+
 func (w *AutostartSyncWarning) Error() string {
 	if w == nil || w.Err == nil {
 		return "autostart sync failed"
@@ -40,6 +56,34 @@ func (r *Runtime) syncAutostart(cfg config.AppConfig, trigger string) error {
 	if cfg.UI.Autostart.Enabled {
 		mode = cfg.UI.Autostart.Mode
 	}
+
+	version := BuildVersion()
+	if version == DevBuildVersion {
+		allowDisableSync := trigger == "settings_save" && !cfg.UI.Autostart.Enabled
+		if !allowDisableSync {
+			slog.Info(
+				"skip autostart sync in dev build",
+				"trigger", trigger,
+				"version", version,
+				"enabled", cfg.UI.Autostart.Enabled,
+				"mode", mode,
+			)
+			if trigger == "settings_save" && cfg.UI.Autostart.Enabled {
+				return &AutostartDevBuildSkipWarning{Enabled: true}
+			}
+
+			return nil
+		}
+
+		slog.Info(
+			"sync autostart disable in dev build",
+			"trigger", trigger,
+			"version", version,
+			"enabled", cfg.UI.Autostart.Enabled,
+			"mode", mode,
+		)
+	}
+
 	slog.Info("syncing autostart registration", "trigger", trigger, "enabled", cfg.UI.Autostart.Enabled, "mode", mode)
 
 	if err := r.Core.AutostartManager.Sync(platform.AutostartConfig{

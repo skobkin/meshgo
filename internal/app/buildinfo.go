@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
+const DevBuildVersion = "dev"
+
 var (
 	// Version is filled by ldflags in release builds.
-	Version = "dev"
+	Version = DevBuildVersion
 	// BuildDate is filled by ldflags in release builds.
 	BuildDate = ""
 )
@@ -16,7 +18,7 @@ var (
 func BuildVersion() string {
 	version := strings.TrimSpace(Version)
 	if version == "" {
-		return "dev"
+		return DevBuildVersion
 	}
 
 	return version

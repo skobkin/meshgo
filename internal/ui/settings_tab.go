@@ -360,6 +360,28 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				settingsLogger.Info("database cleared before transport switch")
 			}
 			if err := dep.Actions.OnSave(cfg); err != nil {
+				var devWarning *app.AutostartDevBuildSkipWarning
+				if errors.As(err, &devWarning) {
+					settingsLogger.Info("settings saved with dev-build autostart skip", "autostart_enabled", devWarning.Enabled)
+					current = cfg
+					status.SetText("Saved")
+
+					if devWarning.Enabled {
+						window := currentWindowFn()
+						if window == nil {
+							settingsLogger.Warn("autostart dev-build info dialog skipped: active window unavailable")
+						} else {
+							showInfoDialogFn(
+								"Autostart in dev build",
+								"Autostart entry was not rewritten because dev builds do not support autorun sync. Other settings were saved.",
+								window,
+							)
+						}
+					}
+
+					return
+				}
+
 				var warning *app.AutostartSyncWarning
 				if errors.As(err, &warning) {
 					settingsLogger.Info("settings saved with warning", "warning", warning.Error())

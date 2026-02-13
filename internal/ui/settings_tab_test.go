@@ -222,6 +222,67 @@ func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 	}
 }
 
+func TestSettingsTabAutostartDevBuildSkipShowsInfoAndDoesNotBlockSave(t *testing.T) {
+	cfg := config.Default()
+	cfg.UI.Autostart.Enabled = true
+	cfg.UI.Autostart.Mode = config.AutostartModeBackground
+
+	var saved config.AppConfig
+	var infoDialogCalls int
+	var infoDialogTitle string
+	var infoDialogMessage string
+	var window fyne.Window
+
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnSave: func(next config.AppConfig) error {
+				saved = next
+
+				return &app.AutostartDevBuildSkipWarning{Enabled: true}
+			},
+		},
+		UIHooks: UIHooks{
+			CurrentWindow: func() fyne.Window { return window },
+			ShowInfoDialog: func(title, message string, _ fyne.Window) {
+				infoDialogCalls++
+				infoDialogTitle = title
+				infoDialogMessage = message
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	window = fynetest.NewTempWindow(t, tab)
+
+	saveButton := mustFindButtonByText(t, tab, "Save")
+	fynetest.Tap(saveButton)
+
+	if !saved.UI.Autostart.Enabled {
+		t.Fatalf("expected autostart to be saved as enabled")
+	}
+	if saved.UI.Autostart.Mode != config.AutostartModeBackground {
+		t.Fatalf("expected autostart mode %q, got %q", config.AutostartModeBackground, saved.UI.Autostart.Mode)
+	}
+
+	statusLabel := mustFindLabelByPrefix(t, tab, "Saved")
+	if got := strings.TrimSpace(statusLabel.Text); got != "Saved" {
+		t.Fatalf("unexpected status text: %q", got)
+	}
+
+	if infoDialogCalls != 1 {
+		t.Fatalf("expected one info dialog call, got %d", infoDialogCalls)
+	}
+	if infoDialogTitle != "Autostart in dev build" {
+		t.Fatalf("unexpected info dialog title: %q", infoDialogTitle)
+	}
+	if !strings.Contains(infoDialogMessage, "dev builds do not support autorun sync") {
+		t.Fatalf("unexpected info dialog message: %q", infoDialogMessage)
+	}
+}
+
 func TestSettingsTabClearCacheSuccess(t *testing.T) {
 	cfg := config.Default()
 

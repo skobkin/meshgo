@@ -13,7 +13,7 @@ func TestBuildVersion(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "defaults to dev", in: "", want: "dev"},
+		{name: "defaults to dev", in: "", want: DevBuildVersion},
 		{name: "trims value", in: " 1.2.3 ", want: "1.2.3"},
 	}
 
