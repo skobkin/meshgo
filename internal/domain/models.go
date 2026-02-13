@@ -109,6 +109,26 @@ type NodeUpdate struct {
 	Node       Node
 	LastHeard  time.Time
 	FromPacket bool
+	Type       NodeUpdateType
+}
+
+// NodeUpdateType identifies which radio frame kind produced a node update.
+type NodeUpdateType string
+
+const (
+	NodeUpdateTypeUnknown          NodeUpdateType = ""
+	NodeUpdateTypeNodeInfoSnapshot NodeUpdateType = "nodeinfo_snapshot"
+	NodeUpdateTypeNodeInfoPacket   NodeUpdateType = "nodeinfo_packet"
+	NodeUpdateTypeTelemetryPacket  NodeUpdateType = "telemetry_packet"
+	NodeUpdateTypePositionPacket   NodeUpdateType = "position_packet"
+)
+
+// NodeDiscovered is emitted when a previously unknown node is seen in live traffic.
+type NodeDiscovered struct {
+	Node         Node
+	NodeID       string
+	DiscoveredAt time.Time
+	Source       string
 }
 
 // ChannelList carries known device channels published by the radio.

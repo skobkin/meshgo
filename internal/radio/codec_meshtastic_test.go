@@ -182,6 +182,9 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 	if frame.NodeUpdate == nil {
 		t.Fatalf("expected node update")
 	}
+	if frame.NodeUpdate.Type != domain.NodeUpdateTypeTelemetryPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	}
 	node := frame.NodeUpdate.Node
 	if node.NodeID != "!1234abcd" {
 		t.Fatalf("unexpected node id: %q", node.NodeID)
@@ -278,6 +281,9 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	if frame.NodeUpdate == nil {
 		t.Fatalf("expected node update")
 	}
+	if frame.NodeUpdate.Type != domain.NodeUpdateTypePositionPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	}
 	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 }
@@ -349,8 +355,51 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	if frame.NodeUpdate == nil {
 		t.Fatalf("expected node update")
 	}
+	if frame.NodeUpdate.Type != domain.NodeUpdateTypeNodeInfoSnapshot {
+		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	}
 	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
+}
+
+func TestMeshtasticCodec_DecodeFromRadioNodeInfoPacketUsesNodeInfoType(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	userPayload, err := proto.Marshal(&generated.User{
+		LongName:  "Alpha",
+		ShortName: "ALPH",
+	})
+	if err != nil {
+		t.Fatalf("marshal user: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From: 0x1234abcd,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_NODEINFO_APP,
+						Payload: userPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode fromradio: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	if frame.NodeUpdate.Type != domain.NodeUpdateTypeNodeInfoPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	}
 }
 
 func TestMeshtasticCodec_DecodeFromRadioNodeInfoWithoutUserDoesNotPanic(t *testing.T) {

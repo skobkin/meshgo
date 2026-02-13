@@ -60,9 +60,10 @@ type RuntimePersistence struct {
 
 // RuntimeDomain contains in-memory stores and message bus projections used by the app/UI.
 type RuntimeDomain struct {
-	Bus       *bus.PubSubBus
-	NodeStore *domain.NodeStore
-	ChatStore *domain.ChatStore
+	Bus           *bus.PubSubBus
+	NodeStore     *domain.NodeStore
+	ChatStore     *domain.ChatStore
+	NodeDiscovery *NodeDiscoveryProjection
 }
 
 // RuntimeConnectivity contains transport and radio services used for device communication.
@@ -142,6 +143,9 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	go rt.captureConnStatus(ctx, connSub)
 	nodeStore.Start(ctx, b)
 	chatStore.Start(ctx, b)
+	nodeDiscovery := NewNodeDiscoveryProjection(nodeStore, logMgr.Logger("node_discovery"))
+	nodeDiscovery.Start(ctx, b)
+	rt.Domain.NodeDiscovery = nodeDiscovery
 
 	writerQueue := persistence.NewWriterQueue(logMgr.Logger("persistence"), 512)
 	writerQueue.Start(ctx)
@@ -391,6 +395,9 @@ func (r *Runtime) resetInMemoryStores() {
 	}
 	if r.Domain.NodeStore != nil {
 		r.Domain.NodeStore.Reset()
+	}
+	if r.Domain.NodeDiscovery != nil {
+		r.Domain.NodeDiscovery.ResetFromStore(r.Domain.NodeStore)
 	}
 }
 

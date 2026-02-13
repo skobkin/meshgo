@@ -413,7 +413,12 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 		node.SNR = &snrVal
 	}
 
-	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}
+	return domain.NodeUpdate{
+		Node:       node,
+		LastHeard:  node.LastHeardAt,
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeNodeInfoSnapshot,
+	}
 }
 
 func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
@@ -450,7 +455,12 @@ func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte,
 		node.SNR = &snrVal
 	}
 
-	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+	return domain.NodeUpdate{
+		Node:       node,
+		LastHeard:  node.LastHeardAt,
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeTelemetryPacket,
+	}, true
 }
 
 func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
@@ -557,7 +567,12 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 		node.SNR = &snrVal
 	}
 
-	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+	return domain.NodeUpdate{
+		Node:       node,
+		LastHeard:  node.LastHeardAt,
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeNodeInfoPacket,
+	}, true
 }
 
 func decodeNodePositionFromPacket(packet *generated.MeshPacket, payload []byte, now time.Time) (domain.NodeUpdate, bool) {
@@ -587,7 +602,12 @@ func decodeNodePositionFromPacket(packet *generated.MeshPacket, payload []byte, 
 		node.SNR = &snrVal
 	}
 
-	return domain.NodeUpdate{Node: node, LastHeard: node.LastHeardAt, FromPacket: true}, true
+	return domain.NodeUpdate{
+		Node:       node,
+		LastHeard:  node.LastHeardAt,
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypePositionPacket,
+	}, true
 }
 
 func isValidNodeCoordinate(lat, lon float64) bool {

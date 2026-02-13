@@ -4,6 +4,7 @@ const (
 	TopicConnStatus       = "conn.status"
 	TopicRadioFrom        = "radio.from"
 	TopicNodeInfo         = "node.info"
+	TopicNodeDiscovered   = "node.discovered"
 	TopicChannels         = "channels"
 	TopicTextMessage      = "text.message"
 	TopicMessageStatus    = "message.status"
