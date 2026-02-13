@@ -14,9 +14,9 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
-var (
-	tracerouteCooldownWindow = 30 * time.Second
-	tracerouteRequestTimeout = 60 * time.Second
+const (
+	tracerouteCooldownWindow        = 30 * time.Second
+	DefaultTracerouteRequestTimeout = 60 * time.Second
 )
 
 // TracerouteTarget identifies which node should be traced.
@@ -57,11 +57,12 @@ type pendingTraceroute struct {
 
 // TracerouteService handles request dispatch, cooldown, and progress publication.
 type TracerouteService struct {
-	bus        bus.MessageBus
-	radio      tracerouteSender
-	nodeStore  *domain.NodeStore
-	connStatus func() (connectors.ConnectionStatus, bool)
-	logger     *slog.Logger
+	bus            bus.MessageBus
+	radio          tracerouteSender
+	nodeStore      *domain.NodeStore
+	connStatus     func() (connectors.ConnectionStatus, bool)
+	logger         *slog.Logger
+	requestTimeout time.Duration
 
 	startMu sync.Mutex
 	mu      sync.Mutex
@@ -75,18 +76,23 @@ func NewTracerouteService(
 	nodeStore *domain.NodeStore,
 	connStatus func() (connectors.ConnectionStatus, bool),
 	logger *slog.Logger,
+	requestTimeout time.Duration,
 ) *TracerouteService {
 	if logger == nil {
 		logger = slog.Default().With("component", "app.traceroute")
 	}
+	if requestTimeout <= 0 {
+		requestTimeout = DefaultTracerouteRequestTimeout
+	}
 
 	return &TracerouteService{
-		bus:        messageBus,
-		radio:      sender,
-		nodeStore:  nodeStore,
-		connStatus: connStatus,
-		logger:     logger,
-		pending:    make(map[uint32]pendingTraceroute),
+		bus:            messageBus,
+		radio:          sender,
+		nodeStore:      nodeStore,
+		connStatus:     connStatus,
+		logger:         logger,
+		requestTimeout: requestTimeout,
+		pending:        make(map[uint32]pendingTraceroute),
 	}
 }
 
@@ -192,7 +198,7 @@ func (s *TracerouteService) StartTraceroute(ctx context.Context, target Tracerou
 }
 
 func (s *TracerouteService) watchTimeout(ctx context.Context, requestID uint32) {
-	timer := time.NewTimer(tracerouteRequestTimeout)
+	timer := time.NewTimer(s.requestTimeout)
 	defer timer.Stop()
 
 	select {

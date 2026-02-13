@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/connectors"
 )
 
@@ -45,7 +46,7 @@ func TestTracerouteProgressValue_ClampsBounds(t *testing.T) {
 	if got := tracerouteProgressValue(update, -1*time.Second); got != 0 {
 		t.Fatalf("expected negative progress clamp to 0, got %f", got)
 	}
-	if got := tracerouteProgressValue(update, tracerouteModalTimeout*2); got != 1 {
+	if got := tracerouteProgressValue(update, app.DefaultTracerouteRequestTimeout*2); got != 1 {
 		t.Fatalf("expected over-time progress clamp to 1, got %f", got)
 	}
 }

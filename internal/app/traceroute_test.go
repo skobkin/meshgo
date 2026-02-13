@@ -51,6 +51,7 @@ func TestTracerouteServiceStartTraceroute_EnforcesGlobalCooldown(t *testing.T) {
 			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
 		},
 		logger,
+		0,
 	)
 
 	first, err := service.StartTraceroute(context.Background(), TracerouteTarget{NodeID: "!0000002a"})
@@ -94,6 +95,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
 		},
 		logger,
+		0,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -145,12 +147,6 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 	messageBus := bus.New(logger)
 	defer messageBus.Close()
 
-	origTimeout := tracerouteRequestTimeout
-	tracerouteRequestTimeout = 50 * time.Millisecond
-	defer func() {
-		tracerouteRequestTimeout = origTimeout
-	}()
-
 	service := NewTracerouteService(
 		messageBus,
 		stubTracerouteSender{
@@ -163,6 +159,7 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
 		},
 		logger,
+		50*time.Millisecond,
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

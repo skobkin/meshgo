@@ -179,6 +179,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		rt.Domain.NodeStore,
 		rt.CurrentConnStatus,
 		logMgr.Logger("traceroute"),
+		DefaultTracerouteRequestTimeout,
 	)
 	rt.Connectivity.Traceroute.Start(ctx)
 

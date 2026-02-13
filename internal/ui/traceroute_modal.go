@@ -20,8 +20,6 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
-const tracerouteModalTimeout = 60 * time.Second
-
 func handleNodeTracerouteAction(window fyne.Window, dep RuntimeDependencies, node domain.Node) {
 	if window == nil {
 		return
@@ -249,7 +247,7 @@ func tracerouteProgressValue(update connectors.TracerouteUpdate, elapsedDuration
 	if update.Status == connectors.TracerouteStatusCompleted {
 		return 1
 	}
-	progressRatio := elapsedDuration.Seconds() / tracerouteModalTimeout.Seconds()
+	progressRatio := elapsedDuration.Seconds() / app.DefaultTracerouteRequestTimeout.Seconds()
 	if progressRatio < 0 {
 		return 0
 	}
