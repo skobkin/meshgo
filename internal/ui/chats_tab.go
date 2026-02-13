@@ -21,6 +21,10 @@ import (
 
 var chatsLogger = slog.With("component", "ui.chats")
 
+// messageRowMeasureEpsilon filters sub-pixel measurement jitter so list item
+// heights are updated only on meaningful size changes.
+const messageRowMeasureEpsilon float32 = 0.5
+
 func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID func(string) string, localNodeID func() string, nodeChanges <-chan struct{}, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
@@ -48,6 +52,7 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 	pendingScrollChatKey := ""
 	pendingScrollMinCount := 0
 	messageItemHeightByID := make(map[widget.ListItemID]float32)
+	messageItemWidthByID := make(map[widget.ListItemID]float32)
 
 	chatList := widget.NewList(
 		func() int { return len(chats) },
@@ -104,6 +109,7 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 		}
 		messages = store.Messages(selectedKey)
 		clear(messageItemHeightByID)
+		clear(messageItemWidthByID)
 		chatList.Refresh()
 		messageList.Refresh()
 		chatTitle.SetText(chats[id].Title)
@@ -181,12 +187,25 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 			metaRight.Objects[0].(*tooltipWidget).SetBadge(messageStatusBadge(msg))
 			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
 
+			// During early startup refreshes list width can still be zero. Skip
+			// height caching in that state to avoid overestimating wrapped row height.
+			if messageList.Size().Width <= 1 || rowContainer.Size().Width <= 1 {
+				rowContainer.Refresh()
+
+				return
+			}
+
 			// Chat rows can have different heights (e.g. multiline message text).
-			// Only grow the cached item height to avoid width/height oscillation loops
-			// when the list scrollbar appears/disappears during relayout.
+			// Update heights when they grow and also allow shrink after row width
+			// increases (startup/layout settle case). This avoids preserving early
+			// overestimated heights while still preventing width jitter loops.
 			rowHeight := rowContainer.MinSize().Height
-			if prev, ok := messageItemHeightByID[id]; !ok || rowHeight > prev+0.5 {
+			rowWidth := rowContainer.Size().Width
+			prevHeight, hasPrev := messageItemHeightByID[id]
+			prevWidth := messageItemWidthByID[id]
+			if shouldUpdateMessageItemHeight(hasPrev, prevHeight, prevWidth, rowHeight, rowWidth) {
 				messageItemHeightByID[id] = rowHeight
+				messageItemWidthByID[id] = rowWidth
 				messageList.SetItemHeight(id, rowHeight)
 			}
 			rowContainer.Refresh()
@@ -321,6 +340,7 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 		selectedIndex := chatIndexByKey(chats, selectedKey)
 		messages = updatedMessages
 		clear(messageItemHeightByID)
+		clear(messageItemWidthByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
@@ -347,8 +367,14 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 
 	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
 		chatList.Select(selectedIndex)
+		fyne.Do(func() {
+			messageList.Refresh()
+		})
 	} else if len(chats) > 0 {
 		chatList.Select(0)
+		fyne.Do(func() {
+			messageList.Refresh()
+		})
 	}
 
 	chatsLogger.Debug("starting chat store change listener")
@@ -397,6 +423,21 @@ func scrollMessageListToEnd(list *widget.List, length int) {
 	}
 	list.ScrollTo(length - 1)
 	list.ScrollToBottom()
+}
+
+func shouldUpdateMessageItemHeight(hasPrev bool, prevHeight, prevWidth, rowHeight, rowWidth float32) bool {
+	if !hasPrev {
+		return true
+	}
+	if rowHeight > prevHeight+messageRowMeasureEpsilon {
+		return true
+	}
+	if rowWidth > prevWidth+messageRowMeasureEpsilon &&
+		rowHeight < prevHeight-messageRowMeasureEpsilon {
+		return true
+	}
+
+	return false
 }
 
 func chatTypeLabel(c domain.Chat) string {

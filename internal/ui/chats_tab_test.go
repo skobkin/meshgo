@@ -484,6 +484,86 @@ func TestMessageTimeLabel(t *testing.T) {
 	}
 }
 
+func TestShouldUpdateMessageItemHeight(t *testing.T) {
+	tests := []struct {
+		name       string
+		hasPrev    bool
+		prevHeight float32
+		prevWidth  float32
+		rowHeight  float32
+		rowWidth   float32
+		want       bool
+	}{
+		{
+			name:      "first measurement",
+			hasPrev:   false,
+			rowHeight: 64,
+			rowWidth:  420,
+			want:      true,
+		},
+		{
+			name:       "height grew",
+			hasPrev:    true,
+			prevHeight: 64,
+			prevWidth:  420,
+			rowHeight:  90,
+			rowWidth:   420,
+			want:       true,
+		},
+		{
+			name:       "height shrank after wider layout",
+			hasPrev:    true,
+			prevHeight: 120,
+			prevWidth:  300,
+			rowHeight:  76,
+			rowWidth:   420,
+			want:       true,
+		},
+		{
+			name:       "height shrank without wider layout",
+			hasPrev:    true,
+			prevHeight: 120,
+			prevWidth:  420,
+			rowHeight:  76,
+			rowWidth:   420,
+			want:       false,
+		},
+		{
+			name:       "wider layout but same height",
+			hasPrev:    true,
+			prevHeight: 76,
+			prevWidth:  300,
+			rowHeight:  76,
+			rowWidth:   420,
+			want:       false,
+		},
+		{
+			name:       "tiny jitter ignored",
+			hasPrev:    true,
+			prevHeight: 76,
+			prevWidth:  420,
+			rowHeight:  76.2,
+			rowWidth:   420,
+			want:       false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := shouldUpdateMessageItemHeight(
+				tc.hasPrev,
+				tc.prevHeight,
+				tc.prevWidth,
+				tc.rowHeight,
+				tc.rowWidth,
+			)
+			if got != tc.want {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 	if raceDetectorEnabled {
 		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
