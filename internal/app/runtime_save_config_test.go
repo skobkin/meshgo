@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
+	"github.com/skobkin/meshgo/internal/persistence"
 )
 
 func TestRuntimeSaveAndApplyConfig_TransportSwitchResetsInMemoryStores(t *testing.T) {
@@ -45,6 +47,108 @@ func TestRuntimeSaveAndApplyConfig_SameTransportKeepsInMemoryStores(t *testing.T
 	}
 	if got := len(rt.Domain.NodeStore.SnapshotSorted()); got == 0 {
 		t.Fatalf("expected node store to keep data when transport is unchanged")
+	}
+}
+
+func TestRuntimeClearDatabase_ClearsAllTables(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	now := time.Now()
+	nowUnix := now.Unix()
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO chats(chat_key, type, title, last_sent_by_me_at, updated_at)
+		VALUES(?, ?, ?, ?, ?)
+	`, domain.ChatKeyForChannel(0), int(domain.ChatTypeChannel), "General", nowUnix, nowUnix); err != nil {
+		t.Fatalf("seed chats: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO messages(chat_key, direction, body, status, at)
+		VALUES(?, ?, ?, ?, ?)
+	`, domain.ChatKeyForChannel(0), int(domain.MessageDirectionIn), "hello", int(domain.MessageStatusSent), nowUnix); err != nil {
+		t.Fatalf("seed messages: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO nodes(node_id, last_heard_at, updated_at)
+		VALUES(?, ?, ?)
+	`, "!00000001", nowUnix, nowUnix); err != nil {
+		t.Fatalf("seed nodes: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO traceroutes(request_id, target_node_id, started_at, updated_at, status)
+		VALUES(?, ?, ?, ?, ?)
+	`, "request-1", "!00000001", nowUnix, nowUnix, "in_progress"); err != nil {
+		t.Fatalf("seed traceroutes: %v", err)
+	}
+
+	chatStore := domain.NewChatStore()
+	chatStore.UpsertChat(domain.Chat{
+		Key:       domain.ChatKeyForChannel(0),
+		Type:      domain.ChatTypeChannel,
+		Title:     "General",
+		UpdatedAt: now,
+	})
+	chatStore.AppendMessage(domain.ChatMessage{
+		ChatKey:   domain.ChatKeyForChannel(0),
+		Direction: domain.MessageDirectionIn,
+		Body:      "hello",
+		Status:    domain.MessageStatusSent,
+		At:        now,
+	})
+
+	nodeStore := domain.NewNodeStore()
+	nodeStore.Upsert(domain.Node{
+		NodeID:      "!00000001",
+		ShortName:   "N1",
+		LastHeardAt: now,
+		UpdatedAt:   now,
+	})
+
+	rt := &Runtime{
+		Persistence: RuntimePersistence{
+			DB: db,
+		},
+		Domain: RuntimeDomain{
+			ChatStore: chatStore,
+			NodeStore: nodeStore,
+		},
+	}
+
+	if err := rt.ClearDatabase(); err != nil {
+		t.Fatalf("clear database: %v", err)
+	}
+
+	tableChecks := []struct {
+		name  string
+		query string
+	}{
+		{name: "messages", query: "SELECT COUNT(*) FROM messages;"},
+		{name: "chats", query: "SELECT COUNT(*) FROM chats;"},
+		{name: "nodes", query: "SELECT COUNT(*) FROM nodes;"},
+		{name: "traceroutes", query: "SELECT COUNT(*) FROM traceroutes;"},
+	}
+	for _, table := range tableChecks {
+		var count int
+		if err := db.QueryRowContext(ctx, table.query).Scan(&count); err != nil {
+			t.Fatalf("count rows in %s: %v", table.name, err)
+		}
+		if count != 0 {
+			t.Fatalf("expected %s to be empty after clear, got %d rows", table.name, count)
+		}
+	}
+
+	if got := len(chatStore.ChatListSorted()); got != 0 {
+		t.Fatalf("expected chat store to be reset after clear, got %d chats", got)
+	}
+	if got := len(nodeStore.SnapshotSorted()); got != 0 {
+		t.Fatalf("expected node store to be reset after clear, got %d nodes", got)
 	}
 }
 

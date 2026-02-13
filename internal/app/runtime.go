@@ -371,6 +371,7 @@ func (r *Runtime) ClearDatabase() error {
 		`DELETE FROM messages;`,
 		`DELETE FROM chats;`,
 		`DELETE FROM nodes;`,
+		`DELETE FROM traceroutes;`,
 	}
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
