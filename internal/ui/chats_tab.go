@@ -17,14 +17,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
-	"github.com/skobkin/meshgo/internal/radio"
 )
 
 var chatsLogger = slog.With("component", "ui.chats")
 
-func newChatsTab(store *domain.ChatStore, sender interface {
-	SendText(chatKey, text string) <-chan radio.SendResult
-}, nodeNameByID func(string) string, localNodeID func() string, nodeChanges <-chan struct{}, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
+func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID func(string) string, localNodeID func() string, nodeChanges <-chan struct{}, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
 	selectedKey := strings.TrimSpace(initialSelectedKey)

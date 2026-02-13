@@ -24,11 +24,6 @@ type TracerouteTarget struct {
 	NodeID string
 }
 
-// TracerouteStarter provides UI-facing traceroute start operation.
-type TracerouteStarter interface {
-	StartTraceroute(ctx context.Context, target TracerouteTarget) (connectors.TracerouteUpdate, error)
-}
-
 type tracerouteSender interface {
 	SendTraceroute(to uint32, channel uint32) (string, error)
 }

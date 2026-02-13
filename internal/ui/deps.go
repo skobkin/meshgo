@@ -18,6 +18,17 @@ type MessageSender interface {
 	SendText(chatKey, text string) <-chan radio.SendResult
 }
 
+// TracerouteAction starts traceroute requests for UI actions.
+type TracerouteAction interface {
+	StartTraceroute(ctx context.Context, target app.TracerouteTarget) (connectors.TracerouteUpdate, error)
+}
+
+// NodeSettingsAction loads and saves node settings from UI.
+type NodeSettingsAction interface {
+	LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)
+	SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
+}
+
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
 	Config                config.AppConfig
@@ -34,20 +45,15 @@ type DataDependencies struct {
 
 // ActionDependencies contains user-triggered operations invoked from UI.
 type ActionDependencies struct {
-	Sender     MessageSender
-	Traceroute interface {
-		StartTraceroute(ctx context.Context, target app.TracerouteTarget) (connectors.TracerouteUpdate, error)
-	}
+	Sender               MessageSender
+	Traceroute           TracerouteAction
 	OnSave               func(cfg config.AppConfig) error
 	OnChatSelected       func(chatKey string)
 	OnMapViewportChanged func(zoom, x, y int)
 	OnClearDB            func() error
 	OnClearCache         func() error
 	OnQuit               func()
-	NodeSettings         interface {
-		LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)
-		SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
-	}
+	NodeSettings         NodeSettingsAction
 }
 
 // PlatformDependencies contains OS-specific helpers used by UI actions.

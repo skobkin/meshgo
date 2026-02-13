@@ -39,12 +39,6 @@ type NodeUserSettings struct {
 	IsUnmessageable bool
 }
 
-// NodeSettingsEditor provides UI-facing node settings load/save operations.
-type NodeSettingsEditor interface {
-	LoadUserSettings(ctx context.Context, target NodeSettingsTarget) (NodeUserSettings, error)
-	SaveUserSettings(ctx context.Context, target NodeSettingsTarget, settings NodeUserSettings) error
-}
-
 type adminSender interface {
 	SendAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error)
 }
