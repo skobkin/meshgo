@@ -137,6 +137,37 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 	}
 }
 
+func TestNodeDiscoveryProjection_IgnoresNodeInfoObservedBeforeBootstrapCutover(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	proj := NewNodeDiscoveryProjection(nil, logger)
+
+	staleUpdate := domain.NodeUpdate{
+		Node: domain.Node{
+			NodeID:    "!00000077",
+			UpdatedAt: time.Now().Add(-time.Second),
+		},
+		Type: domain.NodeUpdateTypeNodeInfoPacket,
+	}
+
+	proj.handleRadioFrame(radio.DecodedFrame{WantConfigReady: true})
+	if _, ok := proj.nodeDiscoveredEvent(staleUpdate); ok {
+		t.Fatalf("expected stale pre-bootstrap update to be ignored")
+	}
+
+	freshUpdate := domain.NodeUpdate{
+		Node: domain.Node{
+			NodeID:    "!00000077",
+			UpdatedAt: time.Now(),
+		},
+		Type: domain.NodeUpdateTypeNodeInfoPacket,
+	}
+	if event, ok := proj.nodeDiscoveredEvent(freshUpdate); !ok {
+		t.Fatalf("expected fresh post-bootstrap update to emit discovery")
+	} else if event.NodeID != "!00000077" {
+		t.Fatalf("unexpected discovered node id: %q", event.NodeID)
+	}
+}
+
 func waitNodeDiscovered(t *testing.T, sub bus.Subscription) domain.NodeDiscovered {
 	t.Helper()
 	timeout := time.NewTimer(500 * time.Millisecond)
