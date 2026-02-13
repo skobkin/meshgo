@@ -107,6 +107,7 @@ func run() error {
 	nodeRepo := persistence.NewNodeRepo(db)
 	chatRepo := persistence.NewChatRepo(db)
 	msgRepo := persistence.NewMessageRepo(db)
+	tracerouteRepo := persistence.NewTracerouteRepo(db)
 
 	nodes, err := nodeRepo.ListSortedByLastHeard(ctx)
 	if err != nil {
@@ -131,7 +132,7 @@ func run() error {
 
 	writer := persistence.NewWriterQueue(logMgr.Logger("persistence"), 256)
 	writer.Start(ctx)
-	domain.StartPersistenceProjection(ctx, b, writer, nodeRepo, chatRepo, msgRepo)
+	domain.StartPersistenceProjection(ctx, b, writer, nodeRepo, chatRepo, msgRepo, tracerouteRepo)
 
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {

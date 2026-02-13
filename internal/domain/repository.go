@@ -20,3 +20,8 @@ type MessageRepository interface {
 	LoadRecentPerChat(ctx context.Context, limit int) (map[string][]ChatMessage, error)
 	UpdateStatusByDeviceMessageID(ctx context.Context, deviceMessageID string, status MessageStatus) error
 }
+
+// TracerouteRepository persists traceroute request/response snapshots.
+type TracerouteRepository interface {
+	Upsert(ctx context.Context, rec TracerouteRecord) error
+}

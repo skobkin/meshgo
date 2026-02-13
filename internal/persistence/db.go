@@ -9,7 +9,7 @@ import (
 	_ "modernc.org/sqlite" // register sqlite driver
 )
 
-const schemaVersion = 5
+const schemaVersion = 7
 
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", path)
@@ -68,6 +68,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				node_id TEXT PRIMARY KEY,
 				long_name TEXT,
 				short_name TEXT,
+				channel INTEGER NULL,
 				latitude REAL NULL,
 				longitude REAL NULL,
 				battery_level INTEGER NULL,
@@ -107,7 +108,23 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			);`,
 			`CREATE INDEX IF NOT EXISTS messages_chat_at_idx ON messages(chat_key, at ASC);`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS messages_chat_device_unique_idx ON messages(chat_key, device_message_id) WHERE device_message_id IS NOT NULL;`,
-			`PRAGMA user_version = 5;`,
+			`CREATE TABLE IF NOT EXISTS traceroutes (
+				request_id TEXT PRIMARY KEY,
+				target_node_id TEXT NOT NULL,
+				started_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL,
+				completed_at INTEGER NULL,
+				status TEXT NOT NULL,
+				forward_route_json TEXT NULL,
+				forward_snr_json TEXT NULL,
+				return_route_json TEXT NULL,
+				return_snr_json TEXT NULL,
+				error_text TEXT NULL,
+				duration_ms INTEGER NULL
+			);`,
+			`CREATE INDEX IF NOT EXISTS traceroutes_started_at_idx ON traceroutes(started_at DESC);`,
+			`CREATE INDEX IF NOT EXISTS traceroutes_target_started_idx ON traceroutes(target_node_id, started_at DESC);`,
+			`PRAGMA user_version = 7;`,
 		}
 
 		for _, stmt := range stmts {
@@ -177,6 +194,47 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 5
+		}
+		if version < 6 {
+			slog.Info("applying db migration", "from", version, "to", 6)
+			stmts := []string{
+				`CREATE TABLE IF NOT EXISTS traceroutes (
+					request_id TEXT PRIMARY KEY,
+					target_node_id TEXT NOT NULL,
+					started_at INTEGER NOT NULL,
+					updated_at INTEGER NOT NULL,
+					completed_at INTEGER NULL,
+					status TEXT NOT NULL,
+					forward_route_json TEXT NULL,
+					forward_snr_json TEXT NULL,
+					return_route_json TEXT NULL,
+					return_snr_json TEXT NULL,
+					error_text TEXT NULL,
+					duration_ms INTEGER NULL
+				);`,
+				`CREATE INDEX IF NOT EXISTS traceroutes_started_at_idx ON traceroutes(started_at DESC);`,
+				`CREATE INDEX IF NOT EXISTS traceroutes_target_started_idx ON traceroutes(target_node_id, started_at DESC);`,
+				`PRAGMA user_version = 6;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 6
+		}
+		if version < 7 {
+			slog.Info("applying db migration", "from", version, "to", 7)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN channel INTEGER NULL;`,
+				`PRAGMA user_version = 7;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 7
 		}
 	}
 

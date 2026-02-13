@@ -50,11 +50,12 @@ type RuntimeCore struct {
 
 // RuntimePersistence contains database handles, repositories, and write projection queue.
 type RuntimePersistence struct {
-	DB          *sql.DB
-	NodeRepo    *persistence.NodeRepo
-	ChatRepo    *persistence.ChatRepo
-	MessageRepo *persistence.MessageRepo
-	WriterQueue *persistence.WriterQueue
+	DB             *sql.DB
+	NodeRepo       *persistence.NodeRepo
+	ChatRepo       *persistence.ChatRepo
+	MessageRepo    *persistence.MessageRepo
+	TracerouteRepo *persistence.TracerouteRepo
+	WriterQueue    *persistence.WriterQueue
 }
 
 // RuntimeDomain contains in-memory stores and message bus projections used by the app/UI.
@@ -68,6 +69,7 @@ type RuntimeDomain struct {
 type RuntimeConnectivity struct {
 	ConnectionTransport *SwitchableTransport
 	Radio               *radio.Service
+	Traceroute          *TracerouteService
 }
 
 func Initialize(parent context.Context) (*Runtime, error) {
@@ -115,6 +117,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	rt.Persistence.NodeRepo = persistence.NewNodeRepo(db)
 	rt.Persistence.ChatRepo = persistence.NewChatRepo(db)
 	rt.Persistence.MessageRepo = persistence.NewMessageRepo(db)
+	rt.Persistence.TracerouteRepo = persistence.NewTracerouteRepo(db)
 
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
@@ -150,6 +153,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		rt.Persistence.NodeRepo,
 		rt.Persistence.ChatRepo,
 		rt.Persistence.MessageRepo,
+		rt.Persistence.TracerouteRepo,
 	)
 
 	codec, err := radio.NewMeshtasticCodec()
@@ -169,6 +173,14 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	rt.Connectivity.Radio = radio.NewService(logMgr.Logger("radio"), b, rt.Connectivity.ConnectionTransport, codec)
 	rt.Connectivity.Radio.Start(ctx)
+	rt.Connectivity.Traceroute = NewTracerouteService(
+		b,
+		rt.Connectivity.Radio,
+		rt.Domain.NodeStore,
+		rt.CurrentConnStatus,
+		logMgr.Logger("traceroute"),
+	)
+	rt.Connectivity.Traceroute.Start(ctx)
 
 	rt.Core.UpdateChecker = NewUpdateChecker(UpdateCheckerConfig{
 		CurrentVersion: BuildVersion(),

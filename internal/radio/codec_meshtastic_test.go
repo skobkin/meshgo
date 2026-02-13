@@ -37,6 +37,107 @@ func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 	}
 }
 
+func TestMeshtasticCodec_EncodeTraceroutePacket(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	encoded, err := codec.EncodeTraceroute(0x1234abcd, 3)
+	if err != nil {
+		t.Fatalf("encode traceroute: %v", err)
+	}
+	if encoded.DeviceMessageID == "" {
+		t.Fatalf("expected non-empty device message id")
+	}
+
+	var wire generated.ToRadio
+	if err := proto.Unmarshal(encoded.Payload, &wire); err != nil {
+		t.Fatalf("unmarshal toradio: %v", err)
+	}
+	packet := wire.GetPacket()
+	if packet == nil {
+		t.Fatalf("expected packet payload variant")
+	}
+	if packet.GetTo() != 0x1234abcd {
+		t.Fatalf("unexpected destination: %d", packet.GetTo())
+	}
+	if packet.GetChannel() != 3 {
+		t.Fatalf("unexpected channel: %d", packet.GetChannel())
+	}
+	if !packet.GetWantAck() {
+		t.Fatalf("expected want_ack=true")
+	}
+	decoded := packet.GetDecoded()
+	if decoded == nil {
+		t.Fatalf("expected decoded data")
+	}
+	if decoded.GetPortnum() != generated.PortNum_TRACEROUTE_APP {
+		t.Fatalf("unexpected portnum: %s", decoded.GetPortnum())
+	}
+	if !decoded.GetWantResponse() {
+		t.Fatalf("expected want_response=true")
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioTraceroutePacket(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	routePayload, err := proto.Marshal(&generated.RouteDiscovery{
+		Route:      []uint32{0x33333333},
+		SnrTowards: []int32{18, 22},
+		RouteBack:  []uint32{0x44444444},
+		SnrBack:    []int32{14},
+	})
+	if err != nil {
+		t.Fatalf("marshal route discovery: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From:     0x11111111,
+				To:       0x22222222,
+				HopStart: 3,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum:      generated.PortNum_TRACEROUTE_APP,
+						Payload:      routePayload,
+						RequestId:    77,
+						WantResponse: false,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode traceroute packet: %v", err)
+	}
+	if frame.Traceroute == nil {
+		t.Fatalf("expected traceroute event")
+	}
+	if frame.Traceroute.RequestID != 77 {
+		t.Fatalf("unexpected request id: %d", frame.Traceroute.RequestID)
+	}
+	if !frame.Traceroute.IsComplete {
+		t.Fatalf("expected complete traceroute")
+	}
+	if len(frame.Traceroute.Route) != 3 {
+		t.Fatalf("unexpected forward route length: %d", len(frame.Traceroute.Route))
+	}
+	if frame.Traceroute.Route[0] != 0x22222222 || frame.Traceroute.Route[2] != 0x11111111 {
+		t.Fatalf("unexpected forward route endpoints: %x", frame.Traceroute.Route)
+	}
+	if len(frame.Traceroute.RouteBack) != 3 {
+		t.Fatalf("unexpected return route length: %d", len(frame.Traceroute.RouteBack))
+	}
+	if frame.Traceroute.RouteBack[0] != 0x11111111 || frame.Traceroute.RouteBack[2] != 0x22222222 {
+		t.Fatalf("unexpected return route endpoints: %x", frame.Traceroute.RouteBack)
+	}
+}
+
 func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
 
@@ -84,6 +185,9 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 	node := frame.NodeUpdate.Node
 	if node.NodeID != "!1234abcd" {
 		t.Fatalf("unexpected node id: %q", node.NodeID)
+	}
+	if node.Channel == nil || *node.Channel != 0 {
+		t.Fatalf("expected telemetry channel to be captured")
 	}
 	assertFloatPtr(t, node.Temperature, 22.7, "temperature")
 	assertFloatPtr(t, node.Humidity, 47.3, "humidity")

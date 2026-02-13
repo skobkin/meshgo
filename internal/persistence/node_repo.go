@@ -20,6 +20,7 @@ func NewNodeRepo(db *sql.DB) *NodeRepo {
 
 func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	var (
+		channel         any
 		latitude        any
 		longitude       any
 		batteryLevel    any
@@ -32,6 +33,9 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		powerCurrent    any
 		isUnmessageable any
 	)
+	if n.Channel != nil {
+		channel = int64(*n.Channel)
+	}
 	if n.Latitude != nil {
 		latitude = *n.Latitude
 	}
@@ -70,8 +74,8 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		}
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, latitude, longitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = CASE
 				WHEN excluded.long_name IS NOT NULL AND excluded.long_name <> '' THEN excluded.long_name
@@ -81,6 +85,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.short_name IS NOT NULL AND excluded.short_name <> '' THEN excluded.short_name
 				ELSE nodes.short_name
 			END,
+			channel = COALESCE(excluded.channel, nodes.channel),
 			latitude = COALESCE(excluded.latitude, nodes.latitude),
 			longitude = COALESCE(excluded.longitude, nodes.longitude),
 			battery_level = COALESCE(excluded.battery_level, nodes.battery_level),
@@ -110,7 +115,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.updated_at > nodes.updated_at THEN excluded.updated_at
 				ELSE nodes.updated_at
 			END
-	`, n.NodeID, n.LongName, n.ShortName, latitude, longitude, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -120,7 +125,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, latitude, longitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, channel, latitude, longitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -137,6 +142,7 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			n             domain.Node
 			heardMs       int64
 			updMs         int64
+			channel       sql.NullInt64
 			latitude      sql.NullFloat64
 			longitude     sql.NullFloat64
 			battery       sql.NullInt64
@@ -153,11 +159,16 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			rssi          sql.NullInt64
 			snr           sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &latitude, &longitude, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
 		n.LastHeardAt = unixMillisToTime(heardMs)
 		n.UpdatedAt = unixMillisToTime(updMs)
+		if channel.Valid && channel.Int64 >= 0 && channel.Int64 <= math.MaxUint32 {
+			// #nosec G115 -- guarded by explicit int64 bounds check.
+			v := uint32(channel.Int64)
+			n.Channel = &v
+		}
 		if latitude.Valid {
 			v := latitude.Float64
 			n.Latitude = &v

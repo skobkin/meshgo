@@ -136,6 +136,30 @@ func (c *MeshtasticCodec) EncodeAdmin(
 	}, nil
 }
 
+func (c *MeshtasticCodec) EncodeTraceroute(to uint32, channel uint32) (EncodedTraceroute, error) {
+	packetID := c.nextNonZeroID()
+	packet := &generated.MeshPacket{
+		To:      to,
+		Channel: channel,
+		Id:      packetID,
+		WantAck: true,
+		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+			Portnum:      generated.PortNum_TRACEROUTE_APP,
+			WantResponse: true,
+		}},
+	}
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
+	encoded, err := proto.Marshal(wire)
+	if err != nil {
+		return EncodedTraceroute{}, fmt.Errorf("marshal traceroute packet: %w", err)
+	}
+
+	return EncodedTraceroute{
+		Payload:         encoded,
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+	}, nil
+}
+
 func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) {
 	out := DecodedFrame{Raw: payload}
 
@@ -247,7 +271,71 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 			ReplyID:   decoded.GetReplyId(),
 			Message:   &admin,
 		}
+	case generated.PortNum_TRACEROUTE_APP:
+		if event, ok := decodeTracerouteEvent(packet, decoded); ok {
+			out.Traceroute = &event
+		}
 	}
+}
+
+func decodeTracerouteEvent(packet *generated.MeshPacket, decoded *generated.Data) (connectors.TracerouteEvent, bool) {
+	if decoded == nil || decoded.GetWantResponse() {
+		return connectors.TracerouteEvent{}, false
+	}
+	var routeDiscovery generated.RouteDiscovery
+	if err := proto.Unmarshal(decoded.GetPayload(), &routeDiscovery); err != nil {
+		return connectors.TracerouteEvent{}, false
+	}
+
+	destinationID := decoded.GetDest()
+	if destinationID == 0 {
+		destinationID = packet.GetTo()
+	}
+	sourceID := decoded.GetSource()
+	if sourceID == 0 {
+		sourceID = packet.GetFrom()
+	}
+
+	fullRoute := make([]uint32, 0, len(routeDiscovery.GetRoute())+2)
+	if destinationID != 0 {
+		fullRoute = append(fullRoute, destinationID)
+	}
+	fullRoute = append(fullRoute, routeDiscovery.GetRoute()...)
+	if sourceID != 0 {
+		fullRoute = append(fullRoute, sourceID)
+	}
+
+	routeBack := routeDiscovery.GetRouteBack()
+	fullRouteBack := make([]uint32, 0, len(routeBack)+2)
+	if (packet.GetHopStart() > 0 || decoded.GetBitfield() != 0) && len(routeDiscovery.GetSnrBack()) > 0 {
+		if sourceID != 0 {
+			fullRouteBack = append(fullRouteBack, sourceID)
+		}
+		fullRouteBack = append(fullRouteBack, routeBack...)
+		if destinationID != 0 {
+			fullRouteBack = append(fullRouteBack, destinationID)
+		}
+	} else {
+		fullRouteBack = append(fullRouteBack, routeBack...)
+	}
+
+	requestID := decoded.GetRequestId()
+	if requestID == 0 {
+		requestID = decoded.GetReplyId()
+	}
+
+	return connectors.TracerouteEvent{
+		From:       packet.GetFrom(),
+		To:         packet.GetTo(),
+		PacketID:   packet.GetId(),
+		RequestID:  requestID,
+		ReplyID:    decoded.GetReplyId(),
+		Route:      fullRoute,
+		SnrTowards: append([]int32(nil), routeDiscovery.GetSnrTowards()...),
+		RouteBack:  fullRouteBack,
+		SnrBack:    append([]int32(nil), routeDiscovery.GetSnrBack()...),
+		IsComplete: len(fullRoute) > 0 && len(fullRouteBack) > 0,
+	}, true
 }
 
 func decodeQueueStatus(queueStatus *generated.QueueStatus) (domain.MessageStatusUpdate, bool) {
@@ -340,6 +428,7 @@ func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte,
 
 	node := domain.Node{
 		NodeID:      formatNodeNum(packet.GetFrom()),
+		Channel:     uint32Ptr(packet.GetChannel()),
 		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
 		UpdatedAt:   now,
 	}
@@ -443,6 +532,7 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 
 	node := domain.Node{
 		NodeID:      formatNodeNum(packet.GetFrom()),
+		Channel:     uint32Ptr(packet.GetChannel()),
 		LongName:    strings.TrimSpace(user.GetLongName()),
 		ShortName:   strings.TrimSpace(user.GetShortName()),
 		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
@@ -481,6 +571,7 @@ func decodeNodePositionFromPacket(packet *generated.MeshPacket, payload []byte, 
 	}
 	node := domain.Node{
 		NodeID:      formatNodeNum(packet.GetFrom()),
+		Channel:     uint32Ptr(packet.GetChannel()),
 		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
 		UpdatedAt:   now,
 	}
@@ -742,6 +833,10 @@ func packetHops(packet *generated.MeshPacket) (int, bool) {
 	}
 
 	return int(hopStart - hopLimit), true
+}
+
+func uint32Ptr(v uint32) *uint32 {
+	return &v
 }
 
 func (c *MeshtasticCodec) nextNonZeroID() uint32 {

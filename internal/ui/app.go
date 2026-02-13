@@ -56,7 +56,17 @@ func Run(dep RuntimeDependencies) error {
 		dep.Data.LastSelectedChat,
 		dep.Actions.OnChatSelected,
 	)
-	nodesTab := newNodesTab(dep.Data.NodeStore, DefaultNodeRowRenderer())
+	nodeActionHandler := func(node domain.Node, action NodeAction) {
+		if action != NodeActionTraceroute {
+			return
+		}
+		handleNodeTracerouteAction(window, dep, node)
+	}
+	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, DefaultNodeRowRenderer(), NodesTabActions{
+		OnNodeSecondaryTapped: func(node domain.Node, position fyne.Position) {
+			showNodeContextMenu(window.Canvas(), position, node, nodeActionHandler)
+		},
+	})
 	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, initialVariant, dep.Actions.OnMapViewportChanged)
 	nodeSettingsTab := newNodeTab(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)

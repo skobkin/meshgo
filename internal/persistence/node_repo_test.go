@@ -59,7 +59,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	}
 }
 
-func TestOpen_MigratesV4DatabaseToIncludeCoordinates(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -110,8 +110,8 @@ func TestOpen_MigratesV4DatabaseToIncludeCoordinates(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 5 {
-		t.Fatalf("expected schema version 5, got %d", version)
+	if version != 7 {
+		t.Fatalf("expected schema version 7, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -143,5 +143,20 @@ func TestOpen_MigratesV4DatabaseToIncludeCoordinates(t *testing.T) {
 	}
 	if !columns["longitude"] {
 		t.Fatalf("expected longitude column after migration")
+	}
+	if !columns["channel"] {
+		t.Fatalf("expected channel column after migration")
+	}
+
+	var traceroutesTable string
+	if err := migrated.QueryRowContext(ctx, `
+		SELECT name
+		FROM sqlite_master
+		WHERE type = 'table' AND name = 'traceroutes'
+	`).Scan(&traceroutesTable); err != nil {
+		t.Fatalf("expected traceroutes table after migration: %v", err)
+	}
+	if traceroutesTable != "traceroutes" {
+		t.Fatalf("unexpected traceroutes table name: %q", traceroutesTable)
 	}
 }

@@ -179,6 +179,9 @@ func (s *Service) runReader(ctx context.Context) error {
 		if decoded.AdminMessage != nil {
 			s.bus.Publish(connectors.TopicAdminMessage, *decoded.AdminMessage)
 		}
+		if decoded.Traceroute != nil {
+			s.bus.Publish(connectors.TopicTraceroute, *decoded.Traceroute)
+		}
 		if decoded.MessageStatus != nil {
 			status := *decoded.MessageStatus
 			if status.Status == domain.MessageStatusSent && s.isAckTracked(status.DeviceMessageID) {
@@ -294,6 +297,22 @@ func (s *Service) SendAdmin(to uint32, channel uint32, wantResponse bool, payloa
 	cancel()
 	if err != nil {
 		return "", fmt.Errorf("send admin frame: %w", err)
+	}
+	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+
+	return encoded.DeviceMessageID, nil
+}
+
+func (s *Service) SendTraceroute(to uint32, channel uint32) (string, error) {
+	encoded, err := s.codec.EncodeTraceroute(to, channel)
+	if err != nil {
+		return "", fmt.Errorf("encode traceroute packet: %w", err)
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	err = s.transport.WriteFrame(writeCtx, encoded.Payload)
+	cancel()
+	if err != nil {
+		return "", fmt.Errorf("send traceroute frame: %w", err)
 	}
 	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
 

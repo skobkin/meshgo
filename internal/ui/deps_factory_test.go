@@ -30,7 +30,8 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 			NodeStore: domain.NewNodeStore(),
 		},
 		Connectivity: meshapp.RuntimeConnectivity{
-			Radio: &radio.Service{},
+			Radio:      &radio.Service{},
+			Traceroute: &meshapp.TracerouteService{},
 		},
 	}
 
@@ -68,6 +69,9 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	}
 	if dep.Actions.Sender == nil {
 		t.Fatalf("expected sender to be mapped")
+	}
+	if dep.Actions.Traceroute == nil {
+		t.Fatalf("expected traceroute action to be mapped")
 	}
 	if dep.Actions.OnSave == nil {
 		t.Fatalf("expected save action to be mapped")
@@ -117,6 +121,9 @@ func TestBuildRuntimeDependencies_NilRuntimeStillMapsLaunchAndQuit(t *testing.T)
 	}
 	if dep.Actions.Sender != nil {
 		t.Fatalf("expected sender to stay nil for nil runtime")
+	}
+	if dep.Actions.Traceroute != nil {
+		t.Fatalf("expected traceroute action to stay nil for nil runtime")
 	}
 	if dep.Actions.OnMapViewportChanged != nil {
 		t.Fatalf("expected map viewport action to stay nil for nil runtime")

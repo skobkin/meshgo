@@ -254,3 +254,18 @@ func hasLabelText(root fyne.CanvasObject, expected string) bool {
 
 	return false
 }
+
+func TestNodeRowItemTappedSecondaryCallsCallback(t *testing.T) {
+	row := newNodeRowItem(widget.NewLabel("node"))
+	called := false
+	row.onSecondary = func(position fyne.Position) {
+		called = true
+		if position.X != 12 || position.Y != 34 {
+			t.Fatalf("unexpected position: %+v", position)
+		}
+	}
+	row.TappedSecondary(&fyne.PointEvent{AbsolutePosition: fyne.NewPos(12, 34)})
+	if !called {
+		t.Fatalf("expected secondary tap callback")
+	}
+}

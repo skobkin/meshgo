@@ -34,7 +34,10 @@ type DataDependencies struct {
 
 // ActionDependencies contains user-triggered operations invoked from UI.
 type ActionDependencies struct {
-	Sender               MessageSender
+	Sender     MessageSender
+	Traceroute interface {
+		StartTraceroute(ctx context.Context, target app.TracerouteTarget) (connectors.TracerouteUpdate, error)
+	}
 	OnSave               func(cfg config.AppConfig) error
 	OnChatSelected       func(chatKey string)
 	OnMapViewportChanged func(zoom, x, y int)

@@ -15,6 +15,7 @@ type DecodedFrame struct {
 	MessageStatus    *domain.MessageStatusUpdate
 	ConfigSnapshot   *connectors.ConfigSnapshot
 	AdminMessage     *AdminMessageEvent
+	Traceroute       *connectors.TracerouteEvent
 	ConfigCompleteID uint32
 	WantConfigReady  bool
 }
@@ -28,6 +29,12 @@ type EncodedText struct {
 
 // EncodedAdmin contains an outbound admin frame and its tracking metadata.
 type EncodedAdmin struct {
+	Payload         []byte
+	DeviceMessageID string
+}
+
+// EncodedTraceroute contains an outbound traceroute frame and tracking metadata.
+type EncodedTraceroute struct {
 	Payload         []byte
 	DeviceMessageID string
 }
@@ -48,5 +55,6 @@ type Codec interface {
 	EncodeHeartbeat() ([]byte, error)
 	EncodeText(chatKey, text string) (EncodedText, error)
 	EncodeAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (EncodedAdmin, error)
+	EncodeTraceroute(to uint32, channel uint32) (EncodedTraceroute, error)
 	DecodeFromRadio(payload []byte) (DecodedFrame, error)
 }

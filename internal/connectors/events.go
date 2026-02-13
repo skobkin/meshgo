@@ -31,3 +31,44 @@ type RawFrame struct {
 type ConfigSnapshot struct {
 	ChannelTitles []string
 }
+
+// TracerouteEvent is a decoded TRACEROUTE_APP payload from the radio.
+type TracerouteEvent struct {
+	From       uint32
+	To         uint32
+	PacketID   uint32
+	RequestID  uint32
+	ReplyID    uint32
+	Route      []uint32
+	SnrTowards []int32
+	RouteBack  []uint32
+	SnrBack    []int32
+	IsComplete bool
+}
+
+// TracerouteStatus describes the lifecycle state of one traceroute request.
+type TracerouteStatus string
+
+const (
+	TracerouteStatusStarted   TracerouteStatus = "started"
+	TracerouteStatusProgress  TracerouteStatus = "progress"
+	TracerouteStatusCompleted TracerouteStatus = "completed"
+	TracerouteStatusFailed    TracerouteStatus = "failed"
+	TracerouteStatusTimedOut  TracerouteStatus = "timed_out"
+)
+
+// TracerouteUpdate is a UI-facing traceroute progress snapshot.
+type TracerouteUpdate struct {
+	RequestID    uint32
+	TargetNodeID string
+	StartedAt    time.Time
+	UpdatedAt    time.Time
+	CompletedAt  time.Time
+	Status       TracerouteStatus
+	ForwardRoute []string
+	ForwardSNR   []int32
+	ReturnRoute  []string
+	ReturnSNR    []int32
+	Error        string
+	DurationMS   int64
+}

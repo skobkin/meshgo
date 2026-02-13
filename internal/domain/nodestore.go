@@ -68,6 +68,9 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.ShortName == "" {
 			node.ShortName = existing.ShortName
 		}
+		if node.Channel == nil {
+			node.Channel = existing.Channel
+		}
 		if node.Latitude == nil {
 			node.Latitude = existing.Latitude
 		}

@@ -63,6 +63,9 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 			)
 		}
 	}
+	if rt.Connectivity.Traceroute != nil {
+		dep.Actions.Traceroute = rt.Connectivity.Traceroute
+	}
 
 	return dep
 }

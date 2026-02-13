@@ -84,6 +84,7 @@ type Node struct {
 	NodeID          string
 	LongName        string
 	ShortName       string
+	Channel         *uint32
 	Latitude        *float64
 	Longitude       *float64
 	BatteryLevel    *uint32
@@ -119,4 +120,31 @@ type ChannelList struct {
 type ChannelInfo struct {
 	Index int
 	Title string
+}
+
+// TracerouteStatus describes the lifecycle state of one traceroute request.
+type TracerouteStatus string
+
+const (
+	TracerouteStatusStarted   TracerouteStatus = "started"
+	TracerouteStatusProgress  TracerouteStatus = "progress"
+	TracerouteStatusCompleted TracerouteStatus = "completed"
+	TracerouteStatusFailed    TracerouteStatus = "failed"
+	TracerouteStatusTimedOut  TracerouteStatus = "timed_out"
+)
+
+// TracerouteRecord stores one traceroute run state for future history UI.
+type TracerouteRecord struct {
+	RequestID    string
+	TargetNodeID string
+	StartedAt    time.Time
+	UpdatedAt    time.Time
+	CompletedAt  time.Time
+	Status       TracerouteStatus
+	ForwardRoute []string
+	ForwardSNR   []int32
+	ReturnRoute  []string
+	ReturnSNR    []int32
+	ErrorText    string
+	DurationMS   int64
 }

@@ -23,6 +23,11 @@ type NodeRowRenderer struct {
 	Update func(obj fyne.CanvasObject, node domain.Node)
 }
 
+// NodesTabActions contains optional callbacks for node row interactions.
+type NodesTabActions struct {
+	OnNodeSecondaryTapped func(node domain.Node, position fyne.Position)
+}
+
 const nodeFilterDebounce = 500 * time.Millisecond
 
 func DefaultNodeRowRenderer() NodeRowRenderer {
@@ -76,6 +81,36 @@ type nodeRowLabels struct {
 	role   *widget.Label
 	signal *canvas.Text
 	id     *widget.Label
+}
+
+type nodeRowItem struct {
+	widget.BaseWidget
+
+	content     fyne.CanvasObject
+	onSecondary func(position fyne.Position)
+}
+
+var _ fyne.Tappable = (*nodeRowItem)(nil)
+var _ fyne.SecondaryTappable = (*nodeRowItem)(nil)
+
+func newNodeRowItem(content fyne.CanvasObject) *nodeRowItem {
+	item := &nodeRowItem{content: content}
+	item.ExtendBaseWidget(item)
+
+	return item
+}
+
+func (r *nodeRowItem) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(r.content)
+}
+
+func (r *nodeRowItem) Tapped(*fyne.PointEvent) {}
+
+func (r *nodeRowItem) TappedSecondary(event *fyne.PointEvent) {
+	if r == nil || r.onSecondary == nil || event == nil {
+		return
+	}
+	r.onSecondary(event.AbsolutePosition)
 }
 
 // extractNodeRowLabels maps list row container objects to typed labels.
@@ -267,6 +302,10 @@ func maxRounded(v float64) int {
 }
 
 func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasObject {
+	return newNodesTabWithActions(store, renderer, NodesTabActions{})
+}
+
+func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, actions NodesTabActions) fyne.CanvasObject {
 	if store == nil {
 		title := widget.NewLabel("Nodes (0)")
 		filterEntry := widget.NewEntry()
@@ -288,12 +327,27 @@ func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasO
 
 	list := widget.NewList(
 		func() int { return len(nodes) },
-		renderer.Create,
+		func() fyne.CanvasObject {
+			return newNodeRowItem(renderer.Create())
+		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(nodes) {
 				return
 			}
-			renderer.Update(obj, nodes[id])
+			row, ok := obj.(*nodeRowItem)
+			if !ok {
+				return
+			}
+			renderer.Update(row.content, nodes[id])
+			if actions.OnNodeSecondaryTapped == nil {
+				row.onSecondary = nil
+
+				return
+			}
+			node := nodes[id]
+			row.onSecondary = func(position fyne.Position) {
+				actions.OnNodeSecondaryTapped(node, position)
+			}
 		},
 	)
 

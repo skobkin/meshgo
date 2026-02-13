@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/connectors"
@@ -12,11 +13,23 @@ type WriteQueue interface {
 	Enqueue(name string, fn func(context.Context) error)
 }
 
-func StartPersistenceProjection(ctx context.Context, b bus.MessageBus, queue WriteQueue, nodeRepo NodeRepository, chatRepo ChatRepository, msgRepo MessageRepository) {
+func StartPersistenceProjection(
+	ctx context.Context,
+	b bus.MessageBus,
+	queue WriteQueue,
+	nodeRepo NodeRepository,
+	chatRepo ChatRepository,
+	msgRepo MessageRepository,
+	tracerouteRepo TracerouteRepository,
+) {
 	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
 	channelSub := b.Subscribe(connectors.TopicChannels)
 	textSub := b.Subscribe(connectors.TopicTextMessage)
 	statusSub := b.Subscribe(connectors.TopicMessageStatus)
+	var tracerouteSub bus.Subscription
+	if tracerouteRepo != nil {
+		tracerouteSub = b.Subscribe(connectors.TopicTracerouteUpdate)
+	}
 
 	go func() {
 		defer b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
@@ -116,4 +129,45 @@ func StartPersistenceProjection(ctx context.Context, b bus.MessageBus, queue Wri
 			}
 		}
 	}()
+
+	if tracerouteRepo != nil {
+		go func() {
+			defer b.Unsubscribe(tracerouteSub, connectors.TopicTracerouteUpdate)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case raw, ok := <-tracerouteSub:
+					if !ok {
+						return
+					}
+					update, ok := raw.(connectors.TracerouteUpdate)
+					if !ok {
+						continue
+					}
+					rec := TracerouteRecord{
+						RequestID:    stringFromUint32(update.RequestID),
+						TargetNodeID: update.TargetNodeID,
+						StartedAt:    update.StartedAt,
+						UpdatedAt:    update.UpdatedAt,
+						CompletedAt:  update.CompletedAt,
+						Status:       TracerouteStatus(update.Status),
+						ForwardRoute: append([]string(nil), update.ForwardRoute...),
+						ForwardSNR:   append([]int32(nil), update.ForwardSNR...),
+						ReturnRoute:  append([]string(nil), update.ReturnRoute...),
+						ReturnSNR:    append([]int32(nil), update.ReturnSNR...),
+						ErrorText:    update.Error,
+						DurationMS:   update.DurationMS,
+					}
+					queue.Enqueue("upsert_traceroute", func(writeCtx context.Context) error {
+						return tracerouteRepo.Upsert(writeCtx, rec)
+					})
+				}
+			}
+		}()
+	}
+}
+
+func stringFromUint32(v uint32) string {
+	return strconv.FormatUint(uint64(v), 10)
 }
