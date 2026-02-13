@@ -20,6 +20,8 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
+const tracerouteUnknownSNR = -128
+
 func handleNodeTracerouteAction(window fyne.Window, dep RuntimeDependencies, node domain.Node) {
 	if window == nil {
 		return
@@ -284,7 +286,7 @@ func formatTraceroutePath(nodeIDs []string, signals []int32, nodeStore *domain.N
 	if len(signals) != len(nodeIDs)-1 {
 		effectiveSignals = make([]int32, len(nodeIDs)-1)
 		for i := range effectiveSignals {
-			effectiveSignals[i] = -128
+			effectiveSignals[i] = tracerouteUnknownSNR
 		}
 	}
 
@@ -299,18 +301,11 @@ func formatTraceroutePath(nodeIDs []string, signals []int32, nodeStore *domain.N
 }
 
 func tracerouteHopSignalLabel(raw int32) string {
-	if raw == -128 {
+	if raw == tracerouteUnknownSNR {
 		return "SNR: ?"
-	}
-	if tracerouteHopSignalIsRSSI(raw) {
-		return fmt.Sprintf("RSSI: %d dBm", raw)
 	}
 
 	return fmt.Sprintf("SNR: %.2f dB", float64(raw)/4)
-}
-
-func tracerouteHopSignalIsRSSI(raw int32) bool {
-	return raw < -80
 }
 
 func tracerouteNodeDisplay(nodeID string, nodeStore *domain.NodeStore) string {

@@ -16,8 +16,8 @@ func TestTracerouteHopSignalLabel(t *testing.T) {
 	if got := tracerouteHopSignalLabel(22); got != "SNR: 5.50 dB" {
 		t.Fatalf("unexpected SNR label: %q", got)
 	}
-	if got := tracerouteHopSignalLabel(-101); got != "RSSI: -101 dBm" {
-		t.Fatalf("unexpected RSSI label: %q", got)
+	if got := tracerouteHopSignalLabel(-101); got != "SNR: -25.25 dB" {
+		t.Fatalf("unexpected SNR label: %q", got)
 	}
 }
 
@@ -100,14 +100,5 @@ func TestTracerouteStatusText(t *testing.T) {
 				t.Fatalf("expected %q, got %q", tc.want, got)
 			}
 		})
-	}
-}
-
-func TestTracerouteHopSignalIsRSSI(t *testing.T) {
-	if tracerouteHopSignalIsRSSI(-80) {
-		t.Fatalf("expected -80 to be treated as SNR-scaled value")
-	}
-	if !tracerouteHopSignalIsRSSI(-81) {
-		t.Fatalf("expected values below -80 to be treated as RSSI")
 	}
 }
