@@ -59,7 +59,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	}
 }
 
-func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV6(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -110,8 +110,8 @@ func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("expected schema version 7, got %d", version)
+	if version != 6 {
+		t.Fatalf("expected schema version 6, got %d", version)
 	}
 
 	columns := make(map[string]bool)
