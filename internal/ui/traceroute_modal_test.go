@@ -85,7 +85,7 @@ func TestTracerouteStatusText(t *testing.T) {
 		want   string
 	}{
 		{name: "started", status: connectors.TracerouteStatusStarted, want: "Started"},
-		{name: "progress", status: connectors.TracerouteStatusProgress, want: "In progress"},
+		{name: "progress", status: connectors.TracerouteStatusProgress, want: "Waiting"},
 		{name: "completed", status: connectors.TracerouteStatusCompleted, want: "Complete"},
 		{name: "failed", status: connectors.TracerouteStatusFailed, want: "Failed"},
 		{name: "timed out", status: connectors.TracerouteStatusTimedOut, want: "Timed out"},

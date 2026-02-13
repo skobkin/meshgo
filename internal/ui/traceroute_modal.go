@@ -217,7 +217,7 @@ func tracerouteStatusText(update connectors.TracerouteUpdate) string {
 	case connectors.TracerouteStatusStarted:
 		return "Started"
 	case connectors.TracerouteStatusProgress:
-		return "In progress"
+		return "Waiting"
 	case connectors.TracerouteStatusCompleted:
 		return "Complete"
 	case connectors.TracerouteStatusFailed:
