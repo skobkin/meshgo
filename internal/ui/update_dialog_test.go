@@ -3,12 +3,15 @@ package ui
 import (
 	"bytes"
 	"errors"
+	"image/color"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/storage"
 )
 
@@ -124,4 +127,48 @@ func TestReadMarkdownImageBytes_RemoteLoadsImageWhenWithinLimit(t *testing.T) {
 	if getHits.Load() != 1 {
 		t.Fatalf("expected one GET request, got %d", getHits.Load())
 	}
+}
+
+func TestNewMarkdownImagePlaceholder_UsesCompactHeight(t *testing.T) {
+	placeholder := newMarkdownImagePlaceholder("Loading image...")
+	size := placeholder.MinSize()
+	if size.Width != float32(maxMarkdownImageWidth) {
+		t.Fatalf("expected placeholder width %f, got %f", float32(maxMarkdownImageWidth), size.Width)
+	}
+	if size.Height != float32(markdownPlaceholderHeight) {
+		t.Fatalf("expected placeholder height %f, got %f", float32(markdownPlaceholderHeight), size.Height)
+	}
+	if size.Height >= maxMarkdownImageHeight {
+		t.Fatalf("expected placeholder to be shorter than loaded image max height, got %f", size.Height)
+	}
+}
+
+func TestNewMarkdownImagePlaceholder_HasVisibleBorder(t *testing.T) {
+	placeholder := newMarkdownImagePlaceholder("Image unavailable")
+	if !hasVisiblePlaceholderBorder(placeholder) {
+		t.Fatalf("expected placeholder border with visible stroke")
+	}
+}
+
+func hasVisiblePlaceholderBorder(object fyne.CanvasObject) bool {
+	switch current := object.(type) {
+	case *canvas.Rectangle:
+		if current.StrokeWidth <= 0 || current.StrokeColor == nil {
+			return false
+		}
+		stroke, ok := color.NRGBAModel.Convert(current.StrokeColor).(color.NRGBA)
+		if !ok {
+			return false
+		}
+
+		return stroke.A > 0
+	case *fyne.Container:
+		for _, child := range current.Objects {
+			if hasVisiblePlaceholderBorder(child) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

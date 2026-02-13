@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	_ "image/gif"  // register GIF decoder for image metadata probing
 	_ "image/jpeg" // register JPEG decoder for image metadata probing
 	_ "image/png"  // register PNG decoder for image metadata probing
@@ -28,10 +29,12 @@ import (
 )
 
 const (
-	markdownImageLoadTimeout = 12 * time.Second
-	maxMarkdownImageBytes    = 1 << 20
-	maxMarkdownImageWidth    = 560
-	maxMarkdownImageHeight   = 320
+	markdownImageLoadTimeout       = 12 * time.Second
+	maxMarkdownImageBytes          = 1 << 20
+	maxMarkdownImageWidth          = 560
+	maxMarkdownImageHeight         = 320
+	markdownPlaceholderHeight      = 72
+	markdownPlaceholderBorderWidth = 1
 )
 
 var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
@@ -470,10 +473,47 @@ func newMarkdownImagePlaceholder(text string) fyne.CanvasObject {
 	label := widget.NewLabel(text)
 	label.Alignment = fyne.TextAlignCenter
 
+	background := canvas.NewRectangle(markdownPlaceholderBackgroundColor())
+	border := canvas.NewRectangle(color.Transparent)
+	border.StrokeColor = markdownPlaceholderBorderColor()
+	border.StrokeWidth = markdownPlaceholderBorderWidth
+
 	return container.NewGridWrap(
-		fyne.NewSize(maxMarkdownImageWidth, maxMarkdownImageHeight),
-		container.NewCenter(label),
+		fyne.NewSize(maxMarkdownImageWidth, markdownPlaceholderHeight),
+		container.NewStack(
+			background,
+			border,
+			container.NewPadded(container.NewCenter(label)),
+		),
 	)
+}
+
+func markdownPlaceholderBorderColor() color.Color {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return color.NRGBA{R: 120, G: 120, B: 120, A: 90}
+	}
+
+	palette := app.Settings().Theme()
+	variant := app.Settings().ThemeVariant()
+	border := toNRGBA(palette.Color(theme.ColorNameForeground, variant))
+	border.A = 80
+
+	return border
+}
+
+func markdownPlaceholderBackgroundColor() color.Color {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return color.NRGBA{R: 0, G: 0, B: 0, A: 10}
+	}
+
+	palette := app.Settings().Theme()
+	variant := app.Settings().ThemeVariant()
+	bg := toNRGBA(palette.Color(theme.ColorNameInputBackground, variant))
+	bg.A = 55
+
+	return bg
 }
 
 func markdownImageDisplaySize(content []byte) fyne.Size {
