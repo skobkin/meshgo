@@ -183,7 +183,7 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 
 	chat, ok := s.chats[msg.ChatKey]
 	if !ok {
-		chat = Chat{Key: msg.ChatKey, Type: chatTypeForKey(msg.ChatKey), Title: msg.ChatKey}
+		chat = Chat{Key: msg.ChatKey, Type: ChatTypeForKey(msg.ChatKey), Title: msg.ChatKey}
 	}
 	if msg.Direction == MessageDirectionOut {
 		chat.LastSentByMeAt = msg.At
@@ -254,6 +254,49 @@ func (s *ChatStore) ChatListSorted() []Chat {
 	return out
 }
 
+func (s *ChatStore) ChatByKey(chatKey string) (Chat, bool) {
+	if s == nil {
+		return Chat{}, false
+	}
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return Chat{}, false
+	}
+
+	s.mu.RLock()
+	chat, ok := s.chats[chatKey]
+	s.mu.RUnlock()
+
+	return chat, ok
+}
+
+func ChatDisplayTitle(chat Chat) string {
+	if title := strings.TrimSpace(chat.Title); title != "" {
+		return title
+	}
+
+	return strings.TrimSpace(chat.Key)
+}
+
+func ChatTitleByKey(store *ChatStore, chatKey string) string {
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return ""
+	}
+	if store == nil {
+		return chatKey
+	}
+	chat, ok := store.ChatByKey(chatKey)
+	if !ok {
+		return chatKey
+	}
+	if title := ChatDisplayTitle(chat); title != "" {
+		return title
+	}
+
+	return chatKey
+}
+
 func (s *ChatStore) Messages(chatKey string) []ChatMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -284,12 +327,4 @@ func (s *ChatStore) notify() {
 	case s.changes <- struct{}{}:
 	default:
 	}
-}
-
-func chatTypeForKey(key string) ChatType {
-	if strings.HasPrefix(key, "dm:") {
-		return ChatTypeDM
-	}
-
-	return ChatTypeChannel
 }

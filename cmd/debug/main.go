@@ -55,7 +55,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 
 	selectedConnector := strings.ToLower(strings.TrimSpace(*connector))
 	if selectedConnector != "" {

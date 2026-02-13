@@ -246,8 +246,21 @@ func (r *Runtime) UpdateSnapshots() <-chan UpdateSnapshot {
 	return r.Core.UpdateChecker.Snapshots()
 }
 
+func (r *Runtime) CurrentConfig() config.AppConfig {
+	if r == nil {
+		return config.Default()
+	}
+
+	r.mu.RLock()
+	cfg := r.Core.Config
+	r.mu.RUnlock()
+	cfg.FillMissingDefaults()
+
+	return cfg
+}
+
 func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

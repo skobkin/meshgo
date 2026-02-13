@@ -42,3 +42,25 @@ func TestNodeDisplayName(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeDisplayNameByID(t *testing.T) {
+	store := NewNodeStore()
+	store.Upsert(Node{NodeID: "!11111111", LongName: "Long"})
+	store.Upsert(Node{NodeID: "!22222222"})
+
+	if got := NodeDisplayNameByID(store, "!11111111"); got != "Long" {
+		t.Fatalf("expected long name, got %q", got)
+	}
+	if got := NodeDisplayNameByID(store, "!22222222"); got != "!22222222" {
+		t.Fatalf("expected node id fallback, got %q", got)
+	}
+	if got := NodeDisplayNameByID(store, "!33333333"); got != "!33333333" {
+		t.Fatalf("expected unresolved node id fallback, got %q", got)
+	}
+	if got := NodeDisplayNameByID(nil, "!44444444"); got != "!44444444" {
+		t.Fatalf("expected nil store fallback, got %q", got)
+	}
+	if got := NodeDisplayNameByID(store, " "); got != "" {
+		t.Fatalf("expected empty for empty node id, got %q", got)
+	}
+}

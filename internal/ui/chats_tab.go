@@ -861,7 +861,7 @@ func chatTitleByKey(chats []domain.Chat, key string) string {
 	}
 	for _, c := range chats {
 		if c.Key == key {
-			return c.Title
+			return domain.ChatDisplayTitle(c)
 		}
 	}
 

@@ -36,7 +36,7 @@ var externalURLLogger = slog.With("component", "ui.external_url")
 
 func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
 	current := dep.Data.Config
-	current.ApplyDefaults()
+	current.FillMissingDefaults()
 	settingsLogger.Debug(
 		"building settings tab",
 		"connector", current.Connection.Connector,
@@ -44,6 +44,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		"log_to_file", current.Logging.LogToFile,
 		"autostart_enabled", current.UI.Autostart.Enabled,
 		"autostart_mode", current.UI.Autostart.Mode,
+		"notify_when_focused", current.UI.Notifications.NotifyWhenFocused,
+		"notify_incoming_message", current.UI.Notifications.Events.IncomingMessage,
+		"notify_node_discovered", current.UI.Notifications.Events.NodeDiscovered,
+		"notify_connection_status", current.UI.Notifications.Events.ConnectionStatus,
 	)
 
 	connectorSelect := widget.NewSelect([]string{
@@ -86,6 +90,15 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		setAutostartModeEnabled(value)
 	}
 	setAutostartModeEnabled(autostartEnabled.Checked)
+
+	notifyWhenFocused := widget.NewCheck("Notify when app is focused", nil)
+	notifyWhenFocused.SetChecked(current.UI.Notifications.NotifyWhenFocused)
+	notifyIncomingMessage := widget.NewCheck("Incoming chat messages", nil)
+	notifyIncomingMessage.SetChecked(current.UI.Notifications.Events.IncomingMessage)
+	notifyNodeDiscovered := widget.NewCheck("New node discovered", nil)
+	notifyNodeDiscovered.SetChecked(current.UI.Notifications.Events.NodeDiscovered)
+	notifyConnectionStatus := widget.NewCheck("Connection status changes", nil)
+	notifyConnectionStatus.SetChecked(current.UI.Notifications.Events.ConnectionStatus)
 
 	status := widget.NewLabel("")
 
@@ -316,6 +329,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			"log_to_file", logToFile.Checked,
 			"autostart_enabled", autostartEnabled.Checked,
 			"autostart_mode", autostartModeFromOption(autostartModeSelect.Selected),
+			"notify_when_focused", notifyWhenFocused.Checked,
+			"notify_incoming_message", notifyIncomingMessage.Checked,
+			"notify_node_discovered", notifyNodeDiscovered.Checked,
+			"notify_connection_status", notifyConnectionStatus.Checked,
 		)
 
 		baud := current.Connection.SerialBaud
@@ -341,6 +358,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.Logging.LogToFile = logToFile.Checked
 		cfg.UI.Autostart.Enabled = autostartEnabled.Checked
 		cfg.UI.Autostart.Mode = autostartModeFromOption(autostartModeSelect.Selected)
+		cfg.UI.Notifications.NotifyWhenFocused = notifyWhenFocused.Checked
+		cfg.UI.Notifications.Events.IncomingMessage = notifyIncomingMessage.Checked
+		cfg.UI.Notifications.Events.NodeDiscovered = notifyNodeDiscovered.Checked
+		cfg.UI.Notifications.Events.ConnectionStatus = notifyConnectionStatus.Checked
 
 		saveConfig := func(clearDatabase bool) {
 			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "connector", cfg.Connection.Connector)
@@ -486,12 +507,19 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		widget.NewFormItem("Run on system startup", autostartEnabled),
 		widget.NewFormItem("Startup mode", autostartModeSelect),
 	)
+	notificationsContent := container.NewVBox(
+		notifyWhenFocused,
+		notifyIncomingMessage,
+		notifyNodeDiscovered,
+		notifyConnectionStatus,
+	)
 
 	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(
 		connStatusLabel,
 		connectionFields,
 	))
 	startupBlock := widget.NewCard("Startup", "", startupForm)
+	notificationsBlock := widget.NewCard("Notifications", "", notificationsContent)
 	loggingBlock := widget.NewCard("Logging", "", loggingForm)
 	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewGridWithColumns(2,
 		clearDBButton,
@@ -523,6 +551,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		widget.NewLabel("App settings"),
 		connectionBlock,
 		startupBlock,
+		notificationsBlock,
 		loggingBlock,
 		maintenanceBlock,
 		saveButton,

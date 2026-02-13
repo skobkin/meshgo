@@ -1,10 +1,14 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
-func TestAppConfigApplyDefaults(t *testing.T) {
+func TestAppConfigFillMissingDefaults(t *testing.T) {
 	cfg := AppConfig{}
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 
 	if cfg.Connection.Connector != ConnectorIP {
 		t.Fatalf("expected default connector %q, got %q", ConnectorIP, cfg.Connection.Connector)
@@ -23,7 +27,146 @@ func TestAppConfigApplyDefaults(t *testing.T) {
 	}
 }
 
-func TestAppConfigApplyDefaultsNormalizesAutostartMode(t *testing.T) {
+func TestDefaultEnablesNotificationTypes(t *testing.T) {
+	cfg := Default()
+	if cfg.UI.Notifications.NotifyWhenFocused {
+		t.Fatalf("expected notify_when_focused to be disabled by default")
+	}
+	if !cfg.UI.Notifications.Events.IncomingMessage {
+		t.Fatalf("expected incoming message notification to be enabled by default")
+	}
+	if !cfg.UI.Notifications.Events.NodeDiscovered {
+		t.Fatalf("expected node discovered notification to be enabled by default")
+	}
+	if !cfg.UI.Notifications.Events.ConnectionStatus {
+		t.Fatalf("expected connection status notification to be enabled by default")
+	}
+}
+
+func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{
+  "connection": {
+    "connector": "ip",
+    "host": "192.168.0.1"
+  },
+  "logging": {
+    "level": "info",
+    "log_to_file": false
+  },
+  "ui": {
+    "last_selected_chat": "",
+    "autostart": {
+      "enabled": false,
+      "mode": "normal"
+    },
+    "map_viewport": {
+      "set": false,
+      "zoom": 0,
+      "x": 0,
+      "y": 0
+    }
+  }
+}`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write config fixture: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.UI.Notifications.NotifyWhenFocused {
+		t.Fatalf("expected notify_when_focused to default to false")
+	}
+	if !cfg.UI.Notifications.Events.IncomingMessage || !cfg.UI.Notifications.Events.NodeDiscovered || !cfg.UI.Notifications.Events.ConnectionStatus {
+		t.Fatalf("expected notification types to default to enabled, got %+v", cfg.UI.Notifications)
+	}
+}
+
+func TestLoadPreservesExplicitNotificationFalseValues(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{
+  "connection": {
+    "connector": "ip",
+    "host": "192.168.0.1"
+  },
+  "logging": {
+    "level": "info",
+    "log_to_file": false
+  },
+  "ui": {
+    "notifications": {
+      "notify_when_focused": false,
+      "events": {
+        "incoming_message": false,
+        "node_discovered": false,
+        "connection_status": false
+      }
+    }
+  }
+}`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write config fixture: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.UI.Notifications.NotifyWhenFocused {
+		t.Fatalf("expected notify_when_focused=false to be preserved")
+	}
+	if cfg.UI.Notifications.Events.IncomingMessage {
+		t.Fatalf("expected incoming_message=false to be preserved")
+	}
+	if cfg.UI.Notifications.Events.NodeDiscovered {
+		t.Fatalf("expected node_discovered=false to be preserved")
+	}
+	if cfg.UI.Notifications.Events.ConnectionStatus {
+		t.Fatalf("expected connection_status=false to be preserved")
+	}
+}
+
+func TestLoadLegacyFlatNotificationFieldsAreIgnored(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	raw := `{
+  "connection": {
+    "connector": "ip",
+    "host": "192.168.0.1"
+  },
+  "ui": {
+    "notifications": {
+      "notify_when_focused": false,
+      "incoming_message": false,
+      "node_discovered": false,
+      "connection_status": false
+    }
+  }
+}`
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write config fixture: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.UI.Notifications.NotifyWhenFocused {
+		t.Fatalf("expected notify_when_focused=false to be preserved")
+	}
+	if !cfg.UI.Notifications.Events.IncomingMessage {
+		t.Fatalf("expected legacy incoming_message field to be ignored")
+	}
+	if !cfg.UI.Notifications.Events.NodeDiscovered {
+		t.Fatalf("expected legacy node_discovered field to be ignored")
+	}
+	if !cfg.UI.Notifications.Events.ConnectionStatus {
+		t.Fatalf("expected legacy connection_status field to be ignored")
+	}
+}
+
+func TestAppConfigFillMissingDefaultsNormalizesAutostartMode(t *testing.T) {
 	cfg := AppConfig{
 		UI: UIConfig{
 			Autostart: AutostartConfig{
@@ -33,13 +176,13 @@ func TestAppConfigApplyDefaultsNormalizesAutostartMode(t *testing.T) {
 		},
 	}
 
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 	if cfg.UI.Autostart.Mode != AutostartModeNormal {
 		t.Fatalf("expected invalid autostart mode to normalize to %q, got %q", AutostartModeNormal, cfg.UI.Autostart.Mode)
 	}
 }
 
-func TestAppConfigApplyDefaultsNormalizesMapViewport(t *testing.T) {
+func TestAppConfigFillMissingDefaultsNormalizesMapViewport(t *testing.T) {
 	cfg := AppConfig{
 		UI: UIConfig{
 			MapViewport: MapViewportConfig{
@@ -51,7 +194,7 @@ func TestAppConfigApplyDefaultsNormalizesMapViewport(t *testing.T) {
 		},
 	}
 
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 	if !cfg.UI.MapViewport.Set {
 		t.Fatalf("expected map viewport to stay set")
 	}
@@ -63,7 +206,7 @@ func TestAppConfigApplyDefaultsNormalizesMapViewport(t *testing.T) {
 	}
 }
 
-func TestAppConfigApplyDefaultsClearsUnsetMapViewport(t *testing.T) {
+func TestAppConfigFillMissingDefaultsClearsUnsetMapViewport(t *testing.T) {
 	cfg := AppConfig{
 		UI: UIConfig{
 			MapViewport: MapViewportConfig{
@@ -75,7 +218,7 @@ func TestAppConfigApplyDefaultsClearsUnsetMapViewport(t *testing.T) {
 		},
 	}
 
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 	if cfg.UI.MapViewport.Set {
 		t.Fatalf("expected map viewport to remain unset")
 	}

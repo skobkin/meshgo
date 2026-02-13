@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
@@ -231,6 +233,26 @@ func Run(dep RuntimeDependencies) error {
 		applyThemeResources(fyApp.Settings().ThemeVariant())
 	})
 
+	var appForeground atomic.Bool
+	appForeground.Store(!dep.Launch.StartHidden)
+	fyApp.Lifecycle().SetOnEnteredForeground(func() {
+		appForeground.Store(true)
+	})
+	fyApp.Lifecycle().SetOnExitedForeground(func() {
+		appForeground.Store(false)
+	})
+	notificationsCtx, stopNotifications := context.WithCancel(context.Background())
+	notificationService := meshapp.NewNotificationService(
+		dep.Data.Bus,
+		dep.Data.ChatStore,
+		dep.Data.NodeStore,
+		dep.Data.CurrentConfig,
+		appForeground.Load,
+		NewFyneNotificationSender(fyApp),
+		slog.With("component", "ui.notifications"),
+	)
+	notificationService.Start(notificationsCtx)
+
 	appLogger.Debug("starting UI event listeners")
 	stopUIListeners := startUIEventListeners(
 		dep.Data.Bus,
@@ -268,6 +290,7 @@ func Run(dep RuntimeDependencies) error {
 	quit := func() {
 		shutdownOnce.Do(func() {
 			appLogger.Info("quitting UI runtime")
+			stopNotifications()
 			stopUIListeners()
 			stopUpdateSnapshots()
 			if dep.Actions.OnQuit != nil {
@@ -309,6 +332,7 @@ func Run(dep RuntimeDependencies) error {
 	fyApp.Run()
 	appLogger.Info("UI runtime stopped")
 	shutdownOnce.Do(func() {
+		stopNotifications()
 		stopUIListeners()
 		stopUpdateSnapshots()
 		if dep.Actions.OnQuit != nil {
@@ -496,12 +520,7 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 	}
 
 	return func(nodeID string) string {
-		node, ok := store.Get(nodeID)
-		if !ok {
-			return ""
-		}
-
-		return domain.NodeDisplayName(node)
+		return domain.NodeDisplayNameByID(store, nodeID)
 	}
 }
 
@@ -513,15 +532,8 @@ func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) st
 	if nodeID == "" {
 		return ""
 	}
-	if store == nil {
-		return nodeID
-	}
-	node, ok := store.Get(nodeID)
-	if !ok {
-		return nodeID
-	}
 
-	return domain.NodeDisplayName(node)
+	return domain.NodeDisplayNameByID(store, nodeID)
 }
 
 func nodeChanges(store *domain.NodeStore) <-chan struct{} {

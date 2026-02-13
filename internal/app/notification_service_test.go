@@ -1,0 +1,356 @@
+package app
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/skobkin/meshgo/internal/bus"
+	"github.com/skobkin/meshgo/internal/config"
+	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/notifications"
+)
+
+func TestNotificationServiceIncomingDMMessage(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	chatStore := domain.NewChatStore()
+	nodeStore := domain.NewNodeStore()
+	nodeStore.Upsert(domain.Node{
+		NodeID:    "!12345678",
+		LongName:  "Alice",
+		ShortName: "ALC",
+	})
+	cfg := config.Default()
+	foreground := false
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		chatStore,
+		nodeStore,
+		func() config.AppConfig { return cfg },
+		func() bool { return foreground },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+		ChatKey:         domain.ChatKeyForDM("!12345678"),
+		Direction:       domain.MessageDirectionIn,
+		Body:            "Hello there",
+		MetaJSON:        `{"from":"!12345678"}`,
+		DeviceMessageID: "1",
+	})
+
+	notifications := sender.waitForCount(t, 1)
+	if got := notifications[0].Title; got != "@Alice" {
+		t.Fatalf("expected title @Alice, got %q", got)
+	}
+	if got := notifications[0].Content; got != "Alice: Hello there" {
+		t.Fatalf("expected content %q, got %q", "Alice: Hello there", got)
+	}
+}
+
+func TestNotificationServiceIncomingChannelMessage(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	chatStore := domain.NewChatStore()
+	chatStore.UpsertChat(domain.Chat{
+		Key:       domain.ChatKeyForChannel(0),
+		Title:     "General",
+		Type:      domain.ChatTypeChannel,
+		UpdatedAt: time.Now(),
+	})
+	nodeStore := domain.NewNodeStore()
+	nodeStore.Upsert(domain.Node{
+		NodeID:    "!87654321",
+		ShortName: "B0B",
+	})
+	cfg := config.Default()
+	foreground := false
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		chatStore,
+		nodeStore,
+		func() config.AppConfig { return cfg },
+		func() bool { return foreground },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+		ChatKey:   domain.ChatKeyForChannel(0),
+		Direction: domain.MessageDirectionIn,
+		Body:      "Hi channel",
+		MetaJSON:  `{"from":"!87654321"}`,
+	})
+
+	notifications := sender.waitForCount(t, 1)
+	if got := notifications[0].Title; got != "#General" {
+		t.Fatalf("expected title #General, got %q", got)
+	}
+	if got := notifications[0].Content; got != "B0B: Hi channel" {
+		t.Fatalf("expected content %q, got %q", "B0B: Hi channel", got)
+	}
+}
+
+func TestNotificationServiceSkipsOutgoingMessages(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return false },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+		ChatKey:   domain.ChatKeyForChannel(0),
+		Direction: domain.MessageDirectionOut,
+		Body:      "outgoing",
+	})
+
+	sender.assertCount(t, 0)
+}
+
+func TestNotificationServiceNodeDiscoveredFormatting(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return false },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicNodeDiscovered, domain.NodeDiscovered{
+		NodeID: "!00000001",
+		Node: domain.Node{
+			NodeID:    "!00000001",
+			ShortName: "ABCD",
+			LongName:  "Alpha Node",
+		},
+	})
+	messageBus.Publish(connectors.TopicNodeDiscovered, domain.NodeDiscovered{
+		NodeID: "!00000002",
+		Node: domain.Node{
+			NodeID: "!00000002",
+		},
+	})
+
+	notifications := sender.waitForCount(t, 2)
+	if got := notifications[0].Title; got != notificationTitleNodeDiscovered {
+		t.Fatalf("expected title %q, got %q", notificationTitleNodeDiscovered, got)
+	}
+	if got := notifications[0].Content; got != "[ABCD] Alpha Node" {
+		t.Fatalf("expected content %q, got %q", "[ABCD] Alpha Node", got)
+	}
+	if got := notifications[1].Content; got != "!00000002" {
+		t.Fatalf("expected node id fallback, got %q", got)
+	}
+}
+
+func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return false },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
+		State:         connectors.ConnectionStateConnected,
+		TransportName: "ip",
+		Target:        "192.168.0.156:4403",
+	})
+	notifications := sender.waitForCount(t, 1)
+	if got := notifications[0].Title; got != "IP - connected" {
+		t.Fatalf("expected connected title, got %q", got)
+	}
+
+	// Duplicate consecutive state must be ignored.
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
+		State:         connectors.ConnectionStateConnected,
+		TransportName: "ip",
+		Target:        "192.168.0.156:4403",
+	})
+	sender.assertCount(t, 1)
+
+	// Reconnecting itself should not notify.
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
+		State:         connectors.ConnectionStateReconnecting,
+		TransportName: "ip",
+		Target:        "192.168.0.156:4403",
+	})
+	sender.assertCount(t, 1)
+
+	// Connected again after a different state should notify.
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
+		State:         connectors.ConnectionStateConnected,
+		TransportName: "ip",
+		Target:        "192.168.0.156:4403",
+	})
+	notifications = sender.waitForCount(t, 2)
+	if got := notifications[1].Title; got != "IP - connected" {
+		t.Fatalf("expected reconnection title, got %q", got)
+	}
+
+	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
+		State:         connectors.ConnectionStateDisconnected,
+		TransportName: "serial",
+		Target:        "/dev/ttyACM0",
+		Err:           "read timeout",
+	})
+	notifications = sender.waitForCount(t, 3)
+	if got := notifications[2].Title; got != "Serial - disconnected" {
+		t.Fatalf("expected disconnected title, got %q", got)
+	}
+	if got := notifications[2].Content; got != "/dev/ttyACM0 (error: read timeout)" {
+		t.Fatalf("expected disconnected content with error, got %q", got)
+	}
+}
+
+func TestNotificationServiceForegroundAndPerTypeSettings(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	foreground := true
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return foreground },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	message := domain.ChatMessage{
+		ChatKey:   domain.ChatKeyForDM("!12345678"),
+		Direction: domain.MessageDirectionIn,
+		Body:      "hello",
+		MetaJSON:  `{"from":"!12345678"}`,
+	}
+
+	// Focused app + notify_when_focused=false -> suppressed.
+	messageBus.Publish(connectors.TopicTextMessage, message)
+	sender.assertCount(t, 0)
+
+	cfg.UI.Notifications.NotifyWhenFocused = true
+	messageBus.Publish(connectors.TopicTextMessage, message)
+	sender.waitForCount(t, 1)
+
+	cfg.UI.Notifications.Events.IncomingMessage = false
+	messageBus.Publish(connectors.TopicTextMessage, message)
+	sender.assertCount(t, 1)
+}
+
+func newTestMessageBus(t *testing.T) *bus.PubSubBus {
+	t.Helper()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	t.Cleanup(func() {
+		messageBus.Close()
+	})
+
+	return messageBus
+}
+
+type collectingNotificationSender struct {
+	mu            sync.Mutex
+	notifications []notifications.Payload
+	changes       chan struct{}
+}
+
+func newCollectingNotificationSender() *collectingNotificationSender {
+	return &collectingNotificationSender{
+		changes: make(chan struct{}, 1),
+	}
+}
+
+func (s *collectingNotificationSender) Send(notification notifications.Payload) {
+	s.mu.Lock()
+	s.notifications = append(s.notifications, notification)
+	s.mu.Unlock()
+
+	select {
+	case s.changes <- struct{}{}:
+	default:
+	}
+}
+
+func (s *collectingNotificationSender) snapshot() []notifications.Payload {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := make([]notifications.Payload, len(s.notifications))
+	copy(out, s.notifications)
+
+	return out
+}
+
+func (s *collectingNotificationSender) waitForCount(t *testing.T, expected int) []notifications.Payload {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		notifications := s.snapshot()
+		if len(notifications) >= expected {
+			return notifications
+		}
+		select {
+		case <-s.changes:
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	t.Fatalf("timed out waiting for %d notifications", expected)
+
+	return nil
+}
+
+func (s *collectingNotificationSender) assertCount(t *testing.T, expected int) {
+	t.Helper()
+
+	time.Sleep(100 * time.Millisecond)
+	notifications := s.snapshot()
+	if len(notifications) != expected {
+		t.Fatalf("expected %d notifications, got %d", expected, len(notifications))
+	}
+}

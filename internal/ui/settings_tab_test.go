@@ -184,6 +184,69 @@ func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
 	}
 }
 
+func TestSettingsTabNotificationDefaults(t *testing.T) {
+	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	if checkbox := mustFindCheckByText(t, tab, "Notify when app is focused"); checkbox.Checked {
+		t.Fatalf("expected focused notification to be disabled by default")
+	}
+	if checkbox := mustFindCheckByText(t, tab, "Incoming chat messages"); !checkbox.Checked {
+		t.Fatalf("expected incoming chat notifications to be enabled by default")
+	}
+	if checkbox := mustFindCheckByText(t, tab, "New node discovered"); !checkbox.Checked {
+		t.Fatalf("expected node discovered notifications to be enabled by default")
+	}
+	if checkbox := mustFindCheckByText(t, tab, "Connection status changes"); !checkbox.Checked {
+		t.Fatalf("expected connection status notifications to be enabled by default")
+	}
+}
+
+func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
+	cfg := config.Default()
+	var saved config.AppConfig
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnSave: func(next config.AppConfig) error {
+				saved = next
+
+				return nil
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+
+	focusedCheckbox := mustFindCheckByText(t, tab, "Notify when app is focused")
+	incomingCheckbox := mustFindCheckByText(t, tab, "Incoming chat messages")
+	nodeCheckbox := mustFindCheckByText(t, tab, "New node discovered")
+	connCheckbox := mustFindCheckByText(t, tab, "Connection status changes")
+	fynetest.Tap(focusedCheckbox)
+	fynetest.Tap(incomingCheckbox)
+	fynetest.Tap(nodeCheckbox)
+	fynetest.Tap(connCheckbox)
+
+	saveButton := mustFindButtonByText(t, tab, "Save")
+	fynetest.Tap(saveButton)
+
+	if !saved.UI.Notifications.NotifyWhenFocused {
+		t.Fatalf("expected focused notifications to be saved as enabled")
+	}
+	if saved.UI.Notifications.Events.IncomingMessage {
+		t.Fatalf("expected incoming message notifications to be saved as disabled")
+	}
+	if saved.UI.Notifications.Events.NodeDiscovered {
+		t.Fatalf("expected node discovered notifications to be saved as disabled")
+	}
+	if saved.UI.Notifications.Events.ConnectionStatus {
+		t.Fatalf("expected connection status notifications to be saved as disabled")
+	}
+}
+
 func TestSettingsTabAutostartWarningDoesNotBlockSave(t *testing.T) {
 	cfg := config.Default()
 	cfg.UI.Autostart.Enabled = true
@@ -467,6 +530,29 @@ func mustFindSelectWithOption(t *testing.T, root fyne.CanvasObject, option strin
 		return found
 	}
 	t.Fatalf("select with option %q not found", option)
+
+	return nil
+}
+
+func mustFindCheckByText(t *testing.T, root fyne.CanvasObject, text string) *widget.Check {
+	t.Helper()
+	var found *widget.Check
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
+		check, ok := object.(*widget.Check)
+		if !ok {
+			return false
+		}
+		if strings.TrimSpace(check.Text) != text {
+			return false
+		}
+		found = check
+
+		return true
+	})
+	if found != nil {
+		return found
+	}
+	t.Fatalf("check %q not found", text)
 
 	return nil
 }

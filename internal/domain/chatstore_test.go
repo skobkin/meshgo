@@ -77,3 +77,22 @@ func TestChatStore_UpdateMessageStatusByDeviceID_ClearsReasonOnAck(t *testing.T)
 		t.Fatalf("expected reason to be cleared, got %q", msgs[0].StatusReason)
 	}
 }
+
+func TestChatTitleByKey(t *testing.T) {
+	store := NewChatStore()
+	store.UpsertChat(Chat{Key: "channel:0", Title: "General"})
+	store.UpsertChat(Chat{Key: "channel:1", Title: ""})
+
+	if got := ChatTitleByKey(store, "channel:0"); got != "General" {
+		t.Fatalf("expected explicit title, got %q", got)
+	}
+	if got := ChatTitleByKey(store, "channel:1"); got != "channel:1" {
+		t.Fatalf("expected chat key fallback, got %q", got)
+	}
+	if got := ChatTitleByKey(store, "channel:2"); got != "channel:2" {
+		t.Fatalf("expected unknown chat key fallback, got %q", got)
+	}
+	if got := ChatTitleByKey(nil, "channel:3"); got != "channel:3" {
+		t.Fatalf("expected nil store fallback, got %q", got)
+	}
+}

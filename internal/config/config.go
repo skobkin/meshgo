@@ -43,9 +43,10 @@ type ConnectionConfig struct {
 
 // UIConfig stores persistent UI preferences.
 type UIConfig struct {
-	LastSelectedChat string            `json:"last_selected_chat"`
-	Autostart        AutostartConfig   `json:"autostart"`
-	MapViewport      MapViewportConfig `json:"map_viewport"`
+	LastSelectedChat string             `json:"last_selected_chat"`
+	Autostart        AutostartConfig    `json:"autostart"`
+	MapViewport      MapViewportConfig  `json:"map_viewport"`
+	Notifications    NotificationConfig `json:"notifications"`
 }
 
 // AutostartConfig stores autostart preferences saved in user config.
@@ -60,6 +61,19 @@ type MapViewportConfig struct {
 	Zoom int  `json:"zoom"`
 	X    int  `json:"x"`
 	Y    int  `json:"y"`
+}
+
+// NotificationConfig stores desktop notification preferences.
+type NotificationConfig struct {
+	NotifyWhenFocused bool                     `json:"notify_when_focused"`
+	Events            NotificationEventsConfig `json:"events"`
+}
+
+// NotificationEventsConfig stores per-event notification toggles.
+type NotificationEventsConfig struct {
+	IncomingMessage  bool `json:"incoming_message"`
+	NodeDiscovered   bool `json:"node_discovered"`
+	ConnectionStatus bool `json:"connection_status"`
 }
 
 // AppConfig is the root persisted application configuration.
@@ -90,6 +104,14 @@ func Default() AppConfig {
 				Mode:    AutostartModeNormal,
 			},
 			MapViewport: MapViewportConfig{},
+			Notifications: NotificationConfig{
+				NotifyWhenFocused: false,
+				Events: NotificationEventsConfig{
+					IncomingMessage:  true,
+					NodeDiscovered:   true,
+					ConnectionStatus: true,
+				},
+			},
 		},
 	}
 }
@@ -111,12 +133,12 @@ func Load(path string) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("decode config json: %w", err)
 	}
 
-	cfg.ApplyDefaults()
+	cfg.FillMissingDefaults()
 
 	return cfg, nil
 }
 
-func (c *AppConfig) ApplyDefaults() {
+func (c *AppConfig) FillMissingDefaults() {
 	if c.Connection.Connector == "" {
 		c.Connection.Connector = ConnectorIP
 	}

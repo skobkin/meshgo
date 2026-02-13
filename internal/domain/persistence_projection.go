@@ -97,7 +97,7 @@ func StartPersistenceProjection(
 					if err != nil {
 						return err
 					}
-					chat := Chat{Key: copyMsg.ChatKey, Type: chatTypeForKey(copyMsg.ChatKey), Title: copyMsg.ChatKey, UpdatedAt: copyMsg.At}
+					chat := Chat{Key: copyMsg.ChatKey, Type: ChatTypeForKey(copyMsg.ChatKey), Title: copyMsg.ChatKey, UpdatedAt: copyMsg.At}
 					if copyMsg.Direction == MessageDirectionOut {
 						chat.LastSentByMeAt = copyMsg.At
 					}

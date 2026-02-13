@@ -29,6 +29,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 		Bus:                   rt.Domain.Bus,
 		LastSelectedChat:      rt.Core.Config.UI.LastSelectedChat,
 		CurrentConnStatus:     rt.CurrentConnStatus,
+		CurrentConfig:         rt.CurrentConfig,
 		CurrentUpdateSnapshot: rt.CurrentUpdateSnapshot,
 		UpdateSnapshots:       rt.UpdateSnapshots(),
 	}

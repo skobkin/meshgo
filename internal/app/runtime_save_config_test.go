@@ -152,6 +152,18 @@ func TestRuntimeClearDatabase_ClearsAllTables(t *testing.T) {
 	}
 }
 
+func TestRuntimeCurrentConfigReturnsCopy(t *testing.T) {
+	rt := newRuntimeForSaveConfigTests(t)
+
+	cfg := rt.CurrentConfig()
+	cfg.Connection.Host = "10.0.0.1"
+
+	current := rt.CurrentConfig()
+	if current.Connection.Host != rt.Core.Config.Connection.Host {
+		t.Fatalf("expected runtime config to be immutable copy, got host %q", current.Connection.Host)
+	}
+}
+
 func newRuntimeForSaveConfigTests(t *testing.T) *Runtime {
 	t.Helper()
 
