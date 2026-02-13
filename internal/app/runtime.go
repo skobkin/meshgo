@@ -358,29 +358,8 @@ func (r *Runtime) ClearDatabase() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tx, err := r.Persistence.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin clear db tx: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback()
-	}()
-
-	//goland:noinspection SqlWithoutWhere
-	stmts := []string{
-		`DELETE FROM messages;`,
-		`DELETE FROM chats;`,
-		`DELETE FROM nodes;`,
-		`DELETE FROM traceroutes;`,
-	}
-	for _, stmt := range stmts {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("clear database tables: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit clear db tx: %w", err)
+	if err := persistence.ClearDatabase(ctx, r.Persistence.DB); err != nil {
+		return fmt.Errorf("clear database: %w", err)
 	}
 
 	slog.Info("database tables cleared")
