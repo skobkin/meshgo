@@ -50,6 +50,40 @@ func TestRuntimeSaveAndApplyConfig_SameTransportKeepsInMemoryStores(t *testing.T
 	}
 }
 
+func TestRuntimeSaveAndApplyConfig_UnchangedConnectionSkipsTransportReapply(t *testing.T) {
+	rt := newRuntimeForSaveConfigTests(t)
+	before := rt.Connectivity.ConnectionTransport.current()
+
+	next := rt.Core.Config
+	next.Logging.Level = "debug"
+
+	if err := rt.SaveAndApplyConfig(next); err != nil {
+		t.Fatalf("save and apply config: %v", err)
+	}
+
+	after := rt.Connectivity.ConnectionTransport.current()
+	if before != after {
+		t.Fatalf("expected transport instance to stay the same when connection config is unchanged")
+	}
+}
+
+func TestRuntimeSaveAndApplyConfig_ChangedConnectionReappliesTransport(t *testing.T) {
+	rt := newRuntimeForSaveConfigTests(t)
+	before := rt.Connectivity.ConnectionTransport.current()
+
+	next := rt.Core.Config
+	next.Connection.Host = "192.168.1.20"
+
+	if err := rt.SaveAndApplyConfig(next); err != nil {
+		t.Fatalf("save and apply config: %v", err)
+	}
+
+	after := rt.Connectivity.ConnectionTransport.current()
+	if before == after {
+		t.Fatalf("expected transport instance to change when connection config changes")
+	}
+}
+
 func TestRuntimeClearDatabase_ClearsAllTables(t *testing.T) {
 	ctx := context.Background()
 	db, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "app.db"))

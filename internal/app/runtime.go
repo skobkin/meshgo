@@ -266,7 +266,7 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	}
 
 	r.mu.Lock()
-	prevConnector := r.Core.Config.Connection.Connector
+	prevConnection := r.Core.Config.Connection
 	cfg.UI.LastSelectedChat = r.Core.Config.UI.LastSelectedChat
 	cfg.UI.MapViewport = r.Core.Config.UI.MapViewport
 	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
@@ -281,16 +281,19 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 		return err
 	}
 
-	if r.Connectivity.ConnectionTransport != nil {
+	connectionChanged := cfg.Connection != prevConnection
+	if connectionChanged && r.Connectivity.ConnectionTransport != nil {
 		if err := r.Connectivity.ConnectionTransport.Apply(cfg.Connection); err != nil {
 			return err
 		}
+	} else if !connectionChanged {
+		slog.Debug("transport apply skipped: connection config unchanged")
 	}
-	if cfg.Connection.Connector != prevConnector {
+	if cfg.Connection.Connector != prevConnection.Connector {
 		r.resetInMemoryStores()
 		slog.Info(
 			"cleared in-memory stores after transport switch",
-			"from", prevConnector,
+			"from", prevConnection.Connector,
 			"to", cfg.Connection.Connector,
 		)
 	}
