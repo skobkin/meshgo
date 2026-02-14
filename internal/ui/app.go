@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
@@ -305,23 +304,7 @@ func Run(dep RuntimeDependencies) error {
 		window.Hide()
 	})
 
-	if desk, ok := fyApp.(desktop.App); ok {
-		setTrayIcon = func(variant fyne.ThemeVariant) {
-			desk.SetSystemTrayIcon(resources.TrayIconResource(variant))
-		}
-		setTrayIcon(initialVariant)
-		desk.SetSystemTrayMenu(fyne.NewMenu("meshgo",
-			fyne.NewMenuItem("Show", func() {
-				appLogger.Debug("system tray show action invoked")
-				window.Show()
-				window.RequestFocus()
-			}),
-			fyne.NewMenuItem("Quit", func() {
-				appLogger.Debug("system tray quit action invoked")
-				quit()
-			}),
-		))
-	}
+	setTrayIcon = configureSystemTray(fyApp, window, initialVariant, quit)
 	applyThemeResources(initialVariant)
 
 	window.Show()
