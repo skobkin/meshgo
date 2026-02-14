@@ -48,6 +48,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		"notify_incoming_message", current.UI.Notifications.Events.IncomingMessage,
 		"notify_node_discovered", current.UI.Notifications.Events.NodeDiscovered,
 		"notify_connection_status", current.UI.Notifications.Events.ConnectionStatus,
+		"notify_update_available", current.UI.Notifications.Events.UpdateAvailable,
 	)
 
 	connectorSelect := widget.NewSelect([]string{
@@ -99,6 +100,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	notifyNodeDiscovered.SetChecked(current.UI.Notifications.Events.NodeDiscovered)
 	notifyConnectionStatus := widget.NewCheck("Connection status changes", nil)
 	notifyConnectionStatus.SetChecked(current.UI.Notifications.Events.ConnectionStatus)
+	notifyUpdateAvailable := widget.NewCheck("Update available", nil)
+	notifyUpdateAvailable.SetChecked(current.UI.Notifications.Events.UpdateAvailable)
 
 	status := widget.NewLabel("")
 
@@ -348,6 +351,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyIncomingMessage.SetChecked(next.UI.Notifications.Events.IncomingMessage)
 		notifyNodeDiscovered.SetChecked(next.UI.Notifications.Events.NodeDiscovered)
 		notifyConnectionStatus.SetChecked(next.UI.Notifications.Events.ConnectionStatus)
+		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 
 		setConnectorFields(next.Connection.Connector)
 		if next.Connection.Connector == config.ConnectorSerial {
@@ -374,6 +378,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			"notify_incoming_message", notifyIncomingMessage.Checked,
 			"notify_node_discovered", notifyNodeDiscovered.Checked,
 			"notify_connection_status", notifyConnectionStatus.Checked,
+			"notify_update_available", notifyUpdateAvailable.Checked,
 		)
 
 		baud := current.Connection.SerialBaud
@@ -403,6 +408,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Notifications.Events.IncomingMessage = notifyIncomingMessage.Checked
 		cfg.UI.Notifications.Events.NodeDiscovered = notifyNodeDiscovered.Checked
 		cfg.UI.Notifications.Events.ConnectionStatus = notifyConnectionStatus.Checked
+		cfg.UI.Notifications.Events.UpdateAvailable = notifyUpdateAvailable.Checked
 
 		saveConfig := func(clearDatabase bool) {
 			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "connector", cfg.Connection.Connector)
@@ -559,6 +565,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyIncomingMessage,
 		notifyNodeDiscovered,
 		notifyConnectionStatus,
+		notifyUpdateAvailable,
 	)
 
 	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(

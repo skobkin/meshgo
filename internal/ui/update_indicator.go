@@ -18,12 +18,11 @@ type updateIndicator struct {
 
 func newUpdateIndicator(
 	initialVariant fyne.ThemeVariant,
-	initialSnapshot meshapp.UpdateSnapshot,
 	initialKnown bool,
 	onOpenInfo func(meshapp.UpdateSnapshot),
 ) *updateIndicator {
 	indicator := &updateIndicator{
-		snapshot:   initialSnapshot,
+		snapshot:   meshapp.UpdateSnapshot{},
 		known:      initialKnown,
 		onOpenInfo: onOpenInfo,
 	}

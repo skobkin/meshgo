@@ -204,6 +204,9 @@ func TestSettingsTabNotificationDefaults(t *testing.T) {
 	if checkbox := mustFindCheckByText(t, tab, "Connection status changes"); !checkbox.Checked {
 		t.Fatalf("expected connection status notifications to be enabled by default")
 	}
+	if checkbox := mustFindCheckByText(t, tab, "Update available"); !checkbox.Checked {
+		t.Fatalf("expected update notifications to be enabled by default")
+	}
 }
 
 func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
@@ -230,10 +233,12 @@ func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
 	incomingCheckbox := mustFindCheckByText(t, tab, "Incoming chat messages")
 	nodeCheckbox := mustFindCheckByText(t, tab, "New node discovered")
 	connCheckbox := mustFindCheckByText(t, tab, "Connection status changes")
+	updateCheckbox := mustFindCheckByText(t, tab, "Update available")
 	fynetest.Tap(focusedCheckbox)
 	fynetest.Tap(incomingCheckbox)
 	fynetest.Tap(nodeCheckbox)
 	fynetest.Tap(connCheckbox)
+	fynetest.Tap(updateCheckbox)
 
 	saveButton := mustFindButtonByText(t, tab, "Save")
 	fynetest.Tap(saveButton)
@@ -249,6 +254,9 @@ func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
 	}
 	if saved.UI.Notifications.Events.ConnectionStatus {
 		t.Fatalf("expected connection status notifications to be saved as disabled")
+	}
+	if saved.UI.Notifications.Events.UpdateAvailable {
+		t.Fatalf("expected update notifications to be saved as disabled")
 	}
 }
 

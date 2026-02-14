@@ -41,6 +41,9 @@ func TestDefaultEnablesNotificationTypes(t *testing.T) {
 	if !cfg.UI.Notifications.Events.ConnectionStatus {
 		t.Fatalf("expected connection status notification to be enabled by default")
 	}
+	if !cfg.UI.Notifications.Events.UpdateAvailable {
+		t.Fatalf("expected update available notification to be enabled by default")
+	}
 }
 
 func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
@@ -79,7 +82,10 @@ func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
 	if cfg.UI.Notifications.NotifyWhenFocused {
 		t.Fatalf("expected notify_when_focused to default to false")
 	}
-	if !cfg.UI.Notifications.Events.IncomingMessage || !cfg.UI.Notifications.Events.NodeDiscovered || !cfg.UI.Notifications.Events.ConnectionStatus {
+	if !cfg.UI.Notifications.Events.IncomingMessage ||
+		!cfg.UI.Notifications.Events.NodeDiscovered ||
+		!cfg.UI.Notifications.Events.ConnectionStatus ||
+		!cfg.UI.Notifications.Events.UpdateAvailable {
 		t.Fatalf("expected notification types to default to enabled, got %+v", cfg.UI.Notifications)
 	}
 }
@@ -101,7 +107,8 @@ func TestLoadPreservesExplicitNotificationFalseValues(t *testing.T) {
       "events": {
         "incoming_message": false,
         "node_discovered": false,
-        "connection_status": false
+        "connection_status": false,
+        "update_available": false
       }
     }
   }
@@ -125,6 +132,9 @@ func TestLoadPreservesExplicitNotificationFalseValues(t *testing.T) {
 	}
 	if cfg.UI.Notifications.Events.ConnectionStatus {
 		t.Fatalf("expected connection_status=false to be preserved")
+	}
+	if cfg.UI.Notifications.Events.UpdateAvailable {
+		t.Fatalf("expected update_available=false to be preserved")
 	}
 }
 
@@ -163,6 +173,9 @@ func TestLoadLegacyFlatNotificationFieldsAreIgnored(t *testing.T) {
 	}
 	if !cfg.UI.Notifications.Events.ConnectionStatus {
 		t.Fatalf("expected legacy connection_status field to be ignored")
+	}
+	if !cfg.UI.Notifications.Events.UpdateAvailable {
+		t.Fatalf("expected missing update_available to default to enabled")
 	}
 }
 

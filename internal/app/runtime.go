@@ -189,9 +189,9 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	rt.Core.UpdateChecker = NewUpdateChecker(UpdateCheckerConfig{
 		CurrentVersion: BuildVersion(),
+		MessageBus:     b,
 		Logger:         logMgr.Logger("updates"),
 	})
-	rt.Core.UpdateChecker.Start(ctx)
 
 	return rt, nil
 }
@@ -230,20 +230,12 @@ func (r *Runtime) CurrentConnStatus() (connectors.ConnectionStatus, bool) {
 	return status, known
 }
 
-func (r *Runtime) CurrentUpdateSnapshot() (UpdateSnapshot, bool) {
-	if r == nil || r.Core.UpdateChecker == nil {
-		return UpdateSnapshot{}, false
+func (r *Runtime) StartUpdateChecker() {
+	if r == nil || r.Core.UpdateChecker == nil || r.Ctx == nil {
+		return
 	}
 
-	return r.Core.UpdateChecker.CurrentSnapshot()
-}
-
-func (r *Runtime) UpdateSnapshots() <-chan UpdateSnapshot {
-	if r == nil || r.Core.UpdateChecker == nil {
-		return nil
-	}
-
-	return r.Core.UpdateChecker.Snapshots()
+	r.Core.UpdateChecker.Start(r.Ctx)
 }
 
 func (r *Runtime) CurrentConfig() config.AppConfig {

@@ -60,11 +60,3 @@ func nodeChanges(store *domain.NodeStore) <-chan struct{} {
 
 	return store.Changes()
 }
-
-func currentUpdateSnapshot(dep RuntimeDependencies) (meshapp.UpdateSnapshot, bool) {
-	if dep.Data.CurrentUpdateSnapshot == nil {
-		return meshapp.UpdateSnapshot{}, false
-	}
-
-	return dep.Data.CurrentUpdateSnapshot()
-}

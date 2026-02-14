@@ -22,7 +22,6 @@ func runWithApp(dep RuntimeDependencies, fyApp fyne.App) error {
 	)
 
 	initialStatus := resolveInitialConnStatus(dep)
-	initialUpdateSnapshot, initialUpdateSnapshotKnown := currentUpdateSnapshot(dep)
 
 	window := fyApp.NewWindow("")
 	window.Resize(fyne.NewSize(1000, 700))
@@ -32,8 +31,6 @@ func runWithApp(dep RuntimeDependencies, fyApp fyne.App) error {
 		window,
 		initialVariant,
 		initialStatus,
-		initialUpdateSnapshot,
-		initialUpdateSnapshotKnown,
 	)
 
 	themeRuntime := newThemeRuntime(fyApp, view.sidebar, view.updateIndicator, view.applyMapTheme, view.connStatusPresenter)
@@ -48,6 +45,10 @@ func runWithApp(dep RuntimeDependencies, fyApp fyne.App) error {
 		view.updateIndicator,
 		view.left.Refresh,
 	)
+	// Start checks only after listeners are attached so the first snapshot is not missed.
+	if dep.Actions.OnStartUpdateChecker != nil {
+		dep.Actions.OnStartUpdateChecker()
+	}
 
 	content := container.NewBorder(nil, nil, view.left, nil, view.rightStack)
 	window.SetContent(content)

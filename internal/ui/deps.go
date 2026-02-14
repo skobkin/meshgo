@@ -31,17 +31,15 @@ type NodeSettingsAction interface {
 
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
-	Config                config.AppConfig
-	Paths                 app.Paths
-	ChatStore             *domain.ChatStore
-	NodeStore             *domain.NodeStore
-	Bus                   bus.MessageBus
-	LastSelectedChat      string
-	LocalNodeID           func() string
-	CurrentConfig         func() config.AppConfig
-	CurrentConnStatus     func() (connectors.ConnectionStatus, bool)
-	CurrentUpdateSnapshot func() (app.UpdateSnapshot, bool)
-	UpdateSnapshots       <-chan app.UpdateSnapshot
+	Config            config.AppConfig
+	Paths             app.Paths
+	ChatStore         *domain.ChatStore
+	NodeStore         *domain.NodeStore
+	Bus               bus.MessageBus
+	LastSelectedChat  string
+	LocalNodeID       func() string
+	CurrentConfig     func() config.AppConfig
+	CurrentConnStatus func() (connectors.ConnectionStatus, bool)
 }
 
 // ActionDependencies contains user-triggered operations invoked from UI.
@@ -53,6 +51,7 @@ type ActionDependencies struct {
 	OnMapViewportChanged func(zoom, x, y int)
 	OnClearDB            func() error
 	OnClearCache         func() error
+	OnStartUpdateChecker func()
 	OnQuit               func()
 	NodeSettings         NodeSettingsAction
 }

@@ -290,6 +290,156 @@ func TestNotificationServiceForegroundAndPerTypeSettings(t *testing.T) {
 	sender.assertCount(t, 1)
 }
 
+func TestNotificationServiceUpdateAvailableOnLaterSnapshot(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return false },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: false,
+		Latest: ReleaseInfo{
+			Version: "1.1.0",
+		},
+	})
+	sender.assertCount(t, 0)
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.1.0",
+		},
+	})
+	gotNotifications := sender.waitForCount(t, 1)
+	if got := gotNotifications[0].Title; got != "Update available: 1.1.0" {
+		t.Fatalf("expected update title, got %q", got)
+	}
+}
+
+func TestNotificationServiceUpdateAvailableDedupesAndNotifiesNewer(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig { return cfg },
+		func() bool { return false },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.1.0",
+		},
+	})
+	sender.waitForCount(t, 1)
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.1.0",
+		},
+	})
+	sender.assertCount(t, 1)
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.2.0",
+		},
+	})
+	gotNotifications := sender.waitForCount(t, 2)
+	if got := gotNotifications[1].Title; got != "Update available: 1.2.0" {
+		t.Fatalf("expected newer update notification, got %q", got)
+	}
+}
+
+func TestNotificationServiceUpdateAvailableRespectsSettingsAndForeground(t *testing.T) {
+	messageBus := newTestMessageBus(t)
+	cfg := config.Default()
+	var cfgMu sync.RWMutex
+	foreground := true
+	sender := newCollectingNotificationSender()
+	service := NewNotificationService(
+		messageBus,
+		domain.NewChatStore(),
+		domain.NewNodeStore(),
+		func() config.AppConfig {
+			cfgMu.RLock()
+			defer cfgMu.RUnlock()
+
+			return cfg
+		},
+		func() bool { return foreground },
+		sender,
+		nil,
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service.Start(ctx)
+
+	snapshot := UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.1.0",
+		},
+	}
+	messageBus.Publish(connectors.TopicUpdateSnapshot, snapshot)
+	sender.assertCount(t, 0)
+
+	cfgMu.Lock()
+	cfg.UI.Notifications.NotifyWhenFocused = true
+	cfg.UI.Notifications.Events.UpdateAvailable = false
+	cfgMu.Unlock()
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.2.0",
+		},
+	})
+	sender.assertCount(t, 0)
+
+	cfgMu.Lock()
+	cfg.UI.Notifications.Events.UpdateAvailable = true
+	cfgMu.Unlock()
+	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+		CurrentVersion:  "1.0.0",
+		UpdateAvailable: true,
+		Latest: ReleaseInfo{
+			Version: "1.3.0",
+		},
+	})
+	gotNotifications := sender.waitForCount(t, 1)
+	if got := gotNotifications[0].Title; got != "Update available: 1.3.0" {
+		t.Fatalf("expected update title after enabling, got %q", got)
+	}
+}
+
 func newTestMessageBus(t *testing.T) *bus.PubSubBus {
 	t.Helper()
 

@@ -9,6 +9,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/skobkin/meshgo/internal/bus"
+	"github.com/skobkin/meshgo/internal/connectors"
 )
 
 func TestNormalizeSemver(t *testing.T) {
@@ -138,4 +141,53 @@ func TestUpdateCheckerStartRecoversAfterFailedCheck(t *testing.T) {
 	}
 
 	t.Fatalf("expected checker to recover and publish snapshot")
+}
+
+func TestUpdateCheckerPublishesSnapshotsToBus(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	t.Cleanup(func() {
+		messageBus.Close()
+	})
+
+	sub := messageBus.Subscribe(connectors.TopicUpdateSnapshot)
+	t.Cleanup(func() {
+		messageBus.Unsubscribe(sub, connectors.TopicUpdateSnapshot)
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `[
+			{"tag_name":"0.7.0","body":"body-1","html_url":"https://example.com/r/0.7.0","published_at":"2026-02-12T01:00:00Z"}
+		]`)
+	}))
+	defer server.Close()
+
+	checker := NewUpdateChecker(UpdateCheckerConfig{
+		CurrentVersion: "0.6.0",
+		Endpoint:       server.URL,
+		HTTPClient:     server.Client(),
+		MessageBus:     messageBus,
+		Logger:         logger,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	checker.Start(ctx)
+
+	select {
+	case raw := <-sub:
+		snapshot, ok := raw.(UpdateSnapshot)
+		if !ok {
+			t.Fatalf("expected UpdateSnapshot payload, got %T", raw)
+		}
+		if snapshot.Latest.Version != "0.7.0" {
+			t.Fatalf("unexpected latest version: %q", snapshot.Latest.Version)
+		}
+		if snapshot.CurrentVersion != "0.6.0" {
+			t.Fatalf("unexpected current version: %q", snapshot.CurrentVersion)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("expected update snapshot to be published to bus")
+	}
 }

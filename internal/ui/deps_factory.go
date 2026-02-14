@@ -22,16 +22,14 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	}
 
 	dep.Data = DataDependencies{
-		Config:                rt.Core.Config,
-		Paths:                 rt.Core.Paths,
-		ChatStore:             rt.Domain.ChatStore,
-		NodeStore:             rt.Domain.NodeStore,
-		Bus:                   rt.Domain.Bus,
-		LastSelectedChat:      rt.Core.Config.UI.LastSelectedChat,
-		CurrentConnStatus:     rt.CurrentConnStatus,
-		CurrentConfig:         rt.CurrentConfig,
-		CurrentUpdateSnapshot: rt.CurrentUpdateSnapshot,
-		UpdateSnapshots:       rt.UpdateSnapshots(),
+		Config:            rt.Core.Config,
+		Paths:             rt.Core.Paths,
+		ChatStore:         rt.Domain.ChatStore,
+		NodeStore:         rt.Domain.NodeStore,
+		Bus:               rt.Domain.Bus,
+		LastSelectedChat:  rt.Core.Config.UI.LastSelectedChat,
+		CurrentConnStatus: rt.CurrentConnStatus,
+		CurrentConfig:     rt.CurrentConfig,
 	}
 
 	dep.Platform = PlatformDependencies{
@@ -44,6 +42,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 	dep.Actions.OnMapViewportChanged = rt.RememberMapViewport
 	dep.Actions.OnClearDB = rt.ClearDatabase
 	dep.Actions.OnClearCache = rt.ClearCache
+	dep.Actions.OnStartUpdateChecker = rt.StartUpdateChecker
 
 	if rt.Connectivity.Radio != nil {
 		dep.Actions.Sender = rt.Connectivity.Radio

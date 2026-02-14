@@ -92,15 +92,16 @@ func startUIEventListeners(
 }
 
 func startUpdateSnapshotListener(
-	snapshots <-chan meshapp.UpdateSnapshot,
+	messageBus bus.MessageBus,
 	onSnapshot func(meshapp.UpdateSnapshot),
 ) func() {
-	if snapshots == nil {
-		appLogger.Debug("skipping update snapshot listener: channel is nil")
+	if messageBus == nil {
+		appLogger.Debug("skipping update snapshot listener: message bus is nil")
 
 		return func() {}
 	}
 
+	snapshotSub := messageBus.Subscribe(connectors.TopicUpdateSnapshot)
 	done := make(chan struct{})
 	var stopOnce sync.Once
 
@@ -109,11 +110,17 @@ func startUpdateSnapshotListener(
 			select {
 			case <-done:
 				return
-			case snapshot, ok := <-snapshots:
+			case raw, ok := <-snapshotSub:
 				if !ok {
-					appLogger.Debug("update snapshot channel closed")
+					appLogger.Debug("update snapshot subscription closed")
 
 					return
+				}
+				snapshot, ok := raw.(meshapp.UpdateSnapshot)
+				if !ok {
+					appLogger.Debug("ignoring unexpected update snapshot payload", "payload_type", fmt.Sprintf("%T", raw))
+
+					continue
 				}
 				select {
 				case <-done:
@@ -131,6 +138,7 @@ func startUpdateSnapshotListener(
 		stopOnce.Do(func() {
 			appLogger.Debug("stopping update snapshot listener")
 			close(done)
+			messageBus.Unsubscribe(snapshotSub, connectors.TopicUpdateSnapshot)
 		})
 	}
 }

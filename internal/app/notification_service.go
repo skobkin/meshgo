@@ -17,6 +17,8 @@ import (
 
 const (
 	notificationTitleNodeDiscovered = "New node discovered"
+	notificationTitleUpdatePrefix   = "Update available: "
+	notificationCurrentVersionLabel = "Current version: "
 )
 
 // NotificationService listens to bus events and emits user-facing notifications.
@@ -32,6 +34,9 @@ type NotificationService struct {
 	connStatusMu     sync.Mutex
 	lastConnState    connectors.ConnectionState
 	lastConnStateSet bool
+
+	updateMu            sync.Mutex
+	lastNotifiedVersion string
 }
 
 type messageMeta struct {
@@ -70,11 +75,13 @@ func (s *NotificationService) Start(ctx context.Context) {
 	textSub := s.bus.Subscribe(connectors.TopicTextMessage)
 	nodeSub := s.bus.Subscribe(connectors.TopicNodeDiscovered)
 	connSub := s.bus.Subscribe(connectors.TopicConnStatus)
+	updateSub := s.bus.Subscribe(connectors.TopicUpdateSnapshot)
 
 	go func() {
 		defer s.bus.Unsubscribe(textSub, connectors.TopicTextMessage)
 		defer s.bus.Unsubscribe(nodeSub, connectors.TopicNodeDiscovered)
 		defer s.bus.Unsubscribe(connSub, connectors.TopicConnStatus)
+		defer s.bus.Unsubscribe(updateSub, connectors.TopicUpdateSnapshot)
 
 		for {
 			select {
@@ -107,6 +114,15 @@ func (s *NotificationService) Start(ctx context.Context) {
 					continue
 				}
 				s.handleConnectionStatus(status)
+			case raw, ok := <-updateSub:
+				if !ok {
+					return
+				}
+				snapshot, ok := raw.(UpdateSnapshot)
+				if !ok {
+					continue
+				}
+				s.handleUpdateSnapshot(snapshot)
 			}
 		}
 	}()
@@ -206,6 +222,39 @@ func (s *NotificationService) handleConnectionStatus(status connectors.Connectio
 	s.send(notifications.Payload{
 		Title:   fmt.Sprintf("%s - %s", transport, status.State),
 		Content: details,
+	})
+}
+
+func (s *NotificationService) handleUpdateSnapshot(snapshot UpdateSnapshot) {
+	prefs := s.notificationPrefs()
+	if !snapshot.UpdateAvailable {
+		return
+	}
+	if !s.shouldNotify(prefs, prefs.Events.UpdateAvailable) {
+		return
+	}
+
+	latestVersion := strings.TrimSpace(snapshot.Latest.Version)
+	if latestVersion == "" {
+		return
+	}
+
+	s.updateMu.Lock()
+	if s.lastNotifiedVersion == latestVersion {
+		s.updateMu.Unlock()
+
+		return
+	}
+	s.lastNotifiedVersion = latestVersion
+	s.updateMu.Unlock()
+
+	currentVersion := strings.TrimSpace(snapshot.CurrentVersion)
+	if currentVersion == "" {
+		currentVersion = "unknown"
+	}
+	s.send(notifications.Payload{
+		Title:   notificationTitleUpdatePrefix + latestVersion,
+		Content: notificationCurrentVersionLabel + currentVersion,
 	})
 }
 

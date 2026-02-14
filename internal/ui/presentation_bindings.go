@@ -37,7 +37,7 @@ func bindPresentationListeners(
 	}
 
 	appLogger.Debug("starting update snapshot listener")
-	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
+	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.Bus, func(snapshot meshapp.UpdateSnapshot) {
 		fyne.Do(func() {
 			if updateIndicator != nil {
 				updateIndicator.ApplySnapshot(snapshot)
@@ -47,12 +47,6 @@ func bindPresentationListeners(
 			}
 		})
 	})
-	if snapshot, ok := currentUpdateSnapshot(dep); ok && updateIndicator != nil {
-		updateIndicator.ApplySnapshot(snapshot)
-		if refreshSidebar != nil {
-			refreshSidebar()
-		}
-	}
 
 	return stopUIListeners, stopUpdateSnapshots
 }

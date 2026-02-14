@@ -14,7 +14,7 @@ func TestUpdateIndicatorApplySnapshotAndTap(t *testing.T) {
 
 	var opened meshapp.UpdateSnapshot
 	var openCalls int
-	indicator := newUpdateIndicator(theme.VariantLight, meshapp.UpdateSnapshot{}, false, func(snapshot meshapp.UpdateSnapshot) {
+	indicator := newUpdateIndicator(theme.VariantLight, false, func(snapshot meshapp.UpdateSnapshot) {
 		openCalls++
 		opened = snapshot
 	})
@@ -60,7 +60,7 @@ func TestUpdateIndicatorApplyThemeAndHideWhenNoUpdate(t *testing.T) {
 	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 
-	indicator := newUpdateIndicator(theme.VariantLight, meshapp.UpdateSnapshot{}, true, nil)
+	indicator := newUpdateIndicator(theme.VariantLight, true, nil)
 	indicator.ApplyTheme(theme.VariantDark)
 	if indicator.Button().icon == nil {
 		t.Fatalf("expected themed update icon")

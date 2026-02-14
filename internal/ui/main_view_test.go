@@ -36,8 +36,6 @@ func TestBuildMainViewBuildsSidebarAndPresentationComponents(t *testing.T) {
 			State:         connectors.ConnectionStateConnecting,
 			TransportName: "ip",
 		},
-		meshapp.UpdateSnapshot{},
-		false,
 	)
 
 	if view.left == nil || view.rightStack == nil {

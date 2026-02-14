@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/skobkin/meshgo/internal/bus"
+	"github.com/skobkin/meshgo/internal/connectors"
 	"golang.org/x/mod/semver"
 )
 
@@ -43,6 +45,7 @@ type UpdateCheckerConfig struct {
 	Endpoint       string
 	HTTPClient     *http.Client
 	Interval       time.Duration
+	MessageBus     bus.MessageBus
 	Logger         *slog.Logger
 }
 
@@ -52,9 +55,8 @@ type UpdateChecker struct {
 	endpoint       string
 	client         *http.Client
 	interval       time.Duration
+	messageBus     bus.MessageBus
 	logger         *slog.Logger
-
-	snapshots chan UpdateSnapshot
 
 	mu          sync.RWMutex
 	latest      UpdateSnapshot
@@ -96,8 +98,8 @@ func NewUpdateChecker(cfg UpdateCheckerConfig) *UpdateChecker {
 		endpoint:       endpoint,
 		client:         client,
 		interval:       interval,
+		messageBus:     cfg.MessageBus,
 		logger:         logger,
-		snapshots:      make(chan UpdateSnapshot, 1),
 	}
 }
 
@@ -109,14 +111,6 @@ func (c *UpdateChecker) Start(ctx context.Context) {
 	c.startOnce.Do(func() {
 		go c.run(ctx)
 	})
-}
-
-func (c *UpdateChecker) Snapshots() <-chan UpdateSnapshot {
-	if c == nil {
-		return nil
-	}
-
-	return c.snapshots
 }
 
 func (c *UpdateChecker) CurrentSnapshot() (UpdateSnapshot, bool) {
@@ -171,7 +165,7 @@ func (c *UpdateChecker) checkAndPublish(ctx context.Context) error {
 	c.latestKnown = true
 	c.mu.Unlock()
 
-	c.publish(snapshot)
+	c.publishToBus(snapshot)
 	c.logger.Info(
 		"update check completed",
 		"checked_at", snapshot.CheckedAt.Format(time.RFC3339),
@@ -184,27 +178,14 @@ func (c *UpdateChecker) checkAndPublish(ctx context.Context) error {
 	return nil
 }
 
-func (c *UpdateChecker) publish(snapshot UpdateSnapshot) {
-	select {
-	case c.snapshots <- snapshot:
-		c.logger.Debug("published update snapshot")
+func (c *UpdateChecker) publishToBus(snapshot UpdateSnapshot) {
+	if c.messageBus == nil {
+		c.logger.Debug("update snapshot publish skipped: message bus is nil")
 
 		return
-	default:
 	}
-	c.logger.Debug("update snapshot channel full, replacing stale value")
-
-	select {
-	case <-c.snapshots:
-	default:
-	}
-
-	select {
-	case c.snapshots <- snapshot:
-		c.logger.Debug("published update snapshot after replacing stale value")
-	default:
-		c.logger.Debug("skipped update snapshot publish after replace attempt")
-	}
+	c.messageBus.Publish(connectors.TopicUpdateSnapshot, snapshot)
+	c.logger.Debug("published update snapshot to bus", "topic", connectors.TopicUpdateSnapshot)
 }
 
 func (c *UpdateChecker) fetchSnapshot(ctx context.Context) (UpdateSnapshot, error) {

@@ -88,31 +88,6 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 	}
 }
 
-func TestCurrentUpdateSnapshot(t *testing.T) {
-	expected := meshapp.UpdateSnapshot{
-		CurrentVersion:  "0.6.0",
-		UpdateAvailable: true,
-		Latest: meshapp.ReleaseInfo{
-			Version: "0.7.0",
-		},
-	}
-	dep := RuntimeDependencies{
-		Data: DataDependencies{
-			CurrentUpdateSnapshot: func() (meshapp.UpdateSnapshot, bool) {
-				return expected, true
-			},
-		},
-	}
-
-	got, ok := currentUpdateSnapshot(dep)
-	if !ok {
-		t.Fatalf("expected snapshot to be present")
-	}
-	if got.Latest.Version != "0.7.0" {
-		t.Fatalf("expected latest version 0.7.0, got %q", got.Latest.Version)
-	}
-}
-
 func TestRun_UsesInjectedAppFactoryAndCallsOnQuit(t *testing.T) {
 	base := fynetest.NewApp()
 	t.Cleanup(base.Quit)

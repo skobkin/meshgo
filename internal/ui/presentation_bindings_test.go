@@ -26,32 +26,20 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		TransportName: "ip",
 	}
 	presenter := newConnectionStatusPresenter(window, statusLabel, initialStatus, app.Settings().ThemeVariant(), nil)
-	indicator := newUpdateIndicator(app.Settings().ThemeVariant(), meshapp.UpdateSnapshot{}, false, nil)
+	indicator := newUpdateIndicator(app.Settings().ThemeVariant(), false, nil)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	messageBus := bus.New(logger)
-
-	snapshots := make(chan meshapp.UpdateSnapshot, 4)
 	var refreshCalls atomic.Int64
 
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
-			Bus:             messageBus,
-			UpdateSnapshots: snapshots,
+			Bus: messageBus,
 			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
 				return connectors.ConnectionStatus{
 					State:         connectors.ConnectionStateConnected,
 					TransportName: "serial",
 					Target:        "/dev/ttyUSB0",
-				}, true
-			},
-			CurrentUpdateSnapshot: func() (meshapp.UpdateSnapshot, bool) {
-				return meshapp.UpdateSnapshot{
-					CurrentVersion:  "0.6.0",
-					UpdateAvailable: true,
-					Latest: meshapp.ReleaseInfo{
-						Version: "0.7.0",
-					},
 				}, true
 			},
 		},
@@ -65,6 +53,14 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		stopUI()
 		messageBus.Close()
 	}()
+
+	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
+		CurrentVersion:  "0.6.0",
+		UpdateAvailable: true,
+		Latest: meshapp.ReleaseInfo{
+			Version: "0.7.0",
+		},
+	})
 
 	waitForCondition(t, func() bool {
 		return strings.Contains(statusLabel.Text, "connected") &&
@@ -80,13 +76,13 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		Target:        "/dev/ttyUSB0",
 		Err:           "link lost",
 	})
-	snapshots <- meshapp.UpdateSnapshot{
+	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
 		CurrentVersion:  "0.7.0",
 		UpdateAvailable: false,
 		Latest: meshapp.ReleaseInfo{
 			Version: "0.7.0",
 		},
-	}
+	})
 
 	waitForCondition(t, func() bool {
 		return strings.Contains(statusLabel.Text, "disconnected") &&

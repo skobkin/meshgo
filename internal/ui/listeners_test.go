@@ -60,13 +60,16 @@ func TestStartUIEventListenersNilBusReturnsNoopStop(t *testing.T) {
 }
 
 func TestStartUpdateSnapshotListenerStopPreventsFurtherCallbacks(t *testing.T) {
-	snapshots := make(chan meshapp.UpdateSnapshot, 4)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
 	var calls atomic.Int64
-	stop := startUpdateSnapshotListener(snapshots, func(_ meshapp.UpdateSnapshot) {
+	stop := startUpdateSnapshotListener(messageBus, func(_ meshapp.UpdateSnapshot) {
 		calls.Add(1)
 	})
 
-	snapshots <- meshapp.UpdateSnapshot{CurrentVersion: "0.6.0"}
+	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{CurrentVersion: "0.6.0"})
 	waitForCondition(t, func() bool {
 		return calls.Load() == 1
 	})
@@ -74,7 +77,7 @@ func TestStartUpdateSnapshotListenerStopPreventsFurtherCallbacks(t *testing.T) {
 	stop()
 
 	before := calls.Load()
-	snapshots <- meshapp.UpdateSnapshot{CurrentVersion: "0.7.0"}
+	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{CurrentVersion: "0.7.0"})
 	time.Sleep(100 * time.Millisecond)
 
 	if calls.Load() != before {

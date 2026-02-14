@@ -74,6 +74,7 @@ type NotificationEventsConfig struct {
 	IncomingMessage  bool `json:"incoming_message"`
 	NodeDiscovered   bool `json:"node_discovered"`
 	ConnectionStatus bool `json:"connection_status"`
+	UpdateAvailable  bool `json:"update_available"`
 }
 
 // AppConfig is the root persisted application configuration.
@@ -110,6 +111,7 @@ func Default() AppConfig {
 					IncomingMessage:  true,
 					NodeDiscovered:   true,
 					ConnectionStatus: true,
+					UpdateAvailable:  true,
 				},
 			},
 		},

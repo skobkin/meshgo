@@ -2,6 +2,7 @@ package connectors
 
 const (
 	TopicConnStatus       = "conn.status"
+	TopicUpdateSnapshot   = "update.snapshot"
 	TopicRadioFrom        = "radio.from"
 	TopicNodeInfo         = "node.info"
 	TopicNodeDiscovered   = "node.discovered"

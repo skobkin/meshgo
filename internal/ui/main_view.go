@@ -25,8 +25,6 @@ func buildMainView(
 	window fyne.Window,
 	initialVariant fyne.ThemeVariant,
 	initialStatus connectors.ConnectionStatus,
-	initialUpdateSnapshot meshapp.UpdateSnapshot,
-	initialUpdateSnapshotKnown bool,
 ) mainView {
 	settingsConnStatus := widget.NewLabel("")
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
@@ -73,8 +71,7 @@ func buildMainView(
 
 	updateIndicator := newUpdateIndicator(
 		initialVariant,
-		initialUpdateSnapshot,
-		initialUpdateSnapshotKnown,
+		false,
 		func(snapshot meshapp.UpdateSnapshot) {
 			showUpdateDialog(window, fyApp.Settings().ThemeVariant(), snapshot, openExternalURL)
 		},
