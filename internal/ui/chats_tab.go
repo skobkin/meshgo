@@ -450,14 +450,6 @@ func shouldUpdateMessageItemHeight(hasPrev bool, prevHeight, prevWidth, rowHeigh
 	return false
 }
 
-func chatTypeLabel(c domain.Chat) string {
-	if isDMChat(c) {
-		return "DM"
-	}
-
-	return "Channel"
-}
-
 func chatUnreadMarker(hasUnread bool) string {
 	if hasUnread {
 		return "●"
@@ -941,48 +933,6 @@ func displaySender(nodeID string, nodeNameByID func(string) string) string {
 	}
 
 	return nodeID
-}
-
-func chatDisplayTitle(chat domain.Chat, nodeNameByID func(string) string) string {
-	defaultTitle := domain.ChatDisplayTitle(chat)
-	if !isDMChat(chat) {
-		return defaultTitle
-	}
-	nodeID := domain.NormalizeNodeID(domain.NodeIDFromDMChatKey(chat.Key))
-	if nodeID == "" {
-		return defaultTitle
-	}
-	if nodeNameByID != nil {
-		if display := strings.TrimSpace(nodeNameByID(nodeID)); display != "" && display != nodeID {
-			return display
-		}
-	}
-	if custom := strings.TrimSpace(chat.Title); custom != "" && custom != strings.TrimSpace(chat.Key) {
-		return custom
-	}
-
-	return nodeID
-}
-
-func chatTitleByKey(chats []domain.Chat, key string, nodeNameByID func(string) string) string {
-	if key == "" {
-		return "No chat selected"
-	}
-	for _, c := range chats {
-		if c.Key == key {
-			return chatDisplayTitle(c, nodeNameByID)
-		}
-	}
-
-	return key
-}
-
-func isDMChat(chat domain.Chat) bool {
-	if chat.Type == domain.ChatTypeDM {
-		return true
-	}
-
-	return domain.ChatTypeForKey(chat.Key) == domain.ChatTypeDM
 }
 
 func hasChat(chats []domain.Chat, key string) bool {

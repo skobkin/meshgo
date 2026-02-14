@@ -13,17 +13,29 @@ func ChatKeyForDM(nodeID string) string {
 	return "dm:" + nodeID
 }
 
+func IsDMKey(key string) bool {
+	return strings.HasPrefix(strings.TrimSpace(key), "dm:")
+}
+
 func ChatTypeForKey(key string) ChatType {
-	if strings.HasPrefix(strings.TrimSpace(key), "dm:") {
+	if IsDMKey(key) {
 		return ChatTypeDM
 	}
 
 	return ChatTypeChannel
 }
 
+func IsDMChat(chat Chat) bool {
+	if chat.Type == ChatTypeDM {
+		return true
+	}
+
+	return IsDMKey(chat.Key)
+}
+
 func NodeIDFromDMChatKey(key string) string {
 	key = strings.TrimSpace(key)
-	if !strings.HasPrefix(key, "dm:") {
+	if !IsDMKey(key) {
 		return ""
 	}
 
