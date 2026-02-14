@@ -11,6 +11,8 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	saveGate := &nodeSettingsSaveGate{}
 	securityPage, onSecurityTabOpened := newNodeSecuritySettingsPage(dep, saveGate)
 	securityTab := container.NewTabItem("Security", securityPage)
+	devicePage, onDeviceTabOpened := newNodeDeviceSettingsPage(dep, saveGate)
+	deviceTab := container.NewTabItem("Device", devicePage)
 
 	radioTabs := container.NewAppTabs(
 		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
@@ -27,13 +29,19 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 
 	deviceTabs := container.NewAppTabs(
 		container.NewTabItem("User", newNodeUserSettingsPage(dep, saveGate)),
-		container.NewTabItem("Device", newSettingsPlaceholderPage("Device settings editing is planned.")),
+		deviceTab,
 		container.NewTabItem("Position", newSettingsPlaceholderPage("Position settings editing is planned.")),
 		container.NewTabItem("Power", newSettingsPlaceholderPage("Power settings editing is planned.")),
 		container.NewTabItem("Display", newSettingsPlaceholderPage("Display settings editing is planned.")),
 		container.NewTabItem("Bluetooth", newSettingsPlaceholderPage("Bluetooth settings editing is planned.")),
 	)
 	deviceTabs.SetTabLocation(container.TabLocationTop)
+	deviceTabs.OnSelected = func(item *container.TabItem) {
+		if onDeviceTabOpened == nil || item != deviceTab {
+			return
+		}
+		onDeviceTabOpened()
+	}
 
 	moduleTabs := container.NewAppTabs(
 		container.NewTabItem("MQTT", newSettingsPlaceholderPage("MQTT module settings editing is planned.")),

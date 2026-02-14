@@ -27,3 +27,18 @@ type NodeSecuritySettings struct {
 	DebugLogAPIEnabled  bool
 	AdminChannelEnabled bool
 }
+
+// NodeDeviceSettings contains editable device config settings.
+type NodeDeviceSettings struct {
+	NodeID                 string
+	Role                   int32
+	ButtonGPIO             uint32
+	BuzzerGPIO             uint32
+	RebroadcastMode        int32
+	NodeInfoBroadcastSecs  uint32
+	DoubleTapAsButtonPress bool
+	DisableTripleClick     bool
+	Tzdef                  string
+	LedHeartbeatDisabled   bool
+	BuzzerMode             int32
+}

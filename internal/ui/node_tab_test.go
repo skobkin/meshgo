@@ -36,6 +36,14 @@ func (s *nodeSettingsActionSpy) SaveSecuritySettings(_ context.Context, _ app.No
 	return nil
 }
 
+func (s *nodeSettingsActionSpy) LoadDeviceSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeDeviceSettings, error) {
+	return app.NodeDeviceSettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveDeviceSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeDeviceSettings) error {
+	return nil
+}
+
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
 }
