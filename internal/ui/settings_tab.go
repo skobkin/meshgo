@@ -320,6 +320,47 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		refreshPorts()
 	}
 
+	applyConfigToForm := func(next config.AppConfig) {
+		next.FillMissingDefaults()
+
+		connectorSelect.SetSelected(connectorOptionFromType(next.Connection.Connector))
+		hostEntry.SetText(next.Connection.Host)
+		serialPortSelect.SetSelected(next.Connection.SerialPort)
+		serialBaudSelect.SetOptions(uniqueValues(append(defaultSerialBaudOptions, strconv.Itoa(next.Connection.SerialBaud))))
+		serialBaudSelect.SetSelected(strconv.Itoa(next.Connection.SerialBaud))
+		bluetoothAddressEntry.SetText(next.Connection.BluetoothAddress)
+		bluetoothAdapterEntry.SetText(next.Connection.BluetoothAdapter)
+
+		levelSelect.SetSelected(strings.ToLower(next.Logging.Level))
+		if strings.TrimSpace(levelSelect.Selected) == "" {
+			levelSelect.SetSelected("info")
+		}
+		logToFile.SetChecked(next.Logging.LogToFile)
+
+		autostartEnabled.SetChecked(next.UI.Autostart.Enabled)
+		autostartModeSelect.SetSelected(autostartOptionFromMode(next.UI.Autostart.Mode))
+		if strings.TrimSpace(autostartModeSelect.Selected) == "" {
+			autostartModeSelect.SetSelected(autostartOptionNormal)
+		}
+		setAutostartModeEnabled(autostartEnabled.Checked)
+
+		notifyWhenFocused.SetChecked(next.UI.Notifications.NotifyWhenFocused)
+		notifyIncomingMessage.SetChecked(next.UI.Notifications.Events.IncomingMessage)
+		notifyNodeDiscovered.SetChecked(next.UI.Notifications.Events.NodeDiscovered)
+		notifyConnectionStatus.SetChecked(next.UI.Notifications.Events.ConnectionStatus)
+
+		setConnectorFields(next.Connection.Connector)
+		if next.Connection.Connector == config.ConnectorSerial {
+			refreshPorts()
+		}
+		if next.Connection.Connector == config.ConnectorBluetooth {
+			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
+
+			return
+		}
+		status.SetText("")
+	}
+
 	saveButton := widget.NewButton("Save", func() {
 		connector := connectorTypeFromOption(connectorSelect.Selected)
 		settingsLogger.Info(
@@ -457,6 +498,12 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	})
 	saveButton.Importance = widget.HighImportance
 
+	revertButton := widget.NewButton("Revert", func() {
+		settingsLogger.Info("settings revert requested")
+		applyConfigToForm(current)
+		status.SetText("Unsaved changes reverted")
+	})
+
 	clearDBButton := widget.NewButton("Clear database", func() {
 		settingsLogger.Info("clear database requested from settings UI")
 		if dep.Actions.OnClearDB == nil {
@@ -547,19 +594,35 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		poweredByRow,
 	))
 
-	content := container.NewVBox(
-		widget.NewLabel("App settings"),
-		connectionBlock,
-		startupBlock,
-		notificationsBlock,
-		loggingBlock,
-		maintenanceBlock,
-		saveButton,
-		versionBlock,
-		status,
+	generalTab := newSettingsSubTabPage(startupBlock)
+	connectionTab := newSettingsSubTabPage(connectionBlock)
+	notificationsTab := newSettingsSubTabPage(notificationsBlock)
+	maintenanceTab := newSettingsSubTabPage(loggingBlock, maintenanceBlock)
+	aboutTab := newSettingsSubTabPage(versionBlock)
+
+	subTabs := container.NewAppTabs(
+		container.NewTabItem("General", generalTab),
+		container.NewTabItem("Connection", connectionTab),
+		container.NewTabItem("Notifications", notificationsTab),
+		container.NewTabItem("Maintenance", maintenanceTab),
+		container.NewTabItem("About", aboutTab),
+	)
+	subTabs.SetTabLocation(container.TabLocationTop)
+
+	buttonRow := container.NewGridWithColumns(2, saveButton, revertButton)
+	bottomBar := container.NewVBox(
+		widget.NewSeparator(),
+		container.NewPadded(status),
+		container.NewPadded(buttonRow),
 	)
 
-	return container.NewVScroll(content)
+	return container.NewBorder(nil, bottomBar, nil, nil, subTabs)
+}
+
+func newSettingsSubTabPage(content ...fyne.CanvasObject) fyne.CanvasObject {
+	page := container.NewVBox(content...)
+
+	return container.NewVScroll(container.NewPadded(page))
 }
 
 func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice)) {

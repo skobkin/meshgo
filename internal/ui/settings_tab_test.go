@@ -56,6 +56,7 @@ func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	window = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Connection")
 
 	scanButton := mustFindButtonByText(t, tab, "Scan")
 	addressEntry := mustFindEntryByPlaceholder(t, tab, "AA:BB:CC:DD:EE:FF")
@@ -108,6 +109,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	window = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Connection")
 
 	scanButton := mustFindButtonByText(t, tab, "Scan")
 	openSettingsButton := mustFindButtonByText(t, tab, "Open Bluetooth Settings")
@@ -164,6 +166,7 @@ func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	window = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Connection")
 
 	openSettingsButton := mustFindButtonByText(t, tab, "Open Bluetooth Settings")
 	fynetest.Tap(openSettingsButton)
@@ -187,6 +190,7 @@ func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
 func TestSettingsTabNotificationDefaults(t *testing.T) {
 	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Notifications")
 
 	if checkbox := mustFindCheckByText(t, tab, "Notify when app is focused"); checkbox.Checked {
 		t.Fatalf("expected focused notification to be disabled by default")
@@ -220,6 +224,7 @@ func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Notifications")
 
 	focusedCheckbox := mustFindCheckByText(t, tab, "Notify when app is focused")
 	incomingCheckbox := mustFindCheckByText(t, tab, "Incoming chat messages")
@@ -244,6 +249,54 @@ func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
 	}
 	if saved.UI.Notifications.Events.ConnectionStatus {
 		t.Fatalf("expected connection status notifications to be saved as disabled")
+	}
+}
+
+func TestSettingsTabRevertRestoresLastSavedSettings(t *testing.T) {
+	cfg := config.Default()
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnSave: func(next config.AppConfig) error {
+				return nil
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Notifications")
+
+	focusedCheckbox := mustFindCheckByText(t, tab, "Notify when app is focused")
+	if focusedCheckbox.Checked {
+		t.Fatalf("expected focused notifications to be disabled by default")
+	}
+
+	fynetest.Tap(focusedCheckbox)
+	saveButton := mustFindButtonByText(t, tab, "Save")
+	fynetest.Tap(saveButton)
+
+	if !focusedCheckbox.Checked {
+		t.Fatalf("expected focused notification to remain enabled after save")
+	}
+
+	fynetest.Tap(focusedCheckbox)
+	if focusedCheckbox.Checked {
+		t.Fatalf("expected focused notification to be disabled before revert")
+	}
+
+	revertButton := mustFindButtonByText(t, tab, "Revert")
+	fynetest.Tap(revertButton)
+
+	if !focusedCheckbox.Checked {
+		t.Fatalf("expected focused notification to be restored to last saved value")
+	}
+
+	statusLabel := mustFindLabelByPrefix(t, tab, "Unsaved changes reverted")
+	if got := strings.TrimSpace(statusLabel.Text); got != "Unsaved changes reverted" {
+		t.Fatalf("unexpected status text: %q", got)
 	}
 }
 
@@ -365,6 +418,7 @@ func TestSettingsTabClearCacheSuccess(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Maintenance")
 
 	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
 	fynetest.Tap(clearCacheButton)
@@ -395,6 +449,7 @@ func TestSettingsTabClearCacheFailure(t *testing.T) {
 
 	tab := newSettingsTab(dep, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Maintenance")
 
 	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
 	fynetest.Tap(clearCacheButton)
@@ -408,6 +463,7 @@ func TestSettingsTabClearCacheFailure(t *testing.T) {
 func TestSettingsTabClearCacheDisabledWhenUnavailable(t *testing.T) {
 	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Maintenance")
 
 	clearCacheButton := mustFindButtonByText(t, tab, "Clear cache")
 	if !clearCacheButton.Disabled() {
@@ -459,6 +515,37 @@ func mustFindButtonByText(t *testing.T, root fyne.CanvasObject, text string) *wi
 	t.Fatalf("button %q not found", text)
 
 	return nil
+}
+
+func mustSelectAppTabByText(t *testing.T, root fyne.CanvasObject, title string) {
+	t.Helper()
+	var (
+		foundTabs *container.AppTabs
+		foundItem *container.TabItem
+	)
+	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
+		tabs, ok := object.(*container.AppTabs)
+		if !ok {
+			return false
+		}
+		for _, item := range tabs.Items {
+			if strings.TrimSpace(item.Text) != title {
+				continue
+			}
+			foundTabs = tabs
+			foundItem = item
+
+			return true
+		}
+
+		return false
+	})
+	if foundTabs == nil || foundItem == nil {
+		t.Fatalf("tab %q not found", title)
+	}
+	fyne.DoAndWait(func() {
+		foundTabs.Select(foundItem)
+	})
 }
 
 func mustFindEntryByPlaceholder(t *testing.T, root fyne.CanvasObject, placeholder string) *widget.Entry {
@@ -582,6 +669,15 @@ func walkCanvasObjects(root fyne.CanvasObject, visit func(fyne.CanvasObject) boo
 	case *container.Scroll:
 		if walkCanvasObjects(object.Content, visit) {
 			return true
+		}
+	case *container.AppTabs:
+		for _, item := range object.Items {
+			if item == nil {
+				continue
+			}
+			if walkCanvasObjects(item.Content, visit) {
+				return true
+			}
 		}
 	case *widget.Card:
 		if walkCanvasObjects(object.Content, visit) {
