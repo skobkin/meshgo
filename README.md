@@ -18,6 +18,15 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 ![chat view](docs/screenshot_chat.png)
 
 <details>
+<summary>Chat view</summary>
+
+![hop tooltip](docs/screenshot_chat_hop_tooltip.png)
+
+![delivery indicator](docs/screenshot_chat_delivery_indicator.png)
+
+</details>
+
+<details>
 <summary>Node list</summary>
 
 ![nodes view](docs/screenshot_nodes.png)
