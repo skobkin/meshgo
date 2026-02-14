@@ -33,6 +33,7 @@ func buildMainView(
 		dep.Data.ChatStore,
 		dep.Actions.Sender,
 		resolveNodeDisplayName(dep.Data.NodeStore),
+		resolveRelayNodeDisplayNameByLastByte(dep.Data.NodeStore),
 		dep.Data.LocalNodeID,
 		nodeChanges(dep.Data.NodeStore),
 		dep.Data.LastSelectedChat,

@@ -25,7 +25,16 @@ var chatsLogger = slog.With("component", "ui.chats")
 // heights are updated only on meaningful size changes.
 const messageRowMeasureEpsilon float32 = 0.5
 
-func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID func(string) string, localNodeID func() string, nodeChanges <-chan struct{}, initialSelectedKey string, onChatSelected func(string)) fyne.CanvasObject {
+func newChatsTab(
+	store *domain.ChatStore,
+	sender MessageSender,
+	nodeNameByID func(string) string,
+	relayNodeNameByLastByte func(uint32) string,
+	localNodeID func() string,
+	nodeChanges <-chan struct{},
+	initialSelectedKey string,
+	onChatSelected func(string),
+) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
 	selectedKey := strings.TrimSpace(initialSelectedKey)
@@ -181,7 +190,7 @@ func newChatsTab(store *domain.ChatStore, sender MessageSender, nodeNameByID fun
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
 			hideTooltipWidgets(metaParts.Objects)
-			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, tooltipManager)
+			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
 			metaRight.Objects[0].(*tooltipWidget).SetBadge(messageStatusBadge(msg))
@@ -486,7 +495,7 @@ func previewSender(msg domain.ChatMessage, nodeNameByID func(string) string) str
 	if !hasMeta {
 		return "someone"
 	}
-	if sender := normalizeNodeID(meta.From); sender != "" {
+	if sender := domain.NormalizeNodeID(meta.From); sender != "" {
 		return displaySender(sender, nodeNameByID)
 	}
 
@@ -523,6 +532,7 @@ type messageMeta struct {
 	Hops      *int     `json:"hops"`
 	HopStart  *uint32  `json:"hop_start"`
 	HopLimit  *uint32  `json:"hop_limit"`
+	RelayNode *uint32  `json:"relay_node"`
 	RxRSSI    *int     `json:"rx_rssi"`
 	RxSNR     *float64 `json:"rx_snr"`
 	ViaMQTT   bool     `json:"via_mqtt"`
@@ -553,12 +563,12 @@ func messageTextLine(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeN
 func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, nodeNameByID func(string) string, localNodeID func() string) (sender, body string, hasSender bool) {
 	if m.Direction == domain.MessageDirectionOut {
 		if hasMeta {
-			if localID := normalizeNodeID(meta.From); localID != "" {
+			if localID := domain.NormalizeNodeID(meta.From); localID != "" {
 				return displaySender(localID, nodeNameByID), m.Body, true
 			}
 		}
 		if localNodeID != nil {
-			if localID := normalizeNodeID(localNodeID()); localID != "" {
+			if localID := domain.NormalizeNodeID(localNodeID()); localID != "" {
 				return displaySender(localID, nodeNameByID), m.Body, true
 			}
 		}
@@ -566,7 +576,7 @@ func messageTextParts(m domain.ChatMessage, meta messageMeta, hasMeta bool, node
 		return "you", m.Body, true
 	}
 	if hasMeta {
-		if sender := normalizeNodeID(meta.From); sender != "" {
+		if sender := domain.NormalizeNodeID(meta.From); sender != "" {
 			return displaySender(sender, nodeNameByID), m.Body, true
 		}
 	}
@@ -614,8 +624,15 @@ func messageMetaSegments(m domain.ChatMessage, meta messageMeta, hasMeta bool) [
 	return segments
 }
 
-func messageMetaWidgets(m domain.ChatMessage, meta messageMeta, hasMeta bool, tooltipManager *hoverTooltipManager) []fyne.CanvasObject {
-	chunks := messageMetaChunks(m, meta, hasMeta)
+func messageMetaWidgets(
+	m domain.ChatMessage,
+	meta messageMeta,
+	hasMeta bool,
+	nodeNameByID func(string) string,
+	relayNodeNameByLastByte func(uint32) string,
+	tooltipManager *hoverTooltipManager,
+) []fyne.CanvasObject {
+	chunks := messageMetaChunksWithContext(m, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte)
 	widgets := make([]fyne.CanvasObject, 0, len(chunks))
 	for _, chunk := range chunks {
 		if len(chunk.Tooltip) > 0 {
@@ -647,10 +664,24 @@ func newMetaChunkInline(text string) messageMetaChunk {
 }
 
 func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []messageMetaChunk {
+	return messageMetaChunksWithContext(m, meta, hasMeta, nil, nil)
+}
+
+func messageMetaChunksWithContext(
+	m domain.ChatMessage,
+	meta messageMeta,
+	hasMeta bool,
+	nodeNameByID func(string) string,
+	relayNodeNameByLastByte func(uint32) string,
+) []messageMetaChunk {
 	hops, hopsKnown := messageHops(meta, hasMeta)
 	parts := make([]messageMetaChunk, 0, 2)
 	if hopsKnown && hops > 0 {
-		parts = append(parts, newMetaChunkInline(hopBadge(hops)))
+		hopChunk := newMetaChunkInline(hopBadge(hops))
+		if m.Direction == domain.MessageDirectionIn {
+			hopChunk.Tooltip = hopTooltipSegments(hops, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte)
+		}
+		parts = append(parts, hopChunk)
 	}
 	if isMessageFromMQTT(meta, hasMeta) {
 		return parts
@@ -673,6 +704,30 @@ func messageMetaChunks(m domain.ChatMessage, meta messageMeta, hasMeta bool) []m
 	}
 
 	return parts
+}
+
+func hopTooltipSegments(
+	hops int,
+	meta messageMeta,
+	hasMeta bool,
+	nodeNameByID func(string) string,
+	relayNodeNameByLastByte func(uint32) string,
+) []widget.RichTextSegment {
+	if hops < 0 {
+		return nil
+	}
+
+	lines := []string{fmt.Sprintf("Hops: %d", hops)}
+	if relay := resolveRelayNodeDisplay(meta, hasMeta, nodeNameByID, relayNodeNameByLastByte); relay != "" {
+		lines = append(lines, fmt.Sprintf("Received from: %s (last relay node)", relay))
+	}
+	if isMessageFromMQTT(meta, hasMeta) {
+		lines = append(lines, "MQTT involved")
+	}
+
+	return []widget.RichTextSegment{
+		&widget.TextSegment{Text: strings.Join(lines, "\n"), Style: widget.RichTextStyleInline},
+	}
 }
 
 func signalTooltipSegments(meta messageMeta) []widget.RichTextSegment {
@@ -874,15 +929,6 @@ func isDarkColor(c color.NRGBA) bool {
 
 func colorLuma(c color.NRGBA) float32 {
 	return (0.299*float32(c.R) + 0.587*float32(c.G) + 0.114*float32(c.B)) / 255
-}
-
-func normalizeNodeID(raw string) string {
-	v := strings.TrimSpace(raw)
-	if v == "" || strings.EqualFold(v, "unknown") || v == "!ffffffff" {
-		return ""
-	}
-
-	return v
 }
 
 func displaySender(nodeID string, nodeNameByID func(string) string) string {

@@ -34,6 +34,36 @@ func TestResolveNodeDisplayName_Priority(t *testing.T) {
 	}
 }
 
+func TestResolveRelayNodeDisplayNameByLastByte_UniqueMatch(t *testing.T) {
+	store := domain.NewNodeStore()
+	store.Upsert(domain.Node{NodeID: "!111111aa", LongName: "Relay Alpha"})
+	store.Upsert(domain.Node{NodeID: "!222222bb", LongName: "Relay Beta"})
+
+	resolve := resolveRelayNodeDisplayNameByLastByte(store)
+	if resolve == nil {
+		t.Fatalf("expected non-nil resolver")
+	}
+
+	if got := resolve(0xaa); got != "Relay Alpha" {
+		t.Fatalf("expected relay display name, got %q", got)
+	}
+}
+
+func TestResolveRelayNodeDisplayNameByLastByte_AmbiguousMatchReturnsEmpty(t *testing.T) {
+	store := domain.NewNodeStore()
+	store.Upsert(domain.Node{NodeID: "!111111aa", LongName: "Relay Alpha"})
+	store.Upsert(domain.Node{NodeID: "!222222aa", LongName: "Relay Beta"})
+
+	resolve := resolveRelayNodeDisplayNameByLastByte(store)
+	if resolve == nil {
+		t.Fatalf("expected non-nil resolver")
+	}
+
+	if got := resolve(0xaa); got != "" {
+		t.Fatalf("expected empty relay display for ambiguous byte, got %q", got)
+	}
+}
+
 func TestInitialConnStatusBluetooth(t *testing.T) {
 	status := initialConnStatus(RuntimeDependencies{
 		Data: DataDependencies{

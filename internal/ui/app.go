@@ -43,16 +43,6 @@ func currentConnStatus(dep RuntimeDependencies) (connectors.ConnectionStatus, bo
 	return dep.Data.CurrentConnStatus()
 }
 
-func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
-	if store == nil {
-		return nil
-	}
-
-	return func(nodeID string) string {
-		return domain.NodeDisplayNameByID(store, nodeID)
-	}
-}
-
 func nodeChanges(store *domain.NodeStore) <-chan struct{} {
 	if store == nil {
 		return nil

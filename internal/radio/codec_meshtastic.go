@@ -827,6 +827,9 @@ func packetMetaJSON(port generated.PortNum, packet *generated.MeshPacket) string
 	if hopLimit := packet.GetHopLimit(); hopLimit != 0 {
 		meta["hop_limit"] = hopLimit
 	}
+	if relayNode := packet.GetRelayNode(); relayNode != 0 {
+		meta["relay_node"] = relayNode
+	}
 	if rxRssi := packet.GetRxRssi(); rxRssi != 0 {
 		meta["rx_rssi"] = int(rxRssi)
 	}

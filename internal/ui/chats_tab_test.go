@@ -295,6 +295,75 @@ func TestMessageMetaLine_MQTTShowsHopsOnly(t *testing.T) {
 	}
 }
 
+func TestMessageMetaChunksWithContext_HopTooltipIncludesRelayAndMQTT(t *testing.T) {
+	chunks := messageMetaChunksWithContext(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(3), RelayNode: ptrUint32(0xcd), ViaMQTT: true},
+		true,
+		nil,
+		func(relayNode uint32) string {
+			if relayNode != 0xcd {
+				t.Fatalf("unexpected relay node value: %x", relayNode)
+			}
+
+			return "Relay Alpha"
+		},
+	)
+	if len(chunks) == 0 {
+		t.Fatalf("expected hop chunk")
+	}
+
+	tooltip := richTextSegmentsText(chunks[0].Tooltip)
+	want := "Hops: 3\nReceived from: Relay Alpha (last relay node)\nMQTT involved"
+	if tooltip != want {
+		t.Fatalf("unexpected hop tooltip:\nwant: %q\ngot:  %q", want, tooltip)
+	}
+}
+
+func TestMessageMetaChunksWithContext_HopTooltipResolvesRelayFromSenderNode(t *testing.T) {
+	chunks := messageMetaChunksWithContext(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(2), From: "!1234abcd", RelayNode: ptrUint32(0xcd)},
+		true,
+		func(nodeID string) string {
+			if nodeID != "!1234abcd" {
+				t.Fatalf("unexpected node id: %q", nodeID)
+			}
+
+			return "Alice"
+		},
+		nil,
+	)
+	if len(chunks) == 0 {
+		t.Fatalf("expected hop chunk")
+	}
+
+	tooltip := richTextSegmentsText(chunks[0].Tooltip)
+	want := "Hops: 2\nReceived from: Alice (last relay node)"
+	if tooltip != want {
+		t.Fatalf("unexpected hop tooltip:\nwant: %q\ngot:  %q", want, tooltip)
+	}
+}
+
+func TestMessageMetaChunksWithContext_HopTooltipFallsBackToRelayByte(t *testing.T) {
+	chunks := messageMetaChunksWithContext(
+		domain.ChatMessage{Direction: domain.MessageDirectionIn},
+		messageMeta{Hops: ptrInt(1), RelayNode: ptrUint32(0x7f)},
+		true,
+		nil,
+		nil,
+	)
+	if len(chunks) == 0 {
+		t.Fatalf("expected hop chunk")
+	}
+
+	tooltip := richTextSegmentsText(chunks[0].Tooltip)
+	want := "Hops: 1\nReceived from: 0x7f (last relay node)"
+	if tooltip != want {
+		t.Fatalf("unexpected hop tooltip:\nwant: %q\ngot:  %q", want, tooltip)
+	}
+}
+
 func TestMessageTransportBadge(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -587,6 +656,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"ch:general",
 		nil,
 	)
@@ -639,6 +709,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 
 			return result
 		}),
+		nil,
 		nil,
 		nil,
 		nil,
@@ -705,6 +776,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"ch:general",
 		nil,
 	)
@@ -716,6 +788,10 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 }
 
 func ptrInt(v int) *int {
+	return &v
+}
+
+func ptrUint32(v uint32) *uint32 {
 	return &v
 }
 

@@ -1,6 +1,7 @@
 package radio
 
 import (
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -440,6 +441,36 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoWithoutUserDoesNotPanic(t *testi
 	}
 	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
 		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
+	}
+}
+
+func TestPacketMetaJSON_IncludesRelayNode(t *testing.T) {
+	raw := packetMetaJSON(
+		generated.PortNum_TEXT_MESSAGE_APP,
+		&generated.MeshPacket{
+			From:      0x1234abcd,
+			To:        0x5678ef90,
+			HopStart:  4,
+			HopLimit:  1,
+			RelayNode: 0xcd,
+			ViaMqtt:   true,
+		},
+	)
+	if raw == "" {
+		t.Fatalf("expected non-empty meta json")
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		t.Fatalf("unmarshal meta json: %v", err)
+	}
+
+	relayNode, ok := meta["relay_node"].(float64)
+	if !ok {
+		t.Fatalf("expected relay_node field in meta json")
+	}
+	if uint32(relayNode) != 0xcd {
+		t.Fatalf("unexpected relay node value: %v", relayNode)
 	}
 }
 
