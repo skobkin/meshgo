@@ -40,7 +40,7 @@ func Run(dep RuntimeDependencies) error {
 	currentStatus := initialStatus
 	var connStatusMu sync.RWMutex
 
-	latestUpdateSnapshot, latestUpdateSnapshotKnown := currentUpdateSnapshot(dep)
+	initialUpdateSnapshot, initialUpdateSnapshotKnown := currentUpdateSnapshot(dep)
 
 	window := fyApp.NewWindow("")
 	window.Resize(fyne.NewSize(1000, 700))
@@ -133,26 +133,15 @@ func Run(dep RuntimeDependencies) error {
 		left.Add(button)
 	}
 
-	updateButton := newIconNavButton(resources.UIIconResource(resources.UIIconUpdateAvailable, initialVariant), 48, func() {
-		if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
-			appLogger.Debug("update button tap ignored: no available update")
-
-			return
-		}
-		appLogger.Info(
-			"opening update dialog",
-			"current_version", strings.TrimSpace(latestUpdateSnapshot.CurrentVersion),
-			"latest_version", strings.TrimSpace(latestUpdateSnapshot.Latest.Version),
-			"release_count", len(latestUpdateSnapshot.Releases),
-		)
-		showUpdateDialog(window, fyApp.Settings().ThemeVariant(), latestUpdateSnapshot, openExternalURL)
-	})
-	if latestUpdateSnapshotKnown && latestUpdateSnapshot.UpdateAvailable {
-		updateButton.SetText(latestUpdateSnapshot.Latest.Version)
-	}
-	if !latestUpdateSnapshotKnown || !latestUpdateSnapshot.UpdateAvailable {
-		updateButton.Hide()
-	}
+	updateIndicator := newUpdateIndicator(
+		initialVariant,
+		initialUpdateSnapshot,
+		initialUpdateSnapshotKnown,
+		func(snapshot meshapp.UpdateSnapshot) {
+			showUpdateDialog(window, fyApp.Settings().ThemeVariant(), snapshot, openExternalURL)
+		},
+	)
+	updateButton := updateIndicator.Button()
 
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
@@ -190,41 +179,11 @@ func Run(dep RuntimeDependencies) error {
 			icon := resources.UIIconResource(tabIcons[tabName], variant)
 			button.SetIcon(icon)
 		}
-		updateButton.SetIcon(resources.UIIconResource(resources.UIIconUpdateAvailable, variant))
+		updateIndicator.ApplyTheme(variant)
 		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
 			mapWidget.applyThemeVariant(variant)
 		}
 		setConnStatusIcon(sidebarConnIcon, status, variant)
-	}
-
-	applyUpdateSnapshot := func(snapshot meshapp.UpdateSnapshot) {
-		prevSnapshot := latestUpdateSnapshot
-		prevKnown := latestUpdateSnapshotKnown
-		latestUpdateSnapshot = snapshot
-		latestUpdateSnapshotKnown = true
-		if !prevKnown || prevSnapshot.UpdateAvailable != snapshot.UpdateAvailable || prevSnapshot.Latest.Version != snapshot.Latest.Version {
-			appLogger.Info(
-				"applied update snapshot",
-				"current_version", strings.TrimSpace(snapshot.CurrentVersion),
-				"latest_version", strings.TrimSpace(snapshot.Latest.Version),
-				"update_available", snapshot.UpdateAvailable,
-				"release_count", len(snapshot.Releases),
-			)
-		} else {
-			appLogger.Debug(
-				"refreshed unchanged update snapshot",
-				"latest_version", strings.TrimSpace(snapshot.Latest.Version),
-				"update_available", snapshot.UpdateAvailable,
-			)
-		}
-		if snapshot.UpdateAvailable {
-			updateButton.SetText(snapshot.Latest.Version)
-			updateButton.Show()
-		} else {
-			updateButton.SetText("")
-			updateButton.Hide()
-		}
-		left.Refresh()
 	}
 
 	fyApp.Settings().AddListener(func(_ fyne.Settings) {
@@ -275,11 +234,13 @@ func Run(dep RuntimeDependencies) error {
 	appLogger.Debug("starting update snapshot listener")
 	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
 		fyne.Do(func() {
-			applyUpdateSnapshot(snapshot)
+			updateIndicator.ApplySnapshot(snapshot)
+			left.Refresh()
 		})
 	})
 	if snapshot, ok := currentUpdateSnapshot(dep); ok {
-		applyUpdateSnapshot(snapshot)
+		updateIndicator.ApplySnapshot(snapshot)
+		left.Refresh()
 	}
 
 	content := container.NewBorder(nil, nil, left, nil, rightStack)
