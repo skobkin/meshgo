@@ -23,6 +23,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	repo := NewNodeRepo(db)
 	lat := 37.7749
 	lon := -122.4194
+	alt := int32(123)
 	now := time.Now().UTC()
 
 	if err := repo.Upsert(ctx, domain.Node{
@@ -30,6 +31,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 		LongName:    "Alpha",
 		Latitude:    &lat,
 		Longitude:   &lon,
+		Altitude:    &alt,
 		LastHeardAt: now,
 		UpdatedAt:   now,
 	}); err != nil {
@@ -57,9 +59,12 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	if nodes[0].Longitude == nil || *nodes[0].Longitude != lon {
 		t.Fatalf("expected longitude to roundtrip, got %v", nodes[0].Longitude)
 	}
+	if nodes[0].Altitude == nil || *nodes[0].Altitude != alt {
+		t.Fatalf("expected altitude to roundtrip, got %v", nodes[0].Altitude)
+	}
 }
 
-func TestOpen_MigratesV4DatabaseToV6(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -110,8 +115,8 @@ func TestOpen_MigratesV4DatabaseToV6(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 6 {
-		t.Fatalf("expected schema version 6, got %d", version)
+	if version != 7 {
+		t.Fatalf("expected schema version 7, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -146,6 +151,9 @@ func TestOpen_MigratesV4DatabaseToV6(t *testing.T) {
 	}
 	if !columns["channel"] {
 		t.Fatalf("expected channel column after migration")
+	}
+	if !columns["altitude"] {
+		t.Fatalf("expected altitude column after migration")
 	}
 
 	var traceroutesTable string

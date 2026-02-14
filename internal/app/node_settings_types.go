@@ -42,3 +42,23 @@ type NodeDeviceSettings struct {
 	LedHeartbeatDisabled   bool
 	BuzzerMode             int32
 }
+
+// NodePositionSettings contains editable position config settings.
+type NodePositionSettings struct {
+	NodeID                            string
+	PositionBroadcastSecs             uint32
+	PositionBroadcastSmartEnabled     bool
+	FixedPosition                     bool
+	FixedLatitude                     *float64
+	FixedLongitude                    *float64
+	FixedAltitude                     *int32
+	RemoveFixedPosition               bool
+	GpsUpdateInterval                 uint32
+	PositionFlags                     uint32
+	RxGPIO                            uint32
+	TxGPIO                            uint32
+	BroadcastSmartMinimumDistance     uint32
+	BroadcastSmartMinimumIntervalSecs uint32
+	GpsEnGPIO                         uint32
+	GpsMode                           int32
+}

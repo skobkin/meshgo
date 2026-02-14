@@ -31,6 +31,8 @@ type NodeSettingsAction interface {
 	SaveSecuritySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeSecuritySettings) error
 	LoadDeviceSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeDeviceSettings, error)
 	SaveDeviceSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeDeviceSettings) error
+	LoadPositionSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodePositionSettings, error)
+	SavePositionSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodePositionSettings) error
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

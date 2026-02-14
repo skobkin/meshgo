@@ -16,6 +16,7 @@ import (
 
 type nodeSettingsActionSpy struct {
 	loadSecurityCalls atomic.Int32
+	loadPositionCalls atomic.Int32
 }
 
 func (s *nodeSettingsActionSpy) LoadUserSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error) {
@@ -44,8 +45,22 @@ func (s *nodeSettingsActionSpy) SaveDeviceSettings(_ context.Context, _ app.Node
 	return nil
 }
 
+func (s *nodeSettingsActionSpy) LoadPositionSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodePositionSettings, error) {
+	s.loadPositionCalls.Add(1)
+
+	return app.NodePositionSettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SavePositionSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodePositionSettings) error {
+	return nil
+}
+
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) PositionLoadCalls() int {
+	return int(s.loadPositionCalls.Load())
 }
 
 func TestParseSecurityAdminKeysInput_Valid(t *testing.T) {
@@ -158,5 +173,44 @@ func TestNodeTabSecuritySettingsLoadIsLazy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.SecurityLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial security load, got %d", got)
+	}
+}
+
+func TestNodeTabPositionSettingsLoadIsLazy(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.PositionLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager position load before selecting Position tab, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Position")
+	waitForCondition(t, func() bool {
+		return spy.PositionLoadCalls() == 1
+	})
+
+	mustSelectAppTabByText(t, tab, "Device")
+	mustSelectAppTabByText(t, tab, "Position")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.PositionLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial position load, got %d", got)
 	}
 }

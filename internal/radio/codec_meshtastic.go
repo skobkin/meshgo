@@ -633,6 +633,10 @@ func applyPositionCoordinates(node *domain.Node, position *generated.Position) b
 
 	node.Latitude = &lat
 	node.Longitude = &lon
+	if position.Altitude != nil {
+		alt := position.GetAltitude()
+		node.Altitude = &alt
+	}
 
 	return true
 }

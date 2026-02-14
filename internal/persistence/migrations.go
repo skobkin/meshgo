@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 func migrate(ctx context.Context, db *sql.DB) error {
 	var version int
@@ -40,6 +40,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				channel INTEGER NULL,
 				latitude REAL NULL,
 				longitude REAL NULL,
+				altitude INTEGER NULL,
 				battery_level INTEGER NULL,
 				voltage REAL NULL,
 				temperature REAL NULL,
@@ -192,6 +193,19 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 6
+		}
+		if version < 7 {
+			slog.Info("applying db migration", "from", version, "to", 7)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN altitude INTEGER NULL;`,
+				`PRAGMA user_version = 7;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 7
 		}
 	}
 

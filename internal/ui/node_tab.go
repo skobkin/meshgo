@@ -13,6 +13,8 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	securityTab := container.NewTabItem("Security", securityPage)
 	devicePage, onDeviceTabOpened := newNodeDeviceSettingsPage(dep, saveGate)
 	deviceTab := container.NewTabItem("Device", devicePage)
+	positionPage, onPositionTabOpened := newNodePositionSettingsPage(dep, saveGate)
+	positionTab := container.NewTabItem("Position", positionPage)
 
 	radioTabs := container.NewAppTabs(
 		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
@@ -30,17 +32,19 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	deviceTabs := container.NewAppTabs(
 		container.NewTabItem("User", newNodeUserSettingsPage(dep, saveGate)),
 		deviceTab,
-		container.NewTabItem("Position", newSettingsPlaceholderPage("Position settings editing is planned.")),
+		positionTab,
 		container.NewTabItem("Power", newSettingsPlaceholderPage("Power settings editing is planned.")),
 		container.NewTabItem("Display", newSettingsPlaceholderPage("Display settings editing is planned.")),
 		container.NewTabItem("Bluetooth", newSettingsPlaceholderPage("Bluetooth settings editing is planned.")),
 	)
 	deviceTabs.SetTabLocation(container.TabLocationTop)
 	deviceTabs.OnSelected = func(item *container.TabItem) {
-		if onDeviceTabOpened == nil || item != deviceTab {
-			return
+		if onDeviceTabOpened != nil && item == deviceTab {
+			onDeviceTabOpened()
 		}
-		onDeviceTabOpened()
+		if onPositionTabOpened != nil && item == positionTab {
+			onPositionTabOpened()
+		}
 	}
 
 	moduleTabs := container.NewAppTabs(

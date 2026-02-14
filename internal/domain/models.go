@@ -86,12 +86,15 @@ func ShouldTransitionMessageStatus(current, next MessageStatus) bool {
 
 // Node stores the latest known node metadata and telemetry.
 type Node struct {
-	NodeID          string
-	LongName        string
-	ShortName       string
-	Channel         *uint32
+	NodeID    string
+	LongName  string
+	ShortName string
+	Channel   *uint32
+	// Coordinates are kept as decimal degrees in memory; codec logic converts
+	// to/from Meshtastic fixed-point int32 values (degrees * 1e7).
 	Latitude        *float64
 	Longitude       *float64
+	Altitude        *int32
 	BatteryLevel    *uint32
 	Voltage         *float64
 	Temperature     *float64
