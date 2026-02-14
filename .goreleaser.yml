@@ -89,6 +89,6 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^refactor:'
-      - '^test:'
+      - '^docs(\([^)]*\))?!?:'
+      - '^refactor(\([^)]*\))?!?:'
+      - '^test(\([^)]*\))?!?:'
