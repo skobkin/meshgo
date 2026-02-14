@@ -3,6 +3,9 @@ package ui
 import (
 	"testing"
 
+	"fyne.io/fyne/v2"
+	fynetest "fyne.io/fyne/v2/test"
+
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
@@ -107,5 +110,84 @@ func TestCurrentUpdateSnapshot(t *testing.T) {
 	}
 	if got.Latest.Version != "0.7.0" {
 		t.Fatalf("expected latest version 0.7.0, got %q", got.Latest.Version)
+	}
+}
+
+func TestRun_UsesInjectedAppFactoryAndCallsOnQuit(t *testing.T) {
+	base := fynetest.NewApp()
+	t.Cleanup(base.Quit)
+
+	app := &appRunWindowSpy{App: base}
+	previousFactory := newFyneApp
+	newFyneApp = func() fyne.App {
+		return app
+	}
+	t.Cleanup(func() {
+		newFyneApp = previousFactory
+	})
+
+	var onQuitCalls int
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config:    config.Default(),
+			Paths:     meshapp.Paths{MapTilesDir: t.TempDir()},
+			ChatStore: domain.NewChatStore(),
+			NodeStore: domain.NewNodeStore(),
+		},
+		Actions: ActionDependencies{
+			OnQuit: func() {
+				onQuitCalls++
+			},
+		},
+	}
+
+	if err := Run(dep); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if app.runCalls != 1 {
+		t.Fatalf("expected app Run to be called once, got %d", app.runCalls)
+	}
+	if onQuitCalls != 1 {
+		t.Fatalf("expected OnQuit to be called once, got %d", onQuitCalls)
+	}
+	if app.createdWindow == nil {
+		t.Fatalf("expected UI window to be created")
+	}
+	if app.createdWindow.showCalls != 1 {
+		t.Fatalf("expected main window to be shown once, got %d", app.createdWindow.showCalls)
+	}
+}
+
+func TestRun_StartHiddenHidesWindow(t *testing.T) {
+	base := fynetest.NewApp()
+	t.Cleanup(base.Quit)
+
+	app := &appRunWindowSpy{App: base}
+	previousFactory := newFyneApp
+	newFyneApp = func() fyne.App {
+		return app
+	}
+	t.Cleanup(func() {
+		newFyneApp = previousFactory
+	})
+
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config:    config.Default(),
+			Paths:     meshapp.Paths{MapTilesDir: t.TempDir()},
+			ChatStore: domain.NewChatStore(),
+			NodeStore: domain.NewNodeStore(),
+		},
+		Launch: LaunchOptions{StartHidden: true},
+	}
+
+	if err := Run(dep); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if app.createdWindow == nil {
+		t.Fatalf("expected UI window to be created")
+	}
+	if app.createdWindow.hideCalls < 1 {
+		t.Fatalf("expected main window to be hidden for start-hidden mode")
 	}
 }

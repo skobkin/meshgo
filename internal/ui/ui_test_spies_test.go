@@ -20,6 +20,23 @@ func (a *appRunQuitSpy) Quit() {
 	a.quitCalls++
 }
 
+type appRunWindowSpy struct {
+	fyne.App
+	runCalls      int
+	createdWindow *windowSpy
+}
+
+func (a *appRunWindowSpy) Run() {
+	a.runCalls++
+}
+
+func (a *appRunWindowSpy) NewWindow(title string) fyne.Window {
+	window := &windowSpy{Window: a.App.NewWindow(title)}
+	a.createdWindow = window
+
+	return window
+}
+
 type trayAppSpy struct {
 	fyne.App
 	trayMenu *fyne.Menu
