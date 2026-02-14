@@ -48,11 +48,11 @@ func TestNotificationServiceIncomingDMMessage(t *testing.T) {
 		DeviceMessageID: "1",
 	})
 
-	notifications := sender.waitForCount(t, 1)
-	if got := notifications[0].Title; got != "@Alice" {
+	gotNotifications := sender.waitForCount(t, 1)
+	if got := gotNotifications[0].Title; got != "@Alice" {
 		t.Fatalf("expected title @Alice, got %q", got)
 	}
-	if got := notifications[0].Content; got != "Alice: Hello there" {
+	if got := gotNotifications[0].Content; got != "Alice: Hello there" {
 		t.Fatalf("expected content %q, got %q", "Alice: Hello there", got)
 	}
 }
@@ -94,11 +94,11 @@ func TestNotificationServiceIncomingChannelMessage(t *testing.T) {
 		MetaJSON:  `{"from":"!87654321"}`,
 	})
 
-	notifications := sender.waitForCount(t, 1)
-	if got := notifications[0].Title; got != "#General" {
+	gotNotifications := sender.waitForCount(t, 1)
+	if got := gotNotifications[0].Title; got != "#General" {
 		t.Fatalf("expected title #General, got %q", got)
 	}
-	if got := notifications[0].Content; got != "B0B: Hi channel" {
+	if got := gotNotifications[0].Content; got != "B0B: Hi channel" {
 		t.Fatalf("expected content %q, got %q", "B0B: Hi channel", got)
 	}
 }
@@ -161,14 +161,14 @@ func TestNotificationServiceNodeDiscoveredFormatting(t *testing.T) {
 		},
 	})
 
-	notifications := sender.waitForCount(t, 2)
-	if got := notifications[0].Title; got != notificationTitleNodeDiscovered {
+	gotNotifications := sender.waitForCount(t, 2)
+	if got := gotNotifications[0].Title; got != notificationTitleNodeDiscovered {
 		t.Fatalf("expected title %q, got %q", notificationTitleNodeDiscovered, got)
 	}
-	if got := notifications[0].Content; got != "[ABCD] Alpha Node" {
+	if got := gotNotifications[0].Content; got != "[ABCD] Alpha Node" {
 		t.Fatalf("expected content %q, got %q", "[ABCD] Alpha Node", got)
 	}
-	if got := notifications[1].Content; got != "!00000002" {
+	if got := gotNotifications[1].Content; got != "!00000002" {
 		t.Fatalf("expected node id fallback, got %q", got)
 	}
 }
@@ -195,8 +195,8 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
-	notifications := sender.waitForCount(t, 1)
-	if got := notifications[0].Title; got != "IP - connected" {
+	gotNotifications := sender.waitForCount(t, 1)
+	if got := gotNotifications[0].Title; got != "IP - connected" {
 		t.Fatalf("expected connected title, got %q", got)
 	}
 
@@ -222,8 +222,8 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
-	notifications = sender.waitForCount(t, 2)
-	if got := notifications[1].Title; got != "IP - connected" {
+	gotNotifications = sender.waitForCount(t, 2)
+	if got := gotNotifications[1].Title; got != "IP - connected" {
 		t.Fatalf("expected reconnection title, got %q", got)
 	}
 
@@ -233,11 +233,11 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 		Target:        "/dev/ttyACM0",
 		Err:           "read timeout",
 	})
-	notifications = sender.waitForCount(t, 3)
-	if got := notifications[2].Title; got != "Serial - disconnected" {
+	gotNotifications = sender.waitForCount(t, 3)
+	if got := gotNotifications[2].Title; got != "Serial - disconnected" {
 		t.Fatalf("expected disconnected title, got %q", got)
 	}
-	if got := notifications[2].Content; got != "/dev/ttyACM0 (error: read timeout)" {
+	if got := gotNotifications[2].Content; got != "/dev/ttyACM0 (error: read timeout)" {
 		t.Fatalf("expected disconnected content with error, got %q", got)
 	}
 }
@@ -340,9 +340,9 @@ func (s *collectingNotificationSender) waitForCount(t *testing.T, expected int) 
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		notifications := s.snapshot()
-		if len(notifications) >= expected {
-			return notifications
+		current := s.snapshot()
+		if len(current) >= expected {
+			return current
 		}
 		select {
 		case <-s.changes:
@@ -359,8 +359,8 @@ func (s *collectingNotificationSender) assertCount(t *testing.T, expected int) {
 	t.Helper()
 
 	time.Sleep(100 * time.Millisecond)
-	notifications := s.snapshot()
-	if len(notifications) != expected {
-		t.Fatalf("expected %d notifications, got %d", expected, len(notifications))
+	current := s.snapshot()
+	if len(current) != expected {
+		t.Fatalf("expected %d notifications, got %d", expected, len(current))
 	}
 }
