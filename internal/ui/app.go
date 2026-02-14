@@ -110,23 +110,8 @@ func Run(dep RuntimeDependencies) error {
 	left := sidebar.left
 	rightStack := sidebar.rightStack
 
-	setTrayIcon := func(_ fyne.ThemeVariant) {}
-	applyThemeResources := func(variant fyne.ThemeVariant) {
-		appLogger.Debug("applying theme resources", "theme", variant)
-		fyApp.SetIcon(resources.AppIconResource(variant))
-		setTrayIcon(variant)
-		sidebar.applyTheme(variant)
-		updateIndicator.ApplyTheme(variant)
-		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
-			mapWidget.applyThemeVariant(variant)
-		}
-		connStatusPresenter.ApplyTheme(variant)
-	}
-
-	fyApp.Settings().AddListener(func(_ fyne.Settings) {
-		appLogger.Debug("theme settings changed")
-		applyThemeResources(fyApp.Settings().ThemeVariant())
-	})
+	themeRuntime := newThemeRuntime(fyApp, sidebar, updateIndicator, mapTab, connStatusPresenter)
+	themeRuntime.BindSettings()
 
 	stopNotifications := startNotificationService(dep, fyApp, dep.Launch.StartHidden)
 
@@ -181,8 +166,9 @@ func Run(dep RuntimeDependencies) error {
 		window.Hide()
 	})
 
-	setTrayIcon = configureSystemTray(fyApp, window, initialVariant, quit)
-	applyThemeResources(initialVariant)
+	setTrayIcon := configureSystemTray(fyApp, window, initialVariant, quit)
+	themeRuntime.SetTrayIconSetter(setTrayIcon)
+	themeRuntime.Apply(initialVariant)
 
 	window.Show()
 	if dep.Launch.StartHidden {
