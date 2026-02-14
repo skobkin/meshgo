@@ -245,13 +245,19 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 func TestNotificationServiceForegroundAndPerTypeSettings(t *testing.T) {
 	messageBus := newTestMessageBus(t)
 	cfg := config.Default()
+	var cfgMu sync.RWMutex
 	foreground := true
 	sender := newCollectingNotificationSender()
 	service := NewNotificationService(
 		messageBus,
 		domain.NewChatStore(),
 		domain.NewNodeStore(),
-		func() config.AppConfig { return cfg },
+		func() config.AppConfig {
+			cfgMu.RLock()
+			defer cfgMu.RUnlock()
+
+			return cfg
+		},
 		func() bool { return foreground },
 		sender,
 		nil,
@@ -271,11 +277,15 @@ func TestNotificationServiceForegroundAndPerTypeSettings(t *testing.T) {
 	messageBus.Publish(connectors.TopicTextMessage, message)
 	sender.assertCount(t, 0)
 
+	cfgMu.Lock()
 	cfg.UI.Notifications.NotifyWhenFocused = true
+	cfgMu.Unlock()
 	messageBus.Publish(connectors.TopicTextMessage, message)
 	sender.waitForCount(t, 1)
 
+	cfgMu.Lock()
 	cfg.UI.Notifications.Events.IncomingMessage = false
+	cfgMu.Unlock()
 	messageBus.Publish(connectors.TopicTextMessage, message)
 	sender.assertCount(t, 1)
 }
