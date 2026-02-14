@@ -901,6 +901,206 @@ func TestNodeSettingsServiceSavePositionSettings_RemoveFixedPosition_ImmediateSt
 	}
 }
 
+func TestNodeSettingsServiceLoadPowerSettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetConfigRequest() != generated.AdminMessage_POWER_CONFIG {
+				t.Fatalf("expected power config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get power config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   160,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetConfigResponse{
+						GetConfigResponse: &generated.Config{
+							PayloadVariant: &generated.Config_Power{
+								Power: &generated.Config_PowerConfig{
+									IsPowerSaving:              true,
+									OnBatteryShutdownAfterSecs: 7200,
+									AdcMultiplierOverride:      1.25,
+									WaitBluetoothSecs:          120,
+									SdsSecs:                    86400,
+									LsSecs:                     600,
+									MinWakeSecs:                15,
+									DeviceBatteryInaAddress:    66,
+									PowermonEnables:            3,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "160", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadPowerSettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load power settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if !settings.IsPowerSaving {
+		t.Fatalf("expected power saving to be true")
+	}
+	if settings.OnBatteryShutdownAfterSecs != 7200 {
+		t.Fatalf("unexpected shutdown on power loss: %d", settings.OnBatteryShutdownAfterSecs)
+	}
+	if settings.AdcMultiplierOverride != 1.25 {
+		t.Fatalf("unexpected ADC multiplier override: %v", settings.AdcMultiplierOverride)
+	}
+	if settings.WaitBluetoothSecs != 120 {
+		t.Fatalf("unexpected wait bluetooth seconds: %d", settings.WaitBluetoothSecs)
+	}
+	if settings.SdsSecs != 86400 {
+		t.Fatalf("unexpected super deep sleep seconds: %d", settings.SdsSecs)
+	}
+	if settings.LsSecs != 600 {
+		t.Fatalf("unexpected light sleep seconds: %d", settings.LsSecs)
+	}
+	if settings.MinWakeSecs != 15 {
+		t.Fatalf("unexpected minimum wake seconds: %d", settings.MinWakeSecs)
+	}
+	if settings.DeviceBatteryInaAddress != 66 {
+		t.Fatalf("unexpected battery INA address: %d", settings.DeviceBatteryInaAddress)
+	}
+	if settings.PowermonEnables != 3 {
+		t.Fatalf("unexpected powermon enables: %d", settings.PowermonEnables)
+	}
+}
+
+func TestNodeSettingsServiceSavePowerSettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_power", "commit"}
+	packetIDs := []uint32{600, 601, 602}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_power":
+				cfg := payload.GetSetConfig()
+				if cfg == nil {
+					t.Fatalf("expected set config payload")
+				}
+				power := cfg.GetPower()
+				if power == nil {
+					t.Fatalf("expected power config payload")
+				}
+				if !power.GetIsPowerSaving() {
+					t.Fatalf("expected power saving payload")
+				}
+				if power.GetOnBatteryShutdownAfterSecs() != 3600 {
+					t.Fatalf("unexpected shutdown on power loss payload")
+				}
+				if power.GetAdcMultiplierOverride() != 1.25 {
+					t.Fatalf("unexpected ADC multiplier override payload")
+				}
+				if power.GetWaitBluetoothSecs() != 300 {
+					t.Fatalf("unexpected wait bluetooth seconds payload")
+				}
+				if power.GetSdsSecs() != 43200 {
+					t.Fatalf("unexpected super deep sleep seconds payload")
+				}
+				if power.GetLsSecs() != 600 {
+					t.Fatalf("unexpected light sleep seconds payload")
+				}
+				if power.GetMinWakeSecs() != 20 {
+					t.Fatalf("unexpected minimum wake seconds payload")
+				}
+				if power.GetDeviceBatteryInaAddress() != 64 {
+					t.Fatalf("unexpected battery INA address payload")
+				}
+				if power.GetPowermonEnables() != 7 {
+					t.Fatalf("unexpected powermon enables payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SavePowerSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodePowerSettings{
+		NodeID:                     "!00000001",
+		IsPowerSaving:              true,
+		OnBatteryShutdownAfterSecs: 3600,
+		AdcMultiplierOverride:      1.25,
+		WaitBluetoothSecs:          300,
+		SdsSecs:                    43200,
+		LsSecs:                     600,
+		MinWakeSecs:                20,
+		DeviceBatteryInaAddress:    64,
+		PowermonEnables:            7,
+	})
+	if err != nil {
+		t.Fatalf("save power settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func stringFromUint32(v uint32) string {
 	return strconv.FormatUint(uint64(v), 10)
 }

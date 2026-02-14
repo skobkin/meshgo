@@ -62,3 +62,17 @@ type NodePositionSettings struct {
 	GpsEnGPIO                         uint32
 	GpsMode                           int32
 }
+
+// NodePowerSettings contains editable power config settings.
+type NodePowerSettings struct {
+	NodeID                     string
+	IsPowerSaving              bool
+	OnBatteryShutdownAfterSecs uint32
+	AdcMultiplierOverride      float32
+	WaitBluetoothSecs          uint32
+	SdsSecs                    uint32
+	LsSecs                     uint32
+	MinWakeSecs                uint32
+	DeviceBatteryInaAddress    uint32
+	PowermonEnables            uint64
+}
