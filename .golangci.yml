@@ -36,6 +36,10 @@ linters:
         - name: unnecessary-stmt
   exclusions:
     rules:
+      - path: internal/radio/meshtasticpb/.*\.pb\.go
+        linters:
+          - unused
+          - staticcheck
       - linters:
           - revive
         text: "exported const .* should have comment"
