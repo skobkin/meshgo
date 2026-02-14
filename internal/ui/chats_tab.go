@@ -90,7 +90,7 @@ func newChatsTab(
 			previewLabel := root.Objects[1].(*widget.Label)
 
 			unreadLabel.SetText(chatUnreadMarker(unreadByKey[chat.Key]))
-			titleLabel.SetText(chat.Title)
+			titleLabel.SetText(chatDisplayTitle(chat, nodeNameByID))
 			typeLabel.SetText(chatTypeLabel(chat))
 			if preview, ok := previewsByKey[chat.Key]; ok {
 				previewLabel.SetText(preview)
@@ -121,14 +121,14 @@ func newChatsTab(
 		clear(messageItemWidthByID)
 		chatList.Refresh()
 		messageList.Refresh()
-		chatTitle.SetText(chats[id].Title)
+		chatTitle.SetText(chatDisplayTitle(chats[id], nodeNameByID))
 		scrollMessageListToEnd(messageList, len(messages))
 		focusEntry(entry)
 	}
 
 	chatTitle = widget.NewLabel("No chat selected")
 	if selectedKey != "" {
-		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
+		chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
 	}
 	tooltipLayer := container.NewWithoutLayout()
 	tooltipManager = newHoverTooltipManager(tooltipLayer)
@@ -352,7 +352,7 @@ func newChatsTab(
 		clear(messageItemWidthByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
-		chatTitle.SetText(chatTitleByKey(chats, selectedKey))
+		chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
 		chatList.Refresh()
 		messageList.Refresh()
 		if selectedIndex >= 0 {
@@ -401,6 +401,7 @@ func newChatsTab(
 				fyne.Do(func() {
 					tooltipManager.Hide(nil)
 					previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
+					chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
 					chatList.Refresh()
 					messageList.Refresh()
 				})
@@ -450,7 +451,7 @@ func shouldUpdateMessageItemHeight(hasPrev bool, prevHeight, prevWidth, rowHeigh
 }
 
 func chatTypeLabel(c domain.Chat) string {
-	if c.Type == domain.ChatTypeDM {
+	if isDMChat(c) {
 		return "DM"
 	}
 
@@ -942,17 +943,46 @@ func displaySender(nodeID string, nodeNameByID func(string) string) string {
 	return nodeID
 }
 
-func chatTitleByKey(chats []domain.Chat, key string) string {
+func chatDisplayTitle(chat domain.Chat, nodeNameByID func(string) string) string {
+	defaultTitle := domain.ChatDisplayTitle(chat)
+	if !isDMChat(chat) {
+		return defaultTitle
+	}
+	nodeID := domain.NormalizeNodeID(domain.NodeIDFromDMChatKey(chat.Key))
+	if nodeID == "" {
+		return defaultTitle
+	}
+	if nodeNameByID != nil {
+		if display := strings.TrimSpace(nodeNameByID(nodeID)); display != "" && display != nodeID {
+			return display
+		}
+	}
+	if custom := strings.TrimSpace(chat.Title); custom != "" && custom != strings.TrimSpace(chat.Key) {
+		return custom
+	}
+
+	return nodeID
+}
+
+func chatTitleByKey(chats []domain.Chat, key string, nodeNameByID func(string) string) string {
 	if key == "" {
 		return "No chat selected"
 	}
 	for _, c := range chats {
 		if c.Key == key {
-			return domain.ChatDisplayTitle(c)
+			return chatDisplayTitle(c, nodeNameByID)
 		}
 	}
 
 	return key
+}
+
+func isDMChat(chat domain.Chat) bool {
+	if chat.Type == domain.ChatTypeDM {
+		return true
+	}
+
+	return domain.ChatTypeForKey(chat.Key) == domain.ChatTypeDM
 }
 
 func hasChat(chats []domain.Chat, key string) bool {
