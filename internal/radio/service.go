@@ -31,6 +31,10 @@ type sendRequest struct {
 	result  chan SendResult
 }
 
+type ackTrackState struct {
+	targetNodeNum uint32
+}
+
 // Service runs transport I/O, codec translation, and bus publication loops.
 type Service struct {
 	logger    *slog.Logger
@@ -40,7 +44,7 @@ type Service struct {
 	outbox    chan sendRequest
 
 	ackTrackMu sync.Mutex
-	ackTrack   map[string]struct{}
+	ackTrack   map[string]ackTrackState
 }
 
 type localNodeIDCodec interface {
@@ -54,7 +58,7 @@ func NewService(logger *slog.Logger, b bus.MessageBus, tr transport.Transport, c
 		codec:     codec,
 		bus:       b,
 		outbox:    make(chan sendRequest, 128),
-		ackTrack:  make(map[string]struct{}),
+		ackTrack:  make(map[string]ackTrackState),
 	}
 }
 
@@ -183,13 +187,7 @@ func (s *Service) runReader(ctx context.Context) error {
 			s.bus.Publish(connectors.TopicTraceroute, *decoded.Traceroute)
 		}
 		if decoded.MessageStatus != nil {
-			status := *decoded.MessageStatus
-			if status.Status == domain.MessageStatusSent && s.isAckTracked(status.DeviceMessageID) {
-				continue
-			}
-			if status.Status == domain.MessageStatusAcked || status.Status == domain.MessageStatusFailed {
-				s.clearAckTracked(status.DeviceMessageID)
-			}
+			status := s.normalizeMessageStatus(*decoded.MessageStatus)
 			s.bus.Publish(connectors.TopicMessageStatus, status)
 		}
 	}
@@ -251,7 +249,7 @@ func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
 	now := time.Now()
 	initialStatus := domain.MessageStatusPending
 	if encoded.WantAck {
-		s.markAckTracked(encoded.DeviceMessageID)
+		s.markAckTracked(encoded.DeviceMessageID, encoded.TargetNodeNum)
 	}
 	msg := domain.ChatMessage{
 		DeviceMessageID: encoded.DeviceMessageID,
@@ -358,13 +356,13 @@ func outgoingMessageMetaJSON(localNodeID string) string {
 	return string(raw)
 }
 
-func (s *Service) markAckTracked(deviceMessageID string) {
+func (s *Service) markAckTracked(deviceMessageID string, targetNodeNum uint32) {
 	deviceMessageID = strings.TrimSpace(deviceMessageID)
 	if deviceMessageID == "" {
 		return
 	}
 	s.ackTrackMu.Lock()
-	s.ackTrack[deviceMessageID] = struct{}{}
+	s.ackTrack[deviceMessageID] = ackTrackState{targetNodeNum: targetNodeNum}
 	s.ackTrackMu.Unlock()
 }
 
@@ -378,14 +376,40 @@ func (s *Service) clearAckTracked(deviceMessageID string) {
 	s.ackTrackMu.Unlock()
 }
 
-func (s *Service) isAckTracked(deviceMessageID string) bool {
+func (s *Service) ackTrackStateFor(deviceMessageID string) (ackTrackState, bool) {
 	deviceMessageID = strings.TrimSpace(deviceMessageID)
 	if deviceMessageID == "" {
-		return false
+		return ackTrackState{}, false
 	}
 	s.ackTrackMu.Lock()
-	_, ok := s.ackTrack[deviceMessageID]
+	state, ok := s.ackTrack[deviceMessageID]
 	s.ackTrackMu.Unlock()
 
-	return ok
+	return state, ok
+}
+
+func (s *Service) normalizeMessageStatus(update domain.MessageStatusUpdate) domain.MessageStatusUpdate {
+	switch update.Status {
+	case domain.MessageStatusAcked:
+		state, tracked := s.ackTrackStateFor(update.DeviceMessageID)
+		if !tracked {
+			return update
+		}
+		if state.targetNodeNum == broadcastNodeNum {
+			update.Status = domain.MessageStatusSent
+			s.clearAckTracked(update.DeviceMessageID)
+
+			return update
+		}
+		if update.FromNodeNum != 0 && update.FromNodeNum != state.targetNodeNum {
+			update.Status = domain.MessageStatusSent
+
+			return update
+		}
+		s.clearAckTracked(update.DeviceMessageID)
+	case domain.MessageStatusFailed:
+		s.clearAckTracked(update.DeviceMessageID)
+	}
+
+	return update
 }

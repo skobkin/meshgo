@@ -37,6 +37,20 @@ func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 	}
 }
 
+func TestMeshtasticCodec_EncodeTextBroadcastRequestsAck(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+	encoded, err := codec.EncodeText("channel:1", "hello channel")
+	if err != nil {
+		t.Fatalf("encode broadcast text: %v", err)
+	}
+	if !encoded.WantAck {
+		t.Fatalf("expected want_ack for channel message")
+	}
+	if encoded.TargetNodeNum != broadcastNodeNum {
+		t.Fatalf("unexpected target node: %d", encoded.TargetNodeNum)
+	}
+}
+
 func TestMeshtasticCodec_EncodeTraceroutePacket(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
 
@@ -459,14 +473,8 @@ func TestMeshtasticCodec_DecodeFromRadioQueueStatusSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode fromradio: %v", err)
 	}
-	if frame.MessageStatus == nil {
-		t.Fatalf("expected message status update")
-	}
-	if frame.MessageStatus.DeviceMessageID != "42" {
-		t.Fatalf("unexpected device id: %q", frame.MessageStatus.DeviceMessageID)
-	}
-	if frame.MessageStatus.Status != domain.MessageStatusSent {
-		t.Fatalf("unexpected status: %v", frame.MessageStatus.Status)
+	if frame.MessageStatus != nil {
+		t.Fatalf("expected no message status update on successful queue enqueue")
 	}
 }
 
@@ -510,6 +518,7 @@ func TestMeshtasticCodec_DecodeFromRadioAckPacket(t *testing.T) {
 	wire := &generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_Packet{
 			Packet: &generated.MeshPacket{
+				From:     0x1234abcd,
 				Priority: generated.MeshPacket_ACK,
 				PayloadVariant: &generated.MeshPacket_Decoded{
 					Decoded: &generated.Data{
@@ -537,6 +546,9 @@ func TestMeshtasticCodec_DecodeFromRadioAckPacket(t *testing.T) {
 	}
 	if frame.MessageStatus.Status != domain.MessageStatusAcked {
 		t.Fatalf("unexpected status: %v", frame.MessageStatus.Status)
+	}
+	if frame.MessageStatus.FromNodeNum != 0x1234abcd {
+		t.Fatalf("unexpected from node: %x", frame.MessageStatus.FromNodeNum)
 	}
 }
 

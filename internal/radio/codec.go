@@ -25,6 +25,7 @@ type EncodedText struct {
 	Payload         []byte
 	DeviceMessageID string
 	WantAck         bool
+	TargetNodeNum   uint32
 }
 
 // EncodedAdmin contains an outbound admin frame and its tracking metadata.

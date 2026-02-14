@@ -55,6 +55,7 @@ type MessageStatusUpdate struct {
 	DeviceMessageID string
 	Status          MessageStatus
 	Reason          string
+	FromNodeNum     uint32
 }
 
 func ShouldTransitionMessageStatus(current, next MessageStatus) bool {

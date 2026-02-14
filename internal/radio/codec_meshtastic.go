@@ -79,7 +79,7 @@ func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) 
 		To:      to,
 		Channel: channel,
 		Id:      packetID,
-		WantAck: to != broadcastNodeNum,
+		WantAck: true,
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
 			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
 			Payload: []byte(text),
@@ -95,6 +95,7 @@ func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) 
 		Payload:         payload,
 		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
 		WantAck:         packet.GetWantAck(),
+		TargetNodeNum:   to,
 	}, nil
 }
 
@@ -344,16 +345,16 @@ func decodeQueueStatus(queueStatus *generated.QueueStatus) (domain.MessageStatus
 		return domain.MessageStatusUpdate{}, false
 	}
 
-	update := domain.MessageStatusUpdate{
-		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
-		Status:          domain.MessageStatusSent,
-	}
-	if res := generated.Routing_Error(queueStatus.GetRes()); res != generated.Routing_NONE {
-		update.Status = domain.MessageStatusFailed
-		update.Reason = res.String()
+	res := generated.Routing_Error(queueStatus.GetRes())
+	if res == generated.Routing_NONE {
+		return domain.MessageStatusUpdate{}, false
 	}
 
-	return update, true
+	return domain.MessageStatusUpdate{
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+		Status:          domain.MessageStatusFailed,
+		Reason:          res.String(),
+	}, true
 }
 
 func decodePacketStatus(packet *generated.MeshPacket, decoded *generated.Data) (domain.MessageStatusUpdate, bool) {
@@ -371,6 +372,7 @@ func decodePacketStatus(packet *generated.MeshPacket, decoded *generated.Data) (
 	update := domain.MessageStatusUpdate{
 		DeviceMessageID: strconv.FormatUint(uint64(requestID), 10),
 		Status:          domain.MessageStatusAcked,
+		FromNodeNum:     packet.GetFrom(),
 	}
 
 	if isRouting {
