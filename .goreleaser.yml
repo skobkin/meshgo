@@ -90,4 +90,5 @@ changelog:
   filters:
     exclude:
       - '^docs:'
+      - '^refactor:'
       - '^test:'
