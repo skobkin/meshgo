@@ -23,34 +23,6 @@ const (
 	nodeSettingsReadRetry = 1
 )
 
-// NodeSettingsTarget identifies which node should be read/modified.
-// IsLocal is reserved for future remote editing support.
-type NodeSettingsTarget struct {
-	NodeID  string
-	IsLocal bool
-}
-
-// NodeUserSettings contains editable owner/user settings.
-type NodeUserSettings struct {
-	NodeID          string
-	LongName        string
-	ShortName       string
-	HamLicensed     bool
-	IsUnmessageable bool
-}
-
-// NodeSecuritySettings contains editable security config settings.
-type NodeSecuritySettings struct {
-	NodeID              string
-	PublicKey           []byte
-	PrivateKey          []byte
-	AdminKeys           [][]byte
-	IsManaged           bool
-	SerialEnabled       bool
-	DebugLogAPIEnabled  bool
-	AdminChannelEnabled bool
-}
-
 type adminSender interface {
 	SendAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error)
 }
@@ -83,250 +55,6 @@ func NewNodeSettingsService(
 	}
 }
 
-func (s *NodeSettingsService) LoadUserSettings(ctx context.Context, target NodeSettingsTarget) (NodeUserSettings, error) {
-	if s == nil || s.bus == nil || s.radio == nil {
-		return NodeUserSettings{}, fmt.Errorf("node settings service is not initialized")
-	}
-	nodeNum, parseErr := parseNodeID(target.NodeID)
-	if parseErr != nil {
-		return NodeUserSettings{}, parseErr
-	}
-	s.logger.Info("requesting node user settings", "node_id", strings.TrimSpace(target.NodeID), "node_num", nodeNum)
-
-	loadCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
-	defer cancel()
-
-	var (
-		resp *generated.AdminMessage
-		err  error
-	)
-	for attempt := 0; attempt <= nodeSettingsReadRetry; attempt++ {
-		resp, err = s.sendAdminAndWaitResponse(loadCtx, nodeNum, "get_owner", &generated.AdminMessage{
-			PayloadVariant: &generated.AdminMessage_GetOwnerRequest{GetOwnerRequest: true},
-		})
-		if err == nil {
-			break
-		}
-		if attempt >= nodeSettingsReadRetry || !isRetriableReadError(err) {
-			s.logger.Warn("requesting node user settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-			return NodeUserSettings{}, err
-		}
-		s.logger.Warn(
-			"requesting node user settings timed out, retrying",
-			"node_id", strings.TrimSpace(target.NodeID),
-			"attempt", attempt+1,
-			"max_attempts", nodeSettingsReadRetry+1,
-			"error", err,
-		)
-	}
-	user := resp.GetGetOwnerResponse()
-	if user == nil {
-		s.logger.Warn("requesting node user settings returned empty response", "node_id", strings.TrimSpace(target.NodeID))
-
-		return NodeUserSettings{}, fmt.Errorf("owner response is empty")
-	}
-	s.logger.Info("received node user settings response", "node_id", strings.TrimSpace(target.NodeID))
-
-	return NodeUserSettings{
-		NodeID:          strings.TrimSpace(target.NodeID),
-		LongName:        strings.TrimSpace(user.GetLongName()),
-		ShortName:       strings.TrimSpace(user.GetShortName()),
-		HamLicensed:     user.GetIsLicensed(),
-		IsUnmessageable: user.GetIsUnmessagable(),
-	}, nil
-}
-
-func (s *NodeSettingsService) SaveUserSettings(ctx context.Context, target NodeSettingsTarget, settings NodeUserSettings) error {
-	if s == nil || s.bus == nil || s.radio == nil {
-		return fmt.Errorf("node settings service is not initialized")
-	}
-	if !s.isConnected() {
-		return fmt.Errorf("device is not connected")
-	}
-
-	nodeNum, err := parseNodeID(target.NodeID)
-	if err != nil {
-		return err
-	}
-	s.logger.Info("saving node user settings", "node_id", strings.TrimSpace(target.NodeID), "node_num", nodeNum)
-
-	release, err := s.beginSave()
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	saveCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
-	defer cancel()
-
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "begin_edit_settings", &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_BeginEditSettings{BeginEditSettings: true},
-	}); err != nil {
-		s.logger.Warn("begin edit settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("begin edit settings: %w", err)
-	}
-
-	admin := &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_SetOwner{
-			SetOwner: &generated.User{
-				Id:             strings.TrimSpace(target.NodeID),
-				LongName:       strings.TrimSpace(settings.LongName),
-				ShortName:      strings.TrimSpace(settings.ShortName),
-				IsLicensed:     settings.HamLicensed,
-				IsUnmessagable: boolPtr(settings.IsUnmessageable),
-			},
-		},
-	}
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_owner", admin); err != nil {
-		s.logger.Warn("set owner failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("set owner: %w", err)
-	}
-
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "commit_edit_settings", &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_CommitEditSettings{CommitEditSettings: true},
-	}); err != nil {
-		s.logger.Warn("commit edit settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("commit edit settings: %w", err)
-	}
-	s.logger.Info("saved node user settings", "node_id", strings.TrimSpace(target.NodeID))
-
-	return nil
-}
-
-func (s *NodeSettingsService) LoadSecuritySettings(ctx context.Context, target NodeSettingsTarget) (NodeSecuritySettings, error) {
-	if s == nil || s.bus == nil || s.radio == nil {
-		return NodeSecuritySettings{}, fmt.Errorf("node settings service is not initialized")
-	}
-	nodeNum, parseErr := parseNodeID(target.NodeID)
-	if parseErr != nil {
-		return NodeSecuritySettings{}, parseErr
-	}
-	s.logger.Info("requesting node security settings", "node_id", strings.TrimSpace(target.NodeID), "node_num", nodeNum)
-
-	loadCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
-	defer cancel()
-
-	var (
-		resp *generated.AdminMessage
-		err  error
-	)
-	for attempt := 0; attempt <= nodeSettingsReadRetry; attempt++ {
-		resp, err = s.sendAdminAndWaitResponse(loadCtx, nodeNum, "get_config.security", &generated.AdminMessage{
-			PayloadVariant: &generated.AdminMessage_GetConfigRequest{GetConfigRequest: generated.AdminMessage_SECURITY_CONFIG},
-		})
-		if err == nil {
-			break
-		}
-		if attempt >= nodeSettingsReadRetry || !isRetriableReadError(err) {
-			s.logger.Warn("requesting node security settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-			return NodeSecuritySettings{}, err
-		}
-		s.logger.Warn(
-			"requesting node security settings timed out, retrying",
-			"node_id", strings.TrimSpace(target.NodeID),
-			"attempt", attempt+1,
-			"max_attempts", nodeSettingsReadRetry+1,
-			"error", err,
-		)
-	}
-
-	cfg := resp.GetGetConfigResponse()
-	if cfg == nil {
-		s.logger.Warn("requesting node security settings returned empty config response", "node_id", strings.TrimSpace(target.NodeID))
-
-		return NodeSecuritySettings{}, fmt.Errorf("security config response is empty")
-	}
-	security := cfg.GetSecurity()
-	if security == nil {
-		s.logger.Warn("requesting node security settings returned empty security payload", "node_id", strings.TrimSpace(target.NodeID))
-
-		return NodeSecuritySettings{}, fmt.Errorf("security config payload is empty")
-	}
-	s.logger.Info("received node security settings response", "node_id", strings.TrimSpace(target.NodeID))
-
-	return NodeSecuritySettings{
-		NodeID:              strings.TrimSpace(target.NodeID),
-		PublicKey:           cloneBytes(security.GetPublicKey()),
-		PrivateKey:          cloneBytes(security.GetPrivateKey()),
-		AdminKeys:           cloneBytesList(security.GetAdminKey()),
-		IsManaged:           security.GetIsManaged(),
-		SerialEnabled:       security.GetSerialEnabled(),
-		DebugLogAPIEnabled:  security.GetDebugLogApiEnabled(),
-		AdminChannelEnabled: security.GetAdminChannelEnabled(),
-	}, nil
-}
-
-func (s *NodeSettingsService) SaveSecuritySettings(ctx context.Context, target NodeSettingsTarget, settings NodeSecuritySettings) error {
-	if s == nil || s.bus == nil || s.radio == nil {
-		return fmt.Errorf("node settings service is not initialized")
-	}
-	if !s.isConnected() {
-		return fmt.Errorf("device is not connected")
-	}
-
-	nodeNum, err := parseNodeID(target.NodeID)
-	if err != nil {
-		return err
-	}
-	s.logger.Info("saving node security settings", "node_id", strings.TrimSpace(target.NodeID), "node_num", nodeNum)
-
-	release, err := s.beginSave()
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	saveCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
-	defer cancel()
-
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "begin_edit_settings", &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_BeginEditSettings{BeginEditSettings: true},
-	}); err != nil {
-		s.logger.Warn("begin edit settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("begin edit settings: %w", err)
-	}
-
-	admin := &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_SetConfig{
-			SetConfig: &generated.Config{
-				PayloadVariant: &generated.Config_Security{
-					Security: &generated.Config_SecurityConfig{
-						PublicKey:           cloneBytes(settings.PublicKey),
-						PrivateKey:          cloneBytes(settings.PrivateKey),
-						AdminKey:            cloneBytesList(settings.AdminKeys),
-						IsManaged:           settings.IsManaged,
-						SerialEnabled:       settings.SerialEnabled,
-						DebugLogApiEnabled:  settings.DebugLogAPIEnabled,
-						AdminChannelEnabled: settings.AdminChannelEnabled,
-					},
-				},
-			},
-		},
-	}
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_config.security", admin); err != nil {
-		s.logger.Warn("set security config failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("set security config: %w", err)
-	}
-
-	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "commit_edit_settings", &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_CommitEditSettings{CommitEditSettings: true},
-	}); err != nil {
-		s.logger.Warn("commit edit settings failed", "node_id", strings.TrimSpace(target.NodeID), "error", err)
-
-		return fmt.Errorf("commit edit settings: %w", err)
-	}
-	s.logger.Info("saved node security settings", "node_id", strings.TrimSpace(target.NodeID))
-
-	return nil
-}
-
 func (s *NodeSettingsService) beginSave() (func(), error) {
 	s.saveInFlightMu.Lock()
 	if s.saveInFlight {
@@ -344,6 +72,9 @@ func (s *NodeSettingsService) beginSave() (func(), error) {
 	}, nil
 }
 
+// sendAdminAndWaitResponse is used for read requests where the device must return
+// an admin payload (for example get_owner/get_config). It sends with
+// wantResponse=true and correlates the response to the sent request ID.
 func (s *NodeSettingsService) sendAdminAndWaitResponse(
 	ctx context.Context,
 	to uint32,
@@ -382,6 +113,8 @@ func (s *NodeSettingsService) sendAdminAndWaitResponse(
 	return event.Message, nil
 }
 
+// sendAdminAndWaitStatus is used for write/update requests where delivery status
+// (sent/acked/failed) is sufficient and no admin response payload is expected.
 func (s *NodeSettingsService) sendAdminAndWaitStatus(ctx context.Context, to uint32, action string, message *generated.AdminMessage) error {
 	sub := s.bus.Subscribe(connectors.TopicMessageStatus)
 	defer s.bus.Unsubscribe(sub, connectors.TopicMessageStatus)
@@ -402,6 +135,8 @@ func (s *NodeSettingsService) sendAdminAndWaitStatus(ctx context.Context, to uin
 	return nil
 }
 
+// sendAdmin is a low-level helper that sends one admin message and normalizes the
+// returned packet ID string into uint32 so higher-level wait helpers can correlate events.
 func (s *NodeSettingsService) sendAdmin(to uint32, wantResponse bool, message *generated.AdminMessage) (uint32, error) {
 	packetIDRaw, err := s.radio.SendAdmin(to, nodeSettingsChannel, wantResponse, message)
 	if err != nil {
@@ -415,6 +150,8 @@ func (s *NodeSettingsService) sendAdmin(to uint32, wantResponse bool, message *g
 	return packetID, nil
 }
 
+// waitAdminResponse waits for the admin payload matching requestID while also
+// watching message-status failures and connection drops for early explicit errors.
 func (s *NodeSettingsService) waitAdminResponse(
 	ctx context.Context,
 	adminSub bus.Subscription,
@@ -474,6 +211,8 @@ func (s *NodeSettingsService) waitAdminResponse(
 	}
 }
 
+// waitStatus waits for the status update matching requestID and treats failed
+// statuses or connection drops as terminal errors for write/update operations.
 func (s *NodeSettingsService) waitStatus(ctx context.Context, sub bus.Subscription, connSub bus.Subscription, requestID uint32) error {
 	requestDeviceMessageID := strconv.FormatUint(uint64(requestID), 10)
 	for {
