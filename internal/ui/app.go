@@ -16,7 +16,6 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
@@ -37,8 +36,6 @@ func Run(dep RuntimeDependencies) error {
 	)
 
 	initialStatus := resolveInitialConnStatus(dep)
-	currentStatus := initialStatus
-	var connStatusMu sync.RWMutex
 
 	initialUpdateSnapshot, initialUpdateSnapshotKnown := currentUpdateSnapshot(dep)
 
@@ -146,33 +143,24 @@ func Run(dep RuntimeDependencies) error {
 	updateNavSelection()
 	left.Add(layout.NewSpacer())
 	left.Add(updateButton)
-	sidebarConnIcon := widget.NewIcon(resources.UIIconResource(sidebarStatusIcon(currentStatus), initialVariant))
+	connStatusPresenter := newConnectionStatusPresenter(
+		window,
+		settingsConnStatus,
+		initialStatus,
+		initialVariant,
+		func() string {
+			return localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore)
+		},
+	)
+	sidebarConnIcon := connStatusPresenter.SidebarIcon()
 	left.Add(container.NewCenter(container.NewGridWrap(
 		fyne.NewSquareSize(sidebarConnIconSize),
 		sidebarConnIcon,
 	)))
 
-	setConnStatus := func(status connectors.ConnectionStatus) {
-		connStatusMu.Lock()
-		currentStatus = status
-		connStatusMu.Unlock()
-		applyConnStatusUI(
-			window,
-			settingsConnStatus,
-			sidebarConnIcon,
-			status,
-			fyApp.Settings().ThemeVariant(),
-			localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore),
-		)
-	}
-	setConnStatus(initialStatus)
-
 	setTrayIcon := func(_ fyne.ThemeVariant) {}
 	applyThemeResources := func(variant fyne.ThemeVariant) {
 		appLogger.Debug("applying theme resources", "theme", variant)
-		connStatusMu.RLock()
-		status := currentStatus
-		connStatusMu.RUnlock()
 		fyApp.SetIcon(resources.AppIconResource(variant))
 		setTrayIcon(variant)
 		for tabName, button := range navButtons {
@@ -183,7 +171,7 @@ func Run(dep RuntimeDependencies) error {
 		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
 			mapWidget.applyThemeVariant(variant)
 		}
-		setConnStatusIcon(sidebarConnIcon, status, variant)
+		connStatusPresenter.ApplyTheme(variant)
 	}
 
 	fyApp.Settings().AddListener(func(_ fyne.Settings) {
@@ -216,20 +204,17 @@ func Run(dep RuntimeDependencies) error {
 		dep.Data.Bus,
 		func(status connectors.ConnectionStatus) {
 			fyne.Do(func() {
-				setConnStatus(status)
+				connStatusPresenter.Set(status, fyApp.Settings().ThemeVariant())
 			})
 		},
 		func() {
 			fyne.Do(func() {
-				connStatusMu.RLock()
-				status := currentStatus
-				connStatusMu.RUnlock()
-				setConnStatus(status)
+				connStatusPresenter.Refresh(fyApp.Settings().ThemeVariant())
 			})
 		},
 	)
 	if status, ok := currentConnStatus(dep); ok {
-		setConnStatus(status)
+		connStatusPresenter.Set(status, fyApp.Settings().ThemeVariant())
 	}
 	appLogger.Debug("starting update snapshot listener")
 	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
@@ -397,67 +382,6 @@ func currentConnStatus(dep RuntimeDependencies) (connectors.ConnectionStatus, bo
 	return dep.Data.CurrentConnStatus()
 }
 
-func formatConnStatus(status connectors.ConnectionStatus, localShortName string) string {
-	text := string(status.State)
-	if transportName := transportDisplayName(status.TransportName); transportName != "" {
-		text = transportName + " " + text
-	}
-	details := make([]string, 0, 2)
-	if target := strings.TrimSpace(status.Target); target != "" {
-		details = append(details, target)
-	}
-	if shortName := strings.TrimSpace(localShortName); shortName != "" {
-		details = append(details, shortName)
-	}
-	if len(details) > 0 {
-		text += " (" + strings.Join(details, ", ") + ")"
-	}
-	if status.Err != "" {
-		text += " (" + status.Err + ")"
-	}
-
-	return text
-}
-
-func transportDisplayName(name string) string {
-	normalized := config.ConnectorType(strings.ToLower(strings.TrimSpace(name)))
-	switch normalized {
-	case config.ConnectorIP, config.ConnectorSerial, config.ConnectorBluetooth:
-		return connectorOptionFromType(normalized)
-	default:
-		return strings.TrimSpace(name)
-	}
-}
-
-func formatWindowTitle(status connectors.ConnectionStatus, localShortName string) string {
-	return fmt.Sprintf("MeshGo %s - %s", meshapp.BuildVersion(), formatConnStatus(status, localShortName))
-}
-
-func applyConnStatusUI(
-	window fyne.Window,
-	statusLabel *widget.Label,
-	sidebarIcon *widget.Icon,
-	status connectors.ConnectionStatus,
-	variant fyne.ThemeVariant,
-	localShortName string,
-) {
-	window.SetTitle(formatWindowTitle(status, localShortName))
-	statusLabel.SetText(formatConnStatus(status, localShortName))
-	setConnStatusIcon(sidebarIcon, status, variant)
-}
-
-func setConnStatusIcon(sidebarIcon *widget.Icon, status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
-	sidebarIcon.SetResource(resources.UIIconResource(sidebarStatusIcon(status), variant))
-}
-
-func sidebarStatusIcon(status connectors.ConnectionStatus) resources.UIIcon {
-	if status.State == connectors.ConnectionStateConnected {
-		return resources.UIIconConnected
-	}
-
-	return resources.UIIconDisconnected
-}
-
 func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 	if store == nil {
 		return nil
@@ -466,18 +390,6 @@ func resolveNodeDisplayName(store *domain.NodeStore) func(string) string {
 	return func(nodeID string) string {
 		return domain.NodeDisplayNameByID(store, nodeID)
 	}
-}
-
-func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) string {
-	if localNodeID == nil {
-		return ""
-	}
-	nodeID := strings.TrimSpace(localNodeID())
-	if nodeID == "" {
-		return ""
-	}
-
-	return domain.NodeDisplayNameByID(store, nodeID)
 }
 
 func nodeChanges(store *domain.NodeStore) <-chan struct{} {
