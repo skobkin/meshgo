@@ -17,6 +17,8 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	positionTab := container.NewTabItem("Position", positionPage)
 	powerPage, onPowerTabOpened := newNodePowerSettingsPage(dep, saveGate)
 	powerTab := container.NewTabItem("Power", powerPage)
+	displayPage, onDisplayTabOpened := newNodeDisplaySettingsPage(dep, saveGate)
+	displayTab := container.NewTabItem("Display", displayPage)
 
 	radioTabs := container.NewAppTabs(
 		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
@@ -36,7 +38,7 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 		deviceTab,
 		positionTab,
 		powerTab,
-		container.NewTabItem("Display", newSettingsPlaceholderPage("Display settings editing is planned.")),
+		displayTab,
 		container.NewTabItem("Bluetooth", newSettingsPlaceholderPage("Bluetooth settings editing is planned.")),
 	)
 	deviceTabs.SetTabLocation(container.TabLocationTop)
@@ -49,6 +51,9 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 		}
 		if onPowerTabOpened != nil && item == powerTab {
 			onPowerTabOpened()
+		}
+		if onDisplayTabOpened != nil && item == displayTab {
+			onDisplayTabOpened()
 		}
 	}
 

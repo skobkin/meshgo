@@ -76,3 +76,19 @@ type NodePowerSettings struct {
 	DeviceBatteryInaAddress    uint32
 	PowermonEnables            uint64
 }
+
+// NodeDisplaySettings contains editable display config settings.
+type NodeDisplaySettings struct {
+	NodeID                 string
+	ScreenOnSecs           uint32
+	AutoScreenCarouselSecs uint32
+	CompassNorthTop        bool
+	FlipScreen             bool
+	Units                  int32
+	Oled                   int32
+	DisplayMode            int32
+	HeadingBold            bool
+	WakeOnTapOrMotion      bool
+	CompassOrientation     int32
+	Use12HClock            bool
+}

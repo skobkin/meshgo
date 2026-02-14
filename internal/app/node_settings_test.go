@@ -1101,6 +1101,223 @@ func TestNodeSettingsServiceSavePowerSettings_ImmediateStatusEvents(t *testing.T
 	}
 }
 
+func TestNodeSettingsServiceLoadDisplaySettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetConfigRequest() != generated.AdminMessage_DISPLAY_CONFIG {
+				t.Fatalf("expected display config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get display config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   170,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetConfigResponse{
+						GetConfigResponse: &generated.Config{
+							PayloadVariant: &generated.Config_Display{
+								Display: &generated.Config_DisplayConfig{
+									ScreenOnSecs:           600,
+									AutoScreenCarouselSecs: 15,
+									CompassNorthTop:        true,
+									FlipScreen:             true,
+									Units:                  generated.Config_DisplayConfig_IMPERIAL,
+									Oled:                   generated.Config_DisplayConfig_OLED_SH1106,
+									Displaymode:            generated.Config_DisplayConfig_INVERTED,
+									HeadingBold:            true,
+									WakeOnTapOrMotion:      true,
+									CompassOrientation:     generated.Config_DisplayConfig_DEGREES_180_INVERTED,
+									Use_12HClock:           true,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "170", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadDisplaySettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load display settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if settings.ScreenOnSecs != 600 {
+		t.Fatalf("unexpected screen on seconds: %d", settings.ScreenOnSecs)
+	}
+	if settings.AutoScreenCarouselSecs != 15 {
+		t.Fatalf("unexpected auto screen carousel seconds: %d", settings.AutoScreenCarouselSecs)
+	}
+	if !settings.CompassNorthTop {
+		t.Fatalf("expected compass north top to be true")
+	}
+	if !settings.FlipScreen {
+		t.Fatalf("expected flip screen to be true")
+	}
+	if settings.Units != int32(generated.Config_DisplayConfig_IMPERIAL) {
+		t.Fatalf("unexpected display units: %d", settings.Units)
+	}
+	if settings.Oled != int32(generated.Config_DisplayConfig_OLED_SH1106) {
+		t.Fatalf("unexpected OLED type: %d", settings.Oled)
+	}
+	if settings.DisplayMode != int32(generated.Config_DisplayConfig_INVERTED) {
+		t.Fatalf("unexpected display mode: %d", settings.DisplayMode)
+	}
+	if !settings.HeadingBold {
+		t.Fatalf("expected heading bold to be true")
+	}
+	if !settings.WakeOnTapOrMotion {
+		t.Fatalf("expected wake on tap or motion to be true")
+	}
+	if settings.CompassOrientation != int32(generated.Config_DisplayConfig_DEGREES_180_INVERTED) {
+		t.Fatalf("unexpected compass orientation: %d", settings.CompassOrientation)
+	}
+	if !settings.Use12HClock {
+		t.Fatalf("expected use 12-hour clock to be true")
+	}
+}
+
+func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_display", "commit"}
+	packetIDs := []uint32{700, 701, 702}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_display":
+				cfg := payload.GetSetConfig()
+				if cfg == nil {
+					t.Fatalf("expected set config payload")
+				}
+				display := cfg.GetDisplay()
+				if display == nil {
+					t.Fatalf("expected display config payload")
+				}
+				if display.GetScreenOnSecs() != 900 {
+					t.Fatalf("unexpected screen on seconds payload")
+				}
+				if display.GetAutoScreenCarouselSecs() != 30 {
+					t.Fatalf("unexpected carousel seconds payload")
+				}
+				//nolint:staticcheck // Kept for Android parity while this proto field remains present upstream.
+				if !display.GetCompassNorthTop() {
+					t.Fatalf("expected compass north top payload")
+				}
+				if !display.GetFlipScreen() {
+					t.Fatalf("expected flip screen payload")
+				}
+				if display.GetUnits() != generated.Config_DisplayConfig_IMPERIAL {
+					t.Fatalf("unexpected display units payload")
+				}
+				if display.GetOled() != generated.Config_DisplayConfig_OLED_SH1107 {
+					t.Fatalf("unexpected OLED type payload")
+				}
+				if display.GetDisplaymode() != generated.Config_DisplayConfig_TWOCOLOR {
+					t.Fatalf("unexpected display mode payload")
+				}
+				if !display.GetHeadingBold() {
+					t.Fatalf("expected heading bold payload")
+				}
+				if !display.GetWakeOnTapOrMotion() {
+					t.Fatalf("expected wake on tap or motion payload")
+				}
+				if display.GetCompassOrientation() != generated.Config_DisplayConfig_DEGREES_270 {
+					t.Fatalf("unexpected compass orientation payload")
+				}
+				if !display.GetUse_12HClock() {
+					t.Fatalf("expected use 12-hour clock payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SaveDisplaySettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeDisplaySettings{
+		NodeID:                 "!00000001",
+		ScreenOnSecs:           900,
+		AutoScreenCarouselSecs: 30,
+		CompassNorthTop:        true,
+		FlipScreen:             true,
+		Units:                  int32(generated.Config_DisplayConfig_IMPERIAL),
+		Oled:                   int32(generated.Config_DisplayConfig_OLED_SH1107),
+		DisplayMode:            int32(generated.Config_DisplayConfig_TWOCOLOR),
+		HeadingBold:            true,
+		WakeOnTapOrMotion:      true,
+		CompassOrientation:     int32(generated.Config_DisplayConfig_DEGREES_270),
+		Use12HClock:            true,
+	})
+	if err != nil {
+		t.Fatalf("save display settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func stringFromUint32(v uint32) string {
 	return strconv.FormatUint(uint64(v), 10)
 }

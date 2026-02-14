@@ -18,6 +18,7 @@ type nodeSettingsActionSpy struct {
 	loadSecurityCalls atomic.Int32
 	loadPositionCalls atomic.Int32
 	loadPowerCalls    atomic.Int32
+	loadDisplayCalls  atomic.Int32
 }
 
 func (s *nodeSettingsActionSpy) LoadUserSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error) {
@@ -66,6 +67,16 @@ func (s *nodeSettingsActionSpy) SavePowerSettings(_ context.Context, _ app.NodeS
 	return nil
 }
 
+func (s *nodeSettingsActionSpy) LoadDisplaySettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeDisplaySettings, error) {
+	s.loadDisplayCalls.Add(1)
+
+	return app.NodeDisplaySettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveDisplaySettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeDisplaySettings) error {
+	return nil
+}
+
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
 }
@@ -76,6 +87,10 @@ func (s *nodeSettingsActionSpy) PositionLoadCalls() int {
 
 func (s *nodeSettingsActionSpy) PowerLoadCalls() int {
 	return int(s.loadPowerCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) DisplayLoadCalls() int {
+	return int(s.loadDisplayCalls.Load())
 }
 
 func TestParseSecurityAdminKeysInput_Valid(t *testing.T) {
@@ -266,5 +281,44 @@ func TestNodeTabPowerSettingsLoadIsLazy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.PowerLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial power load, got %d", got)
+	}
+}
+
+func TestNodeTabDisplaySettingsLoadIsLazy(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.DisplayLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager display load before selecting Display tab, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Display")
+	waitForCondition(t, func() bool {
+		return spy.DisplayLoadCalls() == 1
+	})
+
+	mustSelectAppTabByText(t, tab, "Device")
+	mustSelectAppTabByText(t, tab, "Display")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.DisplayLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial display load, got %d", got)
 	}
 }
