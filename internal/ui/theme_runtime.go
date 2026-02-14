@@ -10,7 +10,7 @@ type themeRuntime struct {
 	fyApp               fyne.App
 	sidebar             sidebarLayout
 	updateIndicator     *updateIndicator
-	mapTab              fyne.CanvasObject
+	applyMapTheme       func(fyne.ThemeVariant)
 	connStatusPresenter *connectionStatusPresenter
 	setTrayIcon         func(fyne.ThemeVariant)
 }
@@ -19,14 +19,18 @@ func newThemeRuntime(
 	fyApp fyne.App,
 	sidebar sidebarLayout,
 	updateIndicator *updateIndicator,
-	mapTab fyne.CanvasObject,
+	applyMapTheme func(fyne.ThemeVariant),
 	connStatusPresenter *connectionStatusPresenter,
 ) *themeRuntime {
+	if applyMapTheme == nil {
+		applyMapTheme = func(fyne.ThemeVariant) {}
+	}
+
 	return &themeRuntime{
 		fyApp:               fyApp,
 		sidebar:             sidebar,
 		updateIndicator:     updateIndicator,
-		mapTab:              mapTab,
+		applyMapTheme:       applyMapTheme,
 		connStatusPresenter: connStatusPresenter,
 		setTrayIcon:         func(fyne.ThemeVariant) {},
 	}
@@ -56,9 +60,7 @@ func (r *themeRuntime) Apply(variant fyne.ThemeVariant) {
 	if r.updateIndicator != nil {
 		r.updateIndicator.ApplyTheme(variant)
 	}
-	if mapWidget, ok := r.mapTab.(*mapTabWidget); ok {
-		mapWidget.applyThemeVariant(variant)
-	}
+	r.applyMapTheme(variant)
 	if r.connStatusPresenter != nil {
 		r.connStatusPresenter.ApplyTheme(variant)
 	}

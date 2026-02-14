@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/connectors"
@@ -33,115 +32,30 @@ func Run(dep RuntimeDependencies) error {
 
 	window := fyApp.NewWindow("")
 	window.Resize(fyne.NewSize(1000, 700))
-
-	settingsConnStatus := widget.NewLabel("")
-	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
-
-	chatsTab := newChatsTab(
-		dep.Data.ChatStore,
-		dep.Actions.Sender,
-		resolveNodeDisplayName(dep.Data.NodeStore),
-		dep.Data.LocalNodeID,
-		nodeChanges(dep.Data.NodeStore),
-		dep.Data.LastSelectedChat,
-		dep.Actions.OnChatSelected,
-	)
-	nodeActionHandler := func(node domain.Node, action NodeAction) {
-		if action != NodeActionTraceroute {
-			return
-		}
-		handleNodeTracerouteAction(window, dep, node)
-	}
-	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, DefaultNodeRowRenderer(), NodesTabActions{
-		OnNodeSecondaryTapped: func(node domain.Node, position fyne.Position) {
-			showNodeContextMenu(window.Canvas(), position, node, nodeActionHandler)
-		},
-	})
-	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, initialVariant, dep.Actions.OnMapViewportChanged)
-	nodeSettingsTab := newNodeTab(dep)
-	settingsTab := newSettingsTab(dep, settingsConnStatus)
-
-	tabContent := map[string]fyne.CanvasObject{
-		"Chats": chatsTab,
-		"Nodes": nodesTab,
-		"Map":   mapTab,
-		"Node":  nodeSettingsTab,
-		"App":   settingsTab,
-	}
-	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
-	tabIcons := map[string]resources.UIIcon{
-		"Chats": resources.UIIconChats,
-		"Nodes": resources.UIIconNodes,
-		"Map":   resources.UIIconMap,
-		"Node":  resources.UIIconNodeSettings,
-		"App":   resources.UIIconAppSettings,
-	}
-
-	updateIndicator := newUpdateIndicator(
+	view := buildMainView(
+		dep,
+		fyApp,
+		window,
 		initialVariant,
+		initialStatus,
 		initialUpdateSnapshot,
 		initialUpdateSnapshotKnown,
-		func(snapshot meshapp.UpdateSnapshot) {
-			showUpdateDialog(window, fyApp.Settings().ThemeVariant(), snapshot, openExternalURL)
-		},
 	)
-	updateButton := updateIndicator.Button()
 
-	connStatusPresenter := newConnectionStatusPresenter(
-		window,
-		settingsConnStatus,
-		initialStatus,
-		initialVariant,
-		func() string {
-			return localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore)
-		},
-	)
-	sidebar := buildSidebarLayout(
-		initialVariant,
-		tabContent,
-		order,
-		tabIcons,
-		updateButton,
-		connStatusPresenter.SidebarIcon(),
-	)
-	left := sidebar.left
-	rightStack := sidebar.rightStack
-
-	themeRuntime := newThemeRuntime(fyApp, sidebar, updateIndicator, mapTab, connStatusPresenter)
+	themeRuntime := newThemeRuntime(fyApp, view.sidebar, view.updateIndicator, view.applyMapTheme, view.connStatusPresenter)
 	themeRuntime.BindSettings()
 
 	stopNotifications := startNotificationService(dep, fyApp, dep.Launch.StartHidden)
 
-	appLogger.Debug("starting UI event listeners")
-	stopUIListeners := startUIEventListeners(
-		dep.Data.Bus,
-		func(status connectors.ConnectionStatus) {
-			fyne.Do(func() {
-				connStatusPresenter.Set(status, fyApp.Settings().ThemeVariant())
-			})
-		},
-		func() {
-			fyne.Do(func() {
-				connStatusPresenter.Refresh(fyApp.Settings().ThemeVariant())
-			})
-		},
+	stopUIListeners, stopUpdateSnapshots := bindPresentationListeners(
+		dep,
+		fyApp,
+		view.connStatusPresenter,
+		view.updateIndicator,
+		view.left.Refresh,
 	)
-	if status, ok := currentConnStatus(dep); ok {
-		connStatusPresenter.Set(status, fyApp.Settings().ThemeVariant())
-	}
-	appLogger.Debug("starting update snapshot listener")
-	stopUpdateSnapshots := startUpdateSnapshotListener(dep.Data.UpdateSnapshots, func(snapshot meshapp.UpdateSnapshot) {
-		fyne.Do(func() {
-			updateIndicator.ApplySnapshot(snapshot)
-			left.Refresh()
-		})
-	})
-	if snapshot, ok := currentUpdateSnapshot(dep); ok {
-		updateIndicator.ApplySnapshot(snapshot)
-		left.Refresh()
-	}
 
-	content := container.NewBorder(nil, nil, left, nil, rightStack)
+	content := container.NewBorder(nil, nil, view.left, nil, view.rightStack)
 	window.SetContent(content)
 
 	uiRuntime := newUIRuntime(
