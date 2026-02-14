@@ -27,6 +27,8 @@ type TracerouteAction interface {
 type NodeSettingsAction interface {
 	LoadUserSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error)
 	SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
+	LoadSecuritySettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeSecuritySettings, error)
+	SaveSecuritySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeSecuritySettings) error
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

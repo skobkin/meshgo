@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -10,6 +12,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/app"
@@ -53,16 +56,94 @@ func (g *nodeSettingsSaveGate) ActivePage() string {
 	return active
 }
 
+type nodeSettingsPageControls struct {
+	saveButton   *widget.Button
+	cancelButton *widget.Button
+	reloadButton *widget.Button
+	statusLabel  *widget.Label
+	progressBar  *widget.ProgressBar
+	root         fyne.CanvasObject
+}
+
+func newNodeSettingsPageControls(initialStatus string) *nodeSettingsPageControls {
+	status := widget.NewLabel(strings.TrimSpace(initialStatus))
+	status.Wrapping = fyne.TextWrapWord
+
+	progress := widget.NewProgressBar()
+	progress.SetValue(0)
+
+	saveButton := widget.NewButton("Save", nil)
+	cancelButton := widget.NewButton("Cancel", nil)
+	reloadButton := widget.NewButton("Reload", nil)
+
+	buttons := container.NewHBox(reloadButton, layout.NewSpacer(), cancelButton, saveButton)
+	root := container.NewVBox(
+		widget.NewSeparator(),
+		progress,
+		status,
+		buttons,
+	)
+
+	return &nodeSettingsPageControls{
+		saveButton:   saveButton,
+		cancelButton: cancelButton,
+		reloadButton: reloadButton,
+		statusLabel:  status,
+		progressBar:  progress,
+		root:         root,
+	}
+}
+
+func (c *nodeSettingsPageControls) SetStatus(text string, completed, total int) {
+	if c == nil {
+		return
+	}
+	if strings.TrimSpace(text) != "" {
+		c.statusLabel.SetText(text)
+	}
+	c.progressBar.SetValue(nodeSettingsProgress(completed, total))
+}
+
+func nodeSettingsProgress(completed, total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	if completed <= 0 {
+		return 0
+	}
+	if completed >= total {
+		return 1
+	}
+
+	return float64(completed) / float64(total)
+}
+
+func wrapNodeSettingsPage(content fyne.CanvasObject, controls *nodeSettingsPageControls) fyne.CanvasObject {
+	if controls == nil {
+		return content
+	}
+
+	return container.NewBorder(nil, controls.root, nil, nil, container.NewVScroll(content))
+}
+
 func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	nodeSettingsTabLogger.Info("building node settings tab")
 	saveGate := &nodeSettingsSaveGate{}
+	securityPage, onSecurityTabOpened := newNodeSecuritySettingsPage(dep, saveGate)
+	securityTab := container.NewTabItem("Security", securityPage)
 
 	radioTabs := container.NewAppTabs(
 		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
 		container.NewTabItem("Channels", newSettingsPlaceholderPage("Channels editor is planned.")),
-		container.NewTabItem("Security", newSettingsPlaceholderPage("Security settings editing is planned.")),
+		securityTab,
 	)
 	radioTabs.SetTabLocation(container.TabLocationTop)
+	radioTabs.OnSelected = func(item *container.TabItem) {
+		if onSecurityTabOpened == nil || item != securityTab {
+			return
+		}
+		onSecurityTabOpened()
+	}
 
 	deviceTabs := container.NewAppTabs(
 		container.NewTabItem("User", newNodeUserSettingsPage(dep, saveGate)),
@@ -107,9 +188,10 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	const pageID = "device.user"
 	nodeSettingsTabLogger.Debug("building node user settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
 
-	status := widget.NewLabel("Loading local node user settings…")
-	status.Wrapping = fyne.TextWrapWord
-	connectionStateLabel := widget.NewLabel("")
+	controls := newNodeSettingsPageControls("Loading local node user settings…")
+	saveButton := controls.saveButton
+	cancelButton := controls.cancelButton
+	reloadButton := controls.reloadButton
 
 	nodeIDLabel := widget.NewLabel("unknown")
 	nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
@@ -118,10 +200,6 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	shortNameEntry := widget.NewEntry()
 	hamLicensedBox := widget.NewCheck("", nil)
 	unmessageableBox := widget.NewCheck("", nil)
-
-	saveButton := widget.NewButton("Save", nil)
-	cancelButton := widget.NewButton("Cancel", nil)
-	reloadButton := widget.NewButton("Reload", nil)
 
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeIDLabel),
@@ -141,27 +219,11 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	)
 
 	isConnected := func() bool {
-		if dep.Data.CurrentConnStatus == nil {
-			return false
-		}
-		status, known := dep.Data.CurrentConnStatus()
-		if !known {
-			return false
-		}
-
-		return status.State == connectors.ConnectionStateConnected
+		return isNodeSettingsConnected(dep)
 	}
 
 	localTarget := func() (app.NodeSettingsTarget, bool) {
-		if dep.Data.LocalNodeID == nil {
-			return app.NodeSettingsTarget{}, false
-		}
-		nodeID := strings.TrimSpace(dep.Data.LocalNodeID())
-		if nodeID == "" {
-			return app.NodeSettingsTarget{}, false
-		}
-
-		return app.NodeSettingsTarget{NodeID: nodeID, IsLocal: true}, true
+		return localNodeSettingsTarget(dep)
 	}
 
 	setForm := func(settings app.NodeUserSettings) {
@@ -188,14 +250,6 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		applyingForm.Store(false)
 	}
 
-	updateConnectionLabel := func() {
-		if isConnected() {
-			connectionStateLabel.SetText("Device connection: connected")
-		} else {
-			connectionStateLabel.SetText("Device connection: disconnected")
-		}
-	}
-
 	updateButtons := func() {
 		mu.Lock()
 		activePage := ""
@@ -205,6 +259,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		connected := isConnected()
 		canSave := dep.Actions.NodeSettings != nil && connected && !saving && dirty && (activePage == "" || activePage == pageID)
 		canCancel := !saving && dirty
+		canReload := dep.Actions.NodeSettings != nil && !saving
 		mu.Unlock()
 
 		if canSave {
@@ -217,11 +272,10 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		} else {
 			cancelButton.Disable()
 		}
-
-		if dep.Actions.NodeSettings == nil {
-			reloadButton.Disable()
-		} else {
+		if canReload {
 			reloadButton.Enable()
+		} else {
+			reloadButton.Disable()
 		}
 	}
 
@@ -229,7 +283,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		target, ok := localTarget()
 		if !ok {
 			nodeSettingsTabLogger.Debug("local node settings are unavailable: local node ID is unknown")
-			status.SetText("Local node ID is not available yet.")
+			controls.SetStatus("Local node ID is not available yet.", 0, 1)
 
 			return
 		}
@@ -256,9 +310,8 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		if shouldApply {
 			applyForm(next)
 			nodeSettingsTabLogger.Debug("loaded node user settings from local store", "node_id", next.NodeID)
-			status.SetText("Loaded local node user settings.")
+			controls.SetStatus("Loaded local node user settings.", 1, 1)
 		}
-		updateConnectionLabel()
 		updateButtons()
 	}
 
@@ -287,7 +340,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		dirty = false
 		mu.Unlock()
 		applyForm(settings)
-		status.SetText("Local edits reverted.")
+		controls.SetStatus("Local edits reverted.", 1, 1)
 		updateButtons()
 	}
 
@@ -295,13 +348,13 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		nodeSettingsTabLogger.Info("node user settings save requested", "page_id", pageID)
 		if dep.Actions.NodeSettings == nil {
 			nodeSettingsTabLogger.Warn("node user settings save unavailable: service is not configured")
-			status.SetText("Save is unavailable: node settings service is not configured.")
+			controls.SetStatus("Save is unavailable: node settings service is not configured.", 0, 1)
 
 			return
 		}
 		if !isConnected() {
 			nodeSettingsTabLogger.Info("node user settings save blocked: device is disconnected", "page_id", pageID)
-			status.SetText("Save is unavailable while disconnected.")
+			controls.SetStatus("Save is unavailable while disconnected.", 0, 1)
 			updateButtons()
 
 			return
@@ -309,13 +362,13 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		target, ok := localTarget()
 		if !ok {
 			nodeSettingsTabLogger.Warn("node user settings save failed: local node ID is unknown", "page_id", pageID)
-			status.SetText("Save failed: local node ID is not known yet.")
+			controls.SetStatus("Save failed: local node ID is not known yet.", 0, 1)
 
 			return
 		}
 		if saveGate != nil && !saveGate.TryAcquire(pageID) {
 			nodeSettingsTabLogger.Info("node user settings save blocked: another page save is active", "page_id", pageID, "active_page", saveGate.ActivePage())
-			status.SetText("Another settings save is in progress on a different page.")
+			controls.SetStatus("Another settings save is in progress on a different page.", 0, 1)
 			updateButtons()
 
 			return
@@ -327,7 +380,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		next := current
 		mu.Unlock()
 		nodeSettingsTabLogger.Info("saving node user settings", "page_id", pageID, "node_id", target.NodeID)
-		status.SetText("Saving user settings…")
+		controls.SetStatus("Saving user settings…", 1, 3)
 		updateButtons()
 
 		go func(settings app.NodeUserSettings) {
@@ -342,16 +395,15 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 				}
 				if err != nil {
 					nodeSettingsTabLogger.Warn("saving node user settings failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
-					status.SetText("Save failed: " + err.Error())
+					controls.SetStatus("Save failed: "+err.Error(), 0, 3)
 				} else {
 					nodeSettingsTabLogger.Info("saved node user settings", "page_id", pageID, "node_id", target.NodeID)
 					baseline = settings
 					current = settings
 					dirty = false
-					status.SetText("Saved user settings.")
+					controls.SetStatus("Saved user settings.", 3, 3)
 				}
 				mu.Unlock()
-				updateConnectionLabel()
 				updateButtons()
 			})
 		}(next)
@@ -362,7 +414,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		target, ok := localTarget()
 		if !ok {
 			nodeSettingsTabLogger.Warn("node user settings reload failed: local node ID is unknown", "page_id", pageID)
-			status.SetText("Reload failed: local node ID is not known yet.")
+			controls.SetStatus("Reload failed: local node ID is not known yet.", 0, 1)
 
 			return
 		}
@@ -374,13 +426,13 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		}
 		if !isConnected() {
 			nodeSettingsTabLogger.Info("node user settings reload blocked: device is disconnected", "page_id", pageID, "node_id", target.NodeID)
-			status.SetText("Reload from device is unavailable while disconnected.")
+			controls.SetStatus("Reload from device is unavailable while disconnected.", 0, 2)
 
 			return
 		}
 
 		nodeSettingsTabLogger.Info("reloading node user settings from device", "page_id", pageID, "node_id", target.NodeID)
-		status.SetText("Reloading user settings from device…")
+		controls.SetStatus("Reloading user settings from device…", 1, 2)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
 			defer cancel()
@@ -388,7 +440,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 			fyne.Do(func() {
 				if err != nil {
 					nodeSettingsTabLogger.Warn("reloading node user settings from device failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
-					status.SetText("Reload failed: " + err.Error())
+					controls.SetStatus("Reload failed: "+err.Error(), 0, 2)
 					updateButtons()
 
 					return
@@ -402,7 +454,7 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 				mu.Unlock()
 				applyForm(settings)
 				nodeSettingsTabLogger.Info("reloaded node user settings from device", "page_id", pageID, "node_id", target.NodeID)
-				status.SetText("Reloaded user settings from device.")
+				controls.SetStatus("Reloaded user settings from device.", 2, 2)
 				updateButtons()
 			})
 		}()
@@ -427,37 +479,423 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 			for range connSub {
 				fyne.Do(func() {
 					nodeSettingsTabLogger.Debug("received connection status update for node settings page", "page_id", pageID)
-					updateConnectionLabel()
 					updateButtons()
 				})
 			}
 		}()
 	}
-	updateConnectionLabel()
 	updateButtons()
 
-	return container.NewVBox(
+	content := container.NewVBox(
 		widget.NewLabel("User settings can be edited and saved per page. Only one settings save can run at a time."),
-		connectionStateLabel,
-		status,
 		form,
-		container.NewHBox(reloadButton, cancelButton, saveButton),
 	)
+
+	return wrapNodeSettingsPage(content, controls)
+}
+
+func newNodeSecuritySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) (fyne.CanvasObject, func()) {
+	const pageID = "radio.security"
+	nodeSettingsTabLogger.Debug("building node security settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
+
+	controls := newNodeSettingsPageControls("Loading security settings…")
+	saveButton := controls.saveButton
+	cancelButton := controls.cancelButton
+	reloadButton := controls.reloadButton
+
+	nodeIDLabel := widget.NewLabel("unknown")
+	nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
+
+	publicKeyEntry := widget.NewEntry()
+	publicKeyEntry.Disable()
+	privateKeyEntry := widget.NewEntry()
+	privateKeyEntry.Password = true
+	privateKeyEntry.Disable()
+	publicKeyCopyButton := widget.NewButton("Copy", nil)
+	privateKeyCopyButton := widget.NewButton("Copy", nil)
+	adminKeysEntry := widget.NewMultiLineEntry()
+	adminKeysEntry.SetMinRowsVisible(3)
+
+	managedBox := widget.NewCheck("", nil)
+	serialEnabledBox := widget.NewCheck("", nil)
+	debugLogAPIBox := widget.NewCheck("", nil)
+	adminChannelBox := widget.NewCheck("", nil)
+
+	publicKeyField := container.NewBorder(nil, nil, nil, publicKeyCopyButton, publicKeyEntry)
+	privateKeyField := container.NewBorder(nil, nil, nil, privateKeyCopyButton, privateKeyEntry)
+
+	form := widget.NewForm(
+		widget.NewFormItem("Node ID", nodeIDLabel),
+		widget.NewFormItem("Public key (read-only)", publicKeyField),
+		widget.NewFormItem("Private key (read-only)", privateKeyField),
+		widget.NewFormItem("Admin keys (base64, one key per line)", adminKeysEntry),
+		widget.NewFormItem("Managed mode", managedBox),
+		widget.NewFormItem("Serial console over Stream API", serialEnabledBox),
+		widget.NewFormItem("Debug log over API", debugLogAPIBox),
+		widget.NewFormItem("Legacy admin channel", adminChannelBox),
+	)
+
+	var (
+		baseline             app.NodeSecuritySettings
+		baselineAdminKeysRaw string
+		dirty                bool
+		saving               bool
+		initialReloadStarted atomic.Bool
+		mu                   sync.Mutex
+		applyingForm         atomic.Bool
+	)
+
+	isConnected := func() bool {
+		return isNodeSettingsConnected(dep)
+	}
+
+	localTarget := func() (app.NodeSettingsTarget, bool) {
+		return localNodeSettingsTarget(dep)
+	}
+
+	updateKeyCopyButtons := func() {
+		if strings.TrimSpace(publicKeyEntry.Text) == "" {
+			publicKeyCopyButton.Disable()
+		} else {
+			publicKeyCopyButton.Enable()
+		}
+		if strings.TrimSpace(privateKeyEntry.Text) == "" {
+			privateKeyCopyButton.Disable()
+		} else {
+			privateKeyCopyButton.Enable()
+		}
+	}
+
+	setForm := func(settings app.NodeSecuritySettings) {
+		nodeIDLabel.SetText(orUnknown(settings.NodeID))
+		publicKeyEntry.SetText(encodeSecurityKey(settings.PublicKey))
+		privateKeyEntry.SetText(encodeSecurityKey(settings.PrivateKey))
+		adminKeysEntry.SetText(formatSecurityAdminKeys(settings.AdminKeys))
+		managedBox.SetChecked(settings.IsManaged)
+		serialEnabledBox.SetChecked(settings.SerialEnabled)
+		debugLogAPIBox.SetChecked(settings.DebugLogAPIEnabled)
+		adminChannelBox.SetChecked(settings.AdminChannelEnabled)
+		updateKeyCopyButtons()
+	}
+
+	applyForm := func(settings app.NodeSecuritySettings) {
+		applyingForm.Store(true)
+		setForm(settings)
+		applyingForm.Store(false)
+	}
+
+	updateManagedBoxAvailability := func() {
+		if saving {
+			managedBox.Disable()
+
+			return
+		}
+		hasAdminKeys := strings.TrimSpace(adminKeysEntry.Text) != ""
+		if hasAdminKeys || managedBox.Checked {
+			managedBox.Enable()
+		} else {
+			managedBox.Disable()
+		}
+	}
+
+	updateButtons := func() {
+		mu.Lock()
+		activePage := ""
+		if saveGate != nil {
+			activePage = strings.TrimSpace(saveGate.ActivePage())
+		}
+		connected := isConnected()
+		canSave := dep.Actions.NodeSettings != nil && connected && !saving && dirty && (activePage == "" || activePage == pageID)
+		canCancel := !saving && dirty
+		canReload := dep.Actions.NodeSettings != nil && !saving
+		mu.Unlock()
+
+		if canSave {
+			saveButton.Enable()
+		} else {
+			saveButton.Disable()
+		}
+		if canCancel {
+			cancelButton.Enable()
+		} else {
+			cancelButton.Disable()
+		}
+		if canReload {
+			reloadButton.Enable()
+		} else {
+			reloadButton.Disable()
+		}
+		updateManagedBoxAvailability()
+	}
+
+	markDirty := func() {
+		if applyingForm.Load() {
+			return
+		}
+		mu.Lock()
+		dirty = managedBox.Checked != baseline.IsManaged ||
+			serialEnabledBox.Checked != baseline.SerialEnabled ||
+			debugLogAPIBox.Checked != baseline.DebugLogAPIEnabled ||
+			adminChannelBox.Checked != baseline.AdminChannelEnabled ||
+			strings.TrimSpace(adminKeysEntry.Text) != strings.TrimSpace(baselineAdminKeysRaw)
+		mu.Unlock()
+		updateButtons()
+	}
+
+	applyLoadedSettings := func(next app.NodeSecuritySettings) {
+		mu.Lock()
+		baseline = cloneNodeSecuritySettings(next)
+		baselineAdminKeysRaw = formatSecurityAdminKeys(next.AdminKeys)
+		dirty = false
+		settings := cloneNodeSecuritySettings(baseline)
+		mu.Unlock()
+		applyForm(settings)
+		updateButtons()
+	}
+
+	buildSettingsFromForm := func(target app.NodeSettingsTarget) (app.NodeSecuritySettings, error) {
+		adminKeys, err := parseSecurityAdminKeysInput(adminKeysEntry.Text)
+		if err != nil {
+			return app.NodeSecuritySettings{}, err
+		}
+		if managedBox.Checked && len(adminKeys) == 0 {
+			return app.NodeSecuritySettings{}, fmt.Errorf("managed mode requires at least one admin key")
+		}
+
+		mu.Lock()
+		next := cloneNodeSecuritySettings(baseline)
+		mu.Unlock()
+
+		next.NodeID = strings.TrimSpace(target.NodeID)
+		next.AdminKeys = cloneSecurityKeys(adminKeys)
+		next.IsManaged = managedBox.Checked
+		next.SerialEnabled = serialEnabledBox.Checked
+		next.DebugLogAPIEnabled = debugLogAPIBox.Checked
+		next.AdminChannelEnabled = adminChannelBox.Checked
+
+		return next, nil
+	}
+
+	reloadFromDevice := func() {
+		target, ok := localTarget()
+		if !ok {
+			nodeSettingsTabLogger.Warn("node security settings reload failed: local node ID is unknown", "page_id", pageID)
+			controls.SetStatus("Reload failed: local node ID is not known yet.", 0, 1)
+
+			return
+		}
+		if dep.Actions.NodeSettings == nil {
+			nodeSettingsTabLogger.Warn("node security settings reload unavailable: service is not configured", "page_id", pageID)
+			controls.SetStatus("Reload is unavailable: node settings service is not configured.", 0, 1)
+
+			return
+		}
+		if !isConnected() {
+			nodeSettingsTabLogger.Info("node security settings reload blocked: device is disconnected", "page_id", pageID, "node_id", target.NodeID)
+			controls.SetStatus("Reload from device is unavailable while disconnected.", 0, 2)
+
+			return
+		}
+
+		nodeSettingsTabLogger.Info("reloading node security settings from device", "page_id", pageID, "node_id", target.NodeID)
+		controls.SetStatus("Reloading security settings from device…", 1, 2)
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
+			defer cancel()
+			loaded, err := dep.Actions.NodeSettings.LoadSecuritySettings(ctx, target)
+			fyne.Do(func() {
+				if err != nil {
+					nodeSettingsTabLogger.Warn("reloading node security settings from device failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
+					controls.SetStatus("Reload failed: "+err.Error(), 0, 2)
+					updateButtons()
+
+					return
+				}
+				applyLoadedSettings(loaded)
+				nodeSettingsTabLogger.Info("reloaded node security settings from device", "page_id", pageID, "node_id", target.NodeID)
+				controls.SetStatus("Reloaded security settings from device.", 2, 2)
+			})
+		}()
+	}
+
+	adminKeysEntry.OnChanged = func(_ string) { markDirty() }
+	managedBox.OnChanged = func(_ bool) { markDirty() }
+	serialEnabledBox.OnChanged = func(_ bool) { markDirty() }
+	debugLogAPIBox.OnChanged = func(_ bool) { markDirty() }
+	adminChannelBox.OnChanged = func(_ bool) { markDirty() }
+	publicKeyCopyButton.OnTapped = func() {
+		if err := copyTextToClipboard(publicKeyEntry.Text); err != nil {
+			controls.SetStatus("Copy failed: "+err.Error(), 0, 1)
+
+			return
+		}
+		controls.SetStatus("Public key copied.", 1, 1)
+	}
+	privateKeyCopyButton.OnTapped = func() {
+		if err := copyTextToClipboard(privateKeyEntry.Text); err != nil {
+			controls.SetStatus("Copy failed: "+err.Error(), 0, 1)
+
+			return
+		}
+		controls.SetStatus("Private key copied.", 1, 1)
+	}
+
+	cancelButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node security settings edit canceled", "page_id", pageID)
+		mu.Lock()
+		settings := cloneNodeSecuritySettings(baseline)
+		dirty = false
+		mu.Unlock()
+		applyForm(settings)
+		controls.SetStatus("Local edits reverted.", 1, 1)
+		updateButtons()
+	}
+
+	saveButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node security settings save requested", "page_id", pageID)
+		if dep.Actions.NodeSettings == nil {
+			nodeSettingsTabLogger.Warn("node security settings save unavailable: service is not configured")
+			controls.SetStatus("Save is unavailable: node settings service is not configured.", 0, 1)
+
+			return
+		}
+		if !isConnected() {
+			nodeSettingsTabLogger.Info("node security settings save blocked: device is disconnected", "page_id", pageID)
+			controls.SetStatus("Save is unavailable while disconnected.", 0, 1)
+			updateButtons()
+
+			return
+		}
+		target, ok := localTarget()
+		if !ok {
+			nodeSettingsTabLogger.Warn("node security settings save failed: local node ID is unknown", "page_id", pageID)
+			controls.SetStatus("Save failed: local node ID is not known yet.", 0, 1)
+
+			return
+		}
+		if saveGate != nil && !saveGate.TryAcquire(pageID) {
+			nodeSettingsTabLogger.Info("node security settings save blocked: another page save is active", "page_id", pageID, "active_page", saveGate.ActivePage())
+			controls.SetStatus("Another settings save is in progress on a different page.", 0, 1)
+			updateButtons()
+
+			return
+		}
+
+		next, err := buildSettingsFromForm(target)
+		if err != nil {
+			if saveGate != nil {
+				saveGate.Release(pageID)
+			}
+			nodeSettingsTabLogger.Warn("node security settings save failed: invalid form values", "page_id", pageID, "error", err)
+			controls.SetStatus("Save failed: "+err.Error(), 0, 1)
+			updateButtons()
+
+			return
+		}
+
+		mu.Lock()
+		saving = true
+		mu.Unlock()
+		nodeSettingsTabLogger.Info("saving node security settings", "page_id", pageID, "node_id", target.NodeID)
+		controls.SetStatus("Saving security settings…", 1, 3)
+		updateButtons()
+
+		go func(settings app.NodeSecuritySettings) {
+			ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
+			defer cancel()
+			err := dep.Actions.NodeSettings.SaveSecuritySettings(ctx, target, settings)
+			fyne.Do(func() {
+				mu.Lock()
+				saving = false
+				if saveGate != nil {
+					saveGate.Release(pageID)
+				}
+				if err != nil {
+					nodeSettingsTabLogger.Warn("saving node security settings failed", "page_id", pageID, "node_id", target.NodeID, "error", err)
+					controls.SetStatus("Save failed: "+err.Error(), 0, 3)
+					mu.Unlock()
+					updateButtons()
+
+					return
+				}
+				baseline = cloneNodeSecuritySettings(settings)
+				baselineAdminKeysRaw = formatSecurityAdminKeys(settings.AdminKeys)
+				dirty = false
+				applied := cloneNodeSecuritySettings(baseline)
+				mu.Unlock()
+
+				applyForm(applied)
+				nodeSettingsTabLogger.Info("saved node security settings", "page_id", pageID, "node_id", target.NodeID)
+				controls.SetStatus("Saved security settings.", 3, 3)
+				updateButtons()
+			})
+		}(next)
+	}
+
+	reloadButton.OnTapped = func() {
+		nodeSettingsTabLogger.Info("node security settings reload requested", "page_id", pageID)
+		reloadFromDevice()
+	}
+
+	initial := app.NodeSecuritySettings{}
+	if target, ok := localTarget(); ok {
+		initial.NodeID = target.NodeID
+	}
+	applyLoadedSettings(initial)
+	if dep.Actions.NodeSettings == nil {
+		controls.SetStatus("Security settings are unavailable: node settings service is not configured.", 0, 1)
+	} else {
+		controls.SetStatus("Security settings will load when this tab is opened.", 0, 1)
+	}
+
+	if dep.Data.Bus != nil {
+		nodeSettingsTabLogger.Debug("starting node security settings page listener for connection status updates", "page_id", pageID)
+		connSub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
+		go func() {
+			for range connSub {
+				fyne.Do(func() {
+					nodeSettingsTabLogger.Debug("received connection status update for node security settings page", "page_id", pageID)
+					updateButtons()
+				})
+			}
+		}()
+	}
+	updateButtons()
+
+	adminKeysHint := widget.NewLabel("Use base64-encoded admin public keys, one key per line. Up to 3 keys are supported.")
+	adminKeysHint.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(
+		widget.NewLabel("Security settings are loaded from and saved to the connected local node."),
+		adminKeysHint,
+		form,
+	)
+
+	onTabOpened := func() {
+		if dep.Actions.NodeSettings == nil {
+			return
+		}
+		if !initialReloadStarted.CompareAndSwap(false, true) {
+			return
+		}
+		nodeSettingsTabLogger.Debug("starting lazy initial load for node security settings", "page_id", pageID)
+		reloadFromDevice()
+	}
+
+	return wrapNodeSettingsPage(content, controls), onTabOpened
 }
 
 func newSettingsPlaceholderPage(text string) fyne.CanvasObject {
-	status := widget.NewLabel(text)
-	status.Wrapping = fyne.TextWrapWord
-	saveButton := widget.NewButton("Save", nil)
-	saveButton.Disable()
-	cancelButton := widget.NewButton("Cancel", nil)
-	cancelButton.Disable()
+	controls := newNodeSettingsPageControls(text)
+	controls.saveButton.Disable()
+	controls.cancelButton.Disable()
+	controls.reloadButton.Disable()
 
-	return container.NewVBox(
+	content := container.NewVBox(
 		widget.NewLabel("This settings page is scaffolded and will be implemented in a follow-up step."),
-		status,
-		container.NewHBox(cancelButton, saveButton),
 	)
+
+	return wrapNodeSettingsPage(content, controls)
 }
 
 func newDisabledTopLevelPage(text string) fyne.CanvasObject {
@@ -491,6 +929,135 @@ func localNodeSnapshot(store *domain.NodeStore, localNodeID func() string) (doma
 	}
 
 	return node, true
+}
+
+func isNodeSettingsConnected(dep RuntimeDependencies) bool {
+	if dep.Data.CurrentConnStatus == nil {
+		return false
+	}
+	status, known := dep.Data.CurrentConnStatus()
+	if !known {
+		return false
+	}
+
+	return status.State == connectors.ConnectionStateConnected
+}
+
+func localNodeSettingsTarget(dep RuntimeDependencies) (app.NodeSettingsTarget, bool) {
+	if dep.Data.LocalNodeID == nil {
+		return app.NodeSettingsTarget{}, false
+	}
+	nodeID := strings.TrimSpace(dep.Data.LocalNodeID())
+	if nodeID == "" {
+		return app.NodeSettingsTarget{}, false
+	}
+
+	return app.NodeSettingsTarget{NodeID: nodeID, IsLocal: true}, true
+}
+
+func encodeSecurityKey(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+func formatSecurityAdminKeys(keys [][]byte) string {
+	if len(keys) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		encoded := encodeSecurityKey(key)
+		if encoded == "" {
+			continue
+		}
+		parts = append(parts, encoded)
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func parseSecurityAdminKeysInput(input string) ([][]byte, error) {
+	chunks := strings.FieldsFunc(input, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ';'
+	})
+
+	keys := make([][]byte, 0, len(chunks))
+	seen := make(map[string]struct{}, len(chunks))
+	for index, chunk := range chunks {
+		keyRaw := strings.TrimSpace(chunk)
+		if keyRaw == "" {
+			continue
+		}
+		if len(keys) >= 3 {
+			return nil, fmt.Errorf("no more than 3 admin keys are allowed")
+		}
+		decoded, err := decodeBase64Key(keyRaw)
+		if err != nil {
+			return nil, fmt.Errorf("admin key #%d is not valid base64", index+1)
+		}
+		if len(decoded) != 32 {
+			return nil, fmt.Errorf("admin key #%d must decode to 32 bytes", index+1)
+		}
+		keyID := string(decoded)
+		if _, exists := seen[keyID]; exists {
+			return nil, fmt.Errorf("admin key #%d duplicates a previous key", index+1)
+		}
+		seen[keyID] = struct{}{}
+		keys = append(keys, decoded)
+	}
+
+	return keys, nil
+}
+
+func decodeBase64Key(raw string) ([]byte, error) {
+	decoded, err := base64.StdEncoding.DecodeString(raw)
+	if err == nil {
+		return decoded, nil
+	}
+
+	decoded, rawErr := base64.RawStdEncoding.DecodeString(raw)
+	if rawErr == nil {
+		return decoded, nil
+	}
+
+	return nil, err
+}
+
+func copyTextToClipboard(value string) error {
+	app := fyne.CurrentApp()
+	if app == nil || app.Clipboard() == nil {
+		return fmt.Errorf("clipboard is unavailable")
+	}
+
+	app.Clipboard().SetContent(value)
+
+	return nil
+}
+
+func cloneNodeSecuritySettings(settings app.NodeSecuritySettings) app.NodeSecuritySettings {
+	out := settings
+	out.PublicKey = append([]byte(nil), settings.PublicKey...)
+	out.PrivateKey = append([]byte(nil), settings.PrivateKey...)
+	out.AdminKeys = cloneSecurityKeys(settings.AdminKeys)
+
+	return out
+}
+
+func cloneSecurityKeys(keys [][]byte) [][]byte {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	out := make([][]byte, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, append([]byte(nil), key...))
+	}
+
+	return out
 }
 
 func orUnknown(v string) string {
