@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
 var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 var updateDialogLogger = slog.With("component", "ui.update_dialog")
 var errMarkdownImageTooLarge = errors.New("image too large")
+var markdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
 
 func showUpdateDialog(
 	window fyne.Window,
@@ -160,11 +162,35 @@ func buildUpdateChangelogText(releases []meshapp.ReleaseInfo) string {
 		body := strings.TrimSpace(release.Body)
 		if body == "" {
 			body = "No changelog provided."
+		} else {
+			body = stripLeadingCommitHashesFromMarkdown(body)
 		}
 		sections = append(sections, fmt.Sprintf("## %s\n\n%s", version, body))
 	}
 
 	return strings.Join(sections, "\n\n---\n\n")
+}
+
+func stripLeadingCommitHashesFromMarkdown(markdown string) string {
+	if markdown == "" {
+		return markdown
+	}
+
+	lines := strings.Split(markdown, "\n")
+	for i, line := range lines {
+		lines[i] = stripLeadingCommitHashFromLine(line)
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func stripLeadingCommitHashFromLine(line string) string {
+	matches := markdownListLeadingCommitHashPattern.FindStringSubmatch(line)
+	if len(matches) != 3 {
+		return line
+	}
+
+	return matches[1] + strings.TrimLeft(matches[2], " ")
 }
 
 func newLazyMarkdownRichText(markdown string) *widget.RichText {

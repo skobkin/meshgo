@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/storage"
+
+	meshapp "github.com/skobkin/meshgo/internal/app"
 )
 
 func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromHead(t *testing.T) {
@@ -171,4 +174,83 @@ func hasVisiblePlaceholderBorder(object fyne.CanvasObject) bool {
 	}
 
 	return false
+}
+
+func TestStripLeadingCommitHashesFromMarkdown(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "unordered list strips full hash",
+			in:   "* 2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 feat(ui): small traceroute UI tweak   ",
+			want: "* feat(ui): small traceroute UI tweak   ",
+		},
+		{
+			name: "ordered list strips full hash",
+			in:   "1. 071e177a6bb878e3c335c34d636d57418490aa5d feat(ui): use node ID in node filter too",
+			want: "1. feat(ui): use node ID in node filter too",
+		},
+		{
+			name: "non list line unchanged",
+			in:   "2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 feat(ui): no bullet",
+			want: "2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 feat(ui): no bullet",
+		},
+		{
+			name: "short hash unchanged",
+			in:   "* 2c8a554 feat(ui): short hash",
+			want: "* 2c8a554 feat(ui): short hash",
+		},
+		{
+			name: "non hex token unchanged",
+			in:   "* zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz feat(ui): not hash",
+			want: "* zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz feat(ui): not hash",
+		},
+		{
+			name: "hash in middle unchanged",
+			in:   "* feat(ui): includes hash 2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 in message",
+			want: "* feat(ui): includes hash 2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 in message",
+		},
+		{
+			name: "uppercase hash unchanged",
+			in:   "* 2C8A5547BE2E8B8AC25DE8881C8A6BF4E616F0F8 feat(ui): uppercase hash",
+			want: "* 2C8A5547BE2E8B8AC25DE8881C8A6BF4E616F0F8 feat(ui): uppercase hash",
+		},
+	}
+
+	for _, tt := range tests {
+		if got := stripLeadingCommitHashesFromMarkdown(tt.in); got != tt.want {
+			t.Fatalf("%s: stripLeadingCommitHashesFromMarkdown() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestBuildUpdateChangelogText_StripsLeadingCommitHashes(t *testing.T) {
+	text := buildUpdateChangelogText([]meshapp.ReleaseInfo{
+		{
+			Version: "0.7.0",
+			Body: strings.Join([]string{
+				"* 2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8 feat(ui): small traceroute UI tweak   ",
+				"* 071e177a6bb878e3c335c34d636d57418490aa5d feat(ui): use node ID in node filter too (closes #59)   ",
+				"* release-2026.02 should stay",
+			}, "\n"),
+		},
+	})
+
+	if strings.Contains(text, "2c8a5547be2e8b8ac25de8881c8a6bf4e616f0f8") {
+		t.Fatalf("expected first hash to be removed, got %q", text)
+	}
+	if strings.Contains(text, "071e177a6bb878e3c335c34d636d57418490aa5d") {
+		t.Fatalf("expected second hash to be removed, got %q", text)
+	}
+	if !strings.Contains(text, "* feat(ui): small traceroute UI tweak") {
+		t.Fatalf("expected first changelog line without hash, got %q", text)
+	}
+	if !strings.Contains(text, "* feat(ui): use node ID in node filter too (closes #59)") {
+		t.Fatalf("expected second changelog line without hash, got %q", text)
+	}
+	if !strings.Contains(text, "* release-2026.02 should stay") {
+		t.Fatalf("expected non-hash line to stay unchanged, got %q", text)
+	}
 }
