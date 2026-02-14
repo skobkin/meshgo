@@ -3,7 +3,6 @@ package ui
 import (
 	"log/slog"
 	"strings"
-	"sync"
 
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
@@ -145,44 +144,21 @@ func Run(dep RuntimeDependencies) error {
 	content := container.NewBorder(nil, nil, left, nil, rightStack)
 	window.SetContent(content)
 
-	var shutdownOnce sync.Once
-	quit := func() {
-		shutdownOnce.Do(func() {
-			appLogger.Info("quitting UI runtime")
-			stopNotifications()
-			stopUIListeners()
-			stopUpdateSnapshots()
-			if dep.Actions.OnQuit != nil {
-				dep.Actions.OnQuit()
-			}
-			fyApp.Quit()
-		})
-	}
+	uiRuntime := newUIRuntime(
+		fyApp,
+		window,
+		stopNotifications,
+		stopUIListeners,
+		stopUpdateSnapshots,
+		dep.Actions.OnQuit,
+	)
+	uiRuntime.BindCloseIntercept()
 
-	window.SetCloseIntercept(func() {
-		appLogger.Debug("main window close intercepted: hiding to tray")
-		window.Hide()
-	})
-
-	setTrayIcon := configureSystemTray(fyApp, window, initialVariant, quit)
+	setTrayIcon := configureSystemTray(fyApp, window, initialVariant, uiRuntime.Quit)
 	themeRuntime.SetTrayIconSetter(setTrayIcon)
 	themeRuntime.Apply(initialVariant)
 
-	window.Show()
-	if dep.Launch.StartHidden {
-		appLogger.Info("launch option start_hidden is enabled: hiding main window")
-		window.Hide()
-	}
-	fyApp.Run()
-	appLogger.Info("UI runtime stopped")
-	shutdownOnce.Do(func() {
-		stopNotifications()
-		stopUIListeners()
-		stopUpdateSnapshots()
-		if dep.Actions.OnQuit != nil {
-			dep.Actions.OnQuit()
-		}
-	})
+	uiRuntime.Run(dep.Launch.StartHidden)
 
 	return nil
 }
