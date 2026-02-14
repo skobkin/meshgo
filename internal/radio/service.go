@@ -390,6 +390,8 @@ func (s *Service) ackTrackStateFor(deviceMessageID string) (ackTrackState, bool)
 
 func (s *Service) normalizeMessageStatus(update domain.MessageStatusUpdate) domain.MessageStatusUpdate {
 	switch update.Status {
+	case domain.MessageStatusPending, domain.MessageStatusSent:
+		// No normalization needed for these statuses.
 	case domain.MessageStatusAcked:
 		state, tracked := s.ackTrackStateFor(update.DeviceMessageID)
 		if !tracked {
