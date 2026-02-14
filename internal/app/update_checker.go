@@ -39,8 +39,8 @@ type UpdateSnapshot struct {
 	CheckedAt       time.Time
 }
 
-// UpdateCheckerConfig customizes update checker behavior.
-type UpdateCheckerConfig struct {
+// UpdateCheckerDependencies describes external dependencies and options for UpdateChecker.
+type UpdateCheckerDependencies struct {
 	CurrentVersion string
 	Endpoint       string
 	HTTPClient     *http.Client
@@ -72,33 +72,33 @@ type forgejoRelease struct {
 	PublishedAt time.Time `json:"published_at"`
 }
 
-func NewUpdateChecker(cfg UpdateCheckerConfig) *UpdateChecker {
-	endpoint := strings.TrimSpace(cfg.Endpoint)
+func NewUpdateChecker(dep UpdateCheckerDependencies) *UpdateChecker {
+	endpoint := strings.TrimSpace(dep.Endpoint)
 	if endpoint == "" {
 		endpoint = defaultReleaseQueryURL
 	}
 
-	client := cfg.HTTPClient
+	client := dep.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: defaultUpdateRequestTimeout}
 	}
 
-	interval := cfg.Interval
+	interval := dep.Interval
 	if interval <= 0 {
 		interval = defaultUpdateCheckInterval
 	}
 
-	logger := cfg.Logger
+	logger := dep.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	return &UpdateChecker{
-		currentVersion: strings.TrimSpace(cfg.CurrentVersion),
+		currentVersion: strings.TrimSpace(dep.CurrentVersion),
 		endpoint:       endpoint,
 		client:         client,
 		interval:       interval,
-		messageBus:     cfg.MessageBus,
+		messageBus:     dep.MessageBus,
 		logger:         logger,
 	}
 }

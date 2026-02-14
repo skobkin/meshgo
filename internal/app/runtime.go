@@ -187,7 +187,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	)
 	rt.Connectivity.Traceroute.Start(ctx)
 
-	rt.Core.UpdateChecker = NewUpdateChecker(UpdateCheckerConfig{
+	rt.Core.UpdateChecker = NewUpdateChecker(UpdateCheckerDependencies{
 		CurrentVersion: BuildVersion(),
 		MessageBus:     b,
 		Logger:         logMgr.Logger("updates"),

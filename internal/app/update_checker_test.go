@@ -66,7 +66,7 @@ func TestUpdateCheckerFetchSnapshot(t *testing.T) {
 	}))
 	defer server.Close()
 
-	checker := NewUpdateChecker(UpdateCheckerConfig{
+	checker := NewUpdateChecker(UpdateCheckerDependencies{
 		CurrentVersion: "0.6.0",
 		Endpoint:       server.URL,
 		HTTPClient:     server.Client(),
@@ -115,7 +115,7 @@ func TestUpdateCheckerStartRecoversAfterFailedCheck(t *testing.T) {
 	}))
 	defer server.Close()
 
-	checker := NewUpdateChecker(UpdateCheckerConfig{
+	checker := NewUpdateChecker(UpdateCheckerDependencies{
 		CurrentVersion: "0.6.0",
 		Endpoint:       server.URL,
 		HTTPClient:     server.Client(),
@@ -163,7 +163,7 @@ func TestUpdateCheckerPublishesSnapshotsToBus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	checker := NewUpdateChecker(UpdateCheckerConfig{
+	checker := NewUpdateChecker(UpdateCheckerDependencies{
 		CurrentVersion: "0.6.0",
 		Endpoint:       server.URL,
 		HTTPClient:     server.Client(),
