@@ -92,6 +92,16 @@ func TestTooltipWidgetBuildTooltip_Label(t *testing.T) {
 	}
 }
 
+func TestTooltipWidgetBuildTooltip_LabelPrebuiltContent(t *testing.T) {
+	w := newTooltipLabel("✓", "Sent", nil)
+	prebuilt := widget.NewLabel("Sent by radio")
+	w.SetBadgeWithContent("✓", prebuilt)
+
+	if got := w.buildTooltip(); got != prebuilt {
+		t.Fatalf("expected prebuilt tooltip object to be reused")
+	}
+}
+
 func TestTooltipWidgetBuildTooltip_RichText(t *testing.T) {
 	w := newTooltipRichText(
 		[]widget.RichTextSegment{

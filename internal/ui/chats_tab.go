@@ -130,6 +130,7 @@ func newChatsTab(
 	if selectedKey != "" {
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
 	}
+	statusTooltips := newMessageStatusTooltipCache()
 	tooltipLayer := container.NewWithoutLayout()
 	tooltipManager = newHoverTooltipManager(tooltipLayer)
 
@@ -193,7 +194,13 @@ func newChatsTab(
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
-			metaRight.Objects[0].(*tooltipWidget).SetBadge(messageStatusBadge(msg))
+			statusBadge := metaRight.Objects[0].(*tooltipWidget)
+			statusText, statusTooltip := messageStatusBadge(msg)
+			if statusTooltipContent := messageStatusTooltipContent(msg, statusTooltips); statusTooltipContent != nil {
+				statusBadge.SetBadgeWithContent(statusText, statusTooltipContent)
+			} else {
+				statusBadge.SetBadge(statusText, statusTooltip)
+			}
 			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
 
 			// During early startup refreshes list width can still be zero. Skip
@@ -779,20 +786,98 @@ func messageStatusBadge(m domain.ChatMessage) (text, tooltip string) {
 	}
 	switch m.Status {
 	case domain.MessageStatusPending:
-		return "◷", "Pending"
+		return "◷", messageStatusPendingTooltipText
 	case domain.MessageStatusSent:
-		return "✓", "Sent"
+		if domain.IsDMKey(m.ChatKey) {
+			return "✓", messageStatusSentDMTooltipText
+		}
+
+		return "✓", messageStatusSentChannelTooltipText
 	case domain.MessageStatusAcked:
-		return "✓✓", "Acked"
+		if domain.IsDMKey(m.ChatKey) {
+			return "✓✓", messageStatusAckedDMTooltipText
+		}
+
+		return "✓✓", messageStatusAckedChannelTooltipText
 	case domain.MessageStatusFailed:
 		reason := compactWhitespace(strings.TrimSpace(m.StatusReason))
 		if reason == "" {
-			return "⚠", "Failed"
+			return "⚠", messageStatusFailedTooltipText
 		}
 
-		return "⚠", "Failed: " + reason
+		return "⚠", fmt.Sprintf("%s\nReason: %s.", messageStatusFailedTooltipText, reason)
 	default:
 		return "", ""
+	}
+}
+
+type messageStatusTooltipCache struct {
+	pending       fyne.CanvasObject
+	sentChannel   fyne.CanvasObject
+	sentDM        fyne.CanvasObject
+	ackedChannel  fyne.CanvasObject
+	ackedDM       fyne.CanvasObject
+	failedGeneric fyne.CanvasObject
+}
+
+const (
+	messageStatusPendingTooltipText = `Sent from PC to device.
+Waiting for mesh confirmation.`
+	messageStatusSentChannelTooltipText = `Sent from PC to device.
+Transmitted over radio.
+Heard by at least one neighbor node.`
+	messageStatusSentDMTooltipText = `Sent from PC to device.
+Transmitted over radio.
+Relayed in mesh; waiting target ack.`
+	messageStatusAckedChannelTooltipText = `Sent from PC to device.
+Transmitted over radio.
+Mesh ack received.`
+	messageStatusAckedDMTooltipText = `Sent from PC to device.
+Transmitted over radio.
+Delivered to target node.`
+	messageStatusFailedTooltipText = `Sent from PC to device.
+Transmission or delivery failed.`
+)
+
+func newMessageStatusTooltipCache() messageStatusTooltipCache {
+	return messageStatusTooltipCache{
+		pending:       widget.NewLabel(messageStatusPendingTooltipText),
+		sentChannel:   widget.NewLabel(messageStatusSentChannelTooltipText),
+		sentDM:        widget.NewLabel(messageStatusSentDMTooltipText),
+		ackedChannel:  widget.NewLabel(messageStatusAckedChannelTooltipText),
+		ackedDM:       widget.NewLabel(messageStatusAckedDMTooltipText),
+		failedGeneric: widget.NewLabel(messageStatusFailedTooltipText),
+	}
+}
+
+func messageStatusTooltipContent(m domain.ChatMessage, cache messageStatusTooltipCache) fyne.CanvasObject {
+	if m.Direction != domain.MessageDirectionOut {
+		return nil
+	}
+
+	switch m.Status {
+	case domain.MessageStatusPending:
+		return cache.pending
+	case domain.MessageStatusSent:
+		if domain.IsDMKey(m.ChatKey) {
+			return cache.sentDM
+		}
+
+		return cache.sentChannel
+	case domain.MessageStatusAcked:
+		if domain.IsDMKey(m.ChatKey) {
+			return cache.ackedDM
+		}
+
+		return cache.ackedChannel
+	case domain.MessageStatusFailed:
+		if strings.TrimSpace(m.StatusReason) == "" {
+			return cache.failedGeneric
+		}
+
+		return nil
+	default:
+		return nil
 	}
 }
 

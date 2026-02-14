@@ -24,6 +24,7 @@ type tooltipWidget struct {
 	rich    *widget.RichText
 
 	tooltipText     string
+	tooltipContent  fyne.CanvasObject
 	tooltipSegments []widget.RichTextSegment
 
 	manager *hoverTooltipManager
@@ -56,12 +57,21 @@ func newTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.Rich
 }
 
 func (w *tooltipWidget) SetBadge(text, tooltip string) {
+	w.setLabelBadge(text, strings.TrimSpace(tooltip), nil)
+}
+
+func (w *tooltipWidget) SetBadgeWithContent(text string, tooltip fyne.CanvasObject) {
+	w.setLabelBadge(text, "", tooltip)
+}
+
+func (w *tooltipWidget) setLabelBadge(text, tooltip string, tooltipContent fyne.CanvasObject) {
 	if w.label == nil {
 		return
 	}
 
 	w.hideTooltip()
-	w.tooltipText = strings.TrimSpace(tooltip)
+	w.tooltipText = tooltip
+	w.tooltipContent = tooltipContent
 	w.label.SetText(text)
 }
 
@@ -94,7 +104,13 @@ func (w *tooltipWidget) CreateRenderer() fyne.WidgetRenderer {
 
 func (w *tooltipWidget) buildTooltip() fyne.CanvasObject {
 	if w.label != nil {
-		if strings.TrimSpace(w.label.Text) == "" || w.tooltipText == "" {
+		if strings.TrimSpace(w.label.Text) == "" {
+			return nil
+		}
+		if w.tooltipContent != nil {
+			return w.tooltipContent
+		}
+		if w.tooltipText == "" {
 			return nil
 		}
 

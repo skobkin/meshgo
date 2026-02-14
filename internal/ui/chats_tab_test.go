@@ -508,10 +508,12 @@ func TestMessageStatusBadge_Outgoing(t *testing.T) {
 		want    string
 		hint    string
 	}{
-		{name: "pending", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusPending}, want: "◷", hint: "Pending"},
-		{name: "sent", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent}, want: "✓", hint: "Sent"},
-		{name: "acked", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusAcked}, want: "✓✓", hint: "Acked"},
-		{name: "failed", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusFailed, StatusReason: "NO_ROUTE"}, want: "⚠", hint: "Failed: NO_ROUTE"},
+		{name: "pending", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusPending}, want: "◷", hint: messageStatusPendingTooltipText},
+		{name: "sent channel", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent, ChatKey: "channel:0"}, want: "✓", hint: messageStatusSentChannelTooltipText},
+		{name: "sent dm", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent, ChatKey: "dm:!abcd1234"}, want: "✓", hint: messageStatusSentDMTooltipText},
+		{name: "acked channel", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusAcked, ChatKey: "channel:0"}, want: "✓✓", hint: messageStatusAckedChannelTooltipText},
+		{name: "acked dm", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusAcked, ChatKey: "dm:!abcd1234"}, want: "✓✓", hint: messageStatusAckedDMTooltipText},
+		{name: "failed", message: domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusFailed, StatusReason: "NO_ROUTE"}, want: "⚠", hint: messageStatusFailedTooltipText + "\nReason: NO_ROUTE."},
 	}
 	for _, tc := range tests {
 		got, hint := messageStatusBadge(tc.message)
@@ -521,6 +523,45 @@ func TestMessageStatusBadge_Outgoing(t *testing.T) {
 		if hint != tc.hint {
 			t.Fatalf("%s: expected tooltip %q, got %q", tc.name, tc.hint, hint)
 		}
+	}
+}
+
+func TestMessageStatusTooltipContent_UsesPrebuiltContent(t *testing.T) {
+	cache := newMessageStatusTooltipCache()
+
+	if got := messageStatusTooltipContent(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusPending},
+		cache,
+	); got != cache.pending {
+		t.Fatalf("pending should reuse prebuilt tooltip object")
+	}
+
+	if got := messageStatusTooltipContent(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent, ChatKey: "channel:0"},
+		cache,
+	); got != cache.sentChannel {
+		t.Fatalf("channel sent should reuse prebuilt channel-sent tooltip object")
+	}
+
+	if got := messageStatusTooltipContent(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusSent, ChatKey: "dm:!abcd1234"},
+		cache,
+	); got != cache.sentDM {
+		t.Fatalf("dm sent should reuse prebuilt dm-sent tooltip object")
+	}
+
+	if got := messageStatusTooltipContent(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusAcked, ChatKey: "dm:!abcd1234"},
+		cache,
+	); got != cache.ackedDM {
+		t.Fatalf("dm ack should reuse prebuilt dm tooltip object")
+	}
+
+	if got := messageStatusTooltipContent(
+		domain.ChatMessage{Direction: domain.MessageDirectionOut, Status: domain.MessageStatusFailed, StatusReason: "NO_ROUTE"},
+		cache,
+	); got != nil {
+		t.Fatalf("failed with reason should use dynamic tooltip text")
 	}
 }
 
