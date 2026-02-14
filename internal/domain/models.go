@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/skobkin/meshgo/internal/traceroute"
+)
 
 // ChatType classifies chat destination kind.
 type ChatType int
@@ -143,17 +147,6 @@ type ChannelInfo struct {
 	Title string
 }
 
-// TracerouteStatus describes the lifecycle state of one traceroute request.
-type TracerouteStatus string
-
-const (
-	TracerouteStatusStarted   TracerouteStatus = "started"
-	TracerouteStatusProgress  TracerouteStatus = "progress"
-	TracerouteStatusCompleted TracerouteStatus = "completed"
-	TracerouteStatusFailed    TracerouteStatus = "failed"
-	TracerouteStatusTimedOut  TracerouteStatus = "timed_out"
-)
-
 // TracerouteRecord stores one traceroute run state for future history UI.
 type TracerouteRecord struct {
 	RequestID    string
@@ -161,7 +154,7 @@ type TracerouteRecord struct {
 	StartedAt    time.Time
 	UpdatedAt    time.Time
 	CompletedAt  time.Time
-	Status       TracerouteStatus
+	Status       traceroute.Status
 	ForwardRoute []string
 	ForwardSNR   []int32
 	ReturnRoute  []string

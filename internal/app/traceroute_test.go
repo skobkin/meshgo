@@ -11,6 +11,7 @@ import (
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
 type stubTracerouteSender struct {
@@ -61,7 +62,7 @@ func TestTracerouteServiceStartTraceroute_EnforcesGlobalCooldown(t *testing.T) {
 	if first.RequestID != 42 {
 		t.Fatalf("unexpected request id: %d", first.RequestID)
 	}
-	if first.Status != connectors.TracerouteStatusStarted {
+	if first.Status != traceroute.StatusStarted {
 		t.Fatalf("unexpected status: %s", first.Status)
 	}
 
@@ -108,7 +109,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 		t.Fatalf("start traceroute: %v", err)
 	}
 
-	waitTracerouteStatus(t, sub, connectors.TracerouteStatusStarted)
+	waitTracerouteStatus(t, sub, traceroute.StatusStarted)
 
 	messageBus.Publish(connectors.TopicTraceroute, connectors.TracerouteEvent{
 		RequestID: 100,
@@ -117,7 +118,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 			24,
 		},
 	})
-	progress := waitTracerouteStatus(t, sub, connectors.TracerouteStatusProgress)
+	progress := waitTracerouteStatus(t, sub, traceroute.StatusProgress)
 	if len(progress.ForwardRoute) != 2 {
 		t.Fatalf("unexpected forward route length: %d", len(progress.ForwardRoute))
 	}
@@ -133,7 +134,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 		SnrBack:    []int32{20},
 		IsComplete: true,
 	})
-	completed := waitTracerouteStatus(t, sub, connectors.TracerouteStatusCompleted)
+	completed := waitTracerouteStatus(t, sub, traceroute.StatusCompleted)
 	if len(completed.ReturnRoute) != 2 {
 		t.Fatalf("unexpected return route length: %d", len(completed.ReturnRoute))
 	}
@@ -172,8 +173,8 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 		t.Fatalf("start traceroute: %v", err)
 	}
 
-	waitTracerouteStatus(t, sub, connectors.TracerouteStatusStarted)
-	timedOut := waitTracerouteStatus(t, sub, connectors.TracerouteStatusTimedOut)
+	waitTracerouteStatus(t, sub, traceroute.StatusStarted)
+	timedOut := waitTracerouteStatus(t, sub, traceroute.StatusTimedOut)
 	if timedOut.RequestID != 7 {
 		t.Fatalf("unexpected request id: %d", timedOut.RequestID)
 	}
@@ -182,7 +183,7 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 	}
 }
 
-func waitTracerouteStatus(t *testing.T, sub bus.Subscription, status connectors.TracerouteStatus) connectors.TracerouteUpdate {
+func waitTracerouteStatus(t *testing.T, sub bus.Subscription, status traceroute.Status) connectors.TracerouteUpdate {
 	t.Helper()
 	deadline := time.After(3 * time.Second)
 	for {

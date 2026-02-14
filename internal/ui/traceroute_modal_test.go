@@ -7,6 +7,7 @@ import (
 
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
 func TestTracerouteHopSignalLabel(t *testing.T) {
@@ -35,14 +36,14 @@ func TestFormatTraceroutePath_InvalidSnrLengthUsesUnknowns(t *testing.T) {
 }
 
 func TestTracerouteProgressValue_CompletedAlwaysFull(t *testing.T) {
-	update := connectors.TracerouteUpdate{Status: connectors.TracerouteStatusCompleted}
+	update := connectors.TracerouteUpdate{Status: traceroute.StatusCompleted}
 	if got := tracerouteProgressValue(update, 5*time.Second); got != 1 {
 		t.Fatalf("expected completed progress to be full, got %f", got)
 	}
 }
 
 func TestTracerouteProgressValue_ClampsBounds(t *testing.T) {
-	update := connectors.TracerouteUpdate{Status: connectors.TracerouteStatusProgress}
+	update := connectors.TracerouteUpdate{Status: traceroute.StatusProgress}
 	if got := tracerouteProgressValue(update, -1*time.Second); got != 0 {
 		t.Fatalf("expected negative progress clamp to 0, got %f", got)
 	}
@@ -62,19 +63,19 @@ func TestFormatTracerouteResults(t *testing.T) {
 }
 
 func TestIsTracerouteCopyAvailable(t *testing.T) {
-	if isTracerouteCopyAvailable(connectors.TracerouteStatusStarted) {
+	if isTracerouteCopyAvailable(traceroute.StatusStarted) {
 		t.Fatalf("copy must be unavailable while traceroute is started")
 	}
-	if isTracerouteCopyAvailable(connectors.TracerouteStatusProgress) {
+	if isTracerouteCopyAvailable(traceroute.StatusProgress) {
 		t.Fatalf("copy must be unavailable while traceroute is in progress")
 	}
-	if !isTracerouteCopyAvailable(connectors.TracerouteStatusCompleted) {
+	if !isTracerouteCopyAvailable(traceroute.StatusCompleted) {
 		t.Fatalf("copy must be available when traceroute is completed")
 	}
-	if !isTracerouteCopyAvailable(connectors.TracerouteStatusFailed) {
+	if !isTracerouteCopyAvailable(traceroute.StatusFailed) {
 		t.Fatalf("copy must be available when traceroute failed")
 	}
-	if !isTracerouteCopyAvailable(connectors.TracerouteStatusTimedOut) {
+	if !isTracerouteCopyAvailable(traceroute.StatusTimedOut) {
 		t.Fatalf("copy must be available when traceroute timed out")
 	}
 }
@@ -82,14 +83,14 @@ func TestIsTracerouteCopyAvailable(t *testing.T) {
 func TestTracerouteStatusText(t *testing.T) {
 	cases := []struct {
 		name   string
-		status connectors.TracerouteStatus
+		status traceroute.Status
 		want   string
 	}{
-		{name: "started", status: connectors.TracerouteStatusStarted, want: "Started"},
-		{name: "progress", status: connectors.TracerouteStatusProgress, want: "Waiting"},
-		{name: "completed", status: connectors.TracerouteStatusCompleted, want: "Complete"},
-		{name: "failed", status: connectors.TracerouteStatusFailed, want: "Failed"},
-		{name: "timed out", status: connectors.TracerouteStatusTimedOut, want: "Timed out"},
+		{name: "started", status: traceroute.StatusStarted, want: "Started"},
+		{name: "progress", status: traceroute.StatusProgress, want: "Waiting"},
+		{name: "completed", status: traceroute.StatusCompleted, want: "Complete"},
+		{name: "failed", status: traceroute.StatusFailed, want: "Failed"},
+		{name: "timed out", status: traceroute.StatusTimedOut, want: "Timed out"},
 		{name: "unknown", status: "unknown", want: "Update"},
 	}
 

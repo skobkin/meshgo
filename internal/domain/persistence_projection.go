@@ -151,7 +151,7 @@ func StartPersistenceProjection(
 						StartedAt:    update.StartedAt,
 						UpdatedAt:    update.UpdatedAt,
 						CompletedAt:  update.CompletedAt,
-						Status:       TracerouteStatus(update.Status),
+						Status:       update.Status,
 						ForwardRoute: append([]string(nil), update.ForwardRoute...),
 						ForwardSNR:   append([]int32(nil), update.ForwardSNR...),
 						ReturnRoute:  append([]string(nil), update.ReturnRoute...),

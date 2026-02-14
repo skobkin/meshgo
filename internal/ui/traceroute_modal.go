@@ -18,6 +18,7 @@ import (
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
 const tracerouteUnknownSNR = -128
@@ -214,23 +215,23 @@ func showTracerouteModal(
 
 func tracerouteStatusText(update connectors.TracerouteUpdate) string {
 	switch update.Status {
-	case connectors.TracerouteStatusStarted:
+	case traceroute.StatusStarted:
 		return "Started"
-	case connectors.TracerouteStatusProgress:
+	case traceroute.StatusProgress:
 		return "Waiting"
-	case connectors.TracerouteStatusCompleted:
+	case traceroute.StatusCompleted:
 		return "Complete"
-	case connectors.TracerouteStatusFailed:
+	case traceroute.StatusFailed:
 		return "Failed"
-	case connectors.TracerouteStatusTimedOut:
+	case traceroute.StatusTimedOut:
 		return "Timed out"
 	default:
 		return "Update"
 	}
 }
 
-func isTracerouteRunning(status connectors.TracerouteStatus) bool {
-	return status == connectors.TracerouteStatusStarted || status == connectors.TracerouteStatusProgress
+func isTracerouteRunning(status traceroute.Status) bool {
+	return status == traceroute.StatusStarted || status == traceroute.StatusProgress
 }
 
 func tracerouteElapsedDuration(update connectors.TracerouteUpdate, now time.Time) time.Duration {
@@ -246,7 +247,7 @@ func tracerouteElapsedDuration(update connectors.TracerouteUpdate, now time.Time
 }
 
 func tracerouteProgressValue(update connectors.TracerouteUpdate, elapsedDuration time.Duration) float64 {
-	if update.Status == connectors.TracerouteStatusCompleted {
+	if update.Status == traceroute.StatusCompleted {
 		return 1
 	}
 	progressRatio := elapsedDuration.Seconds() / app.DefaultTracerouteRequestTimeout.Seconds()
@@ -260,10 +261,10 @@ func tracerouteProgressValue(update connectors.TracerouteUpdate, elapsedDuration
 	return progressRatio
 }
 
-func isTracerouteCopyAvailable(status connectors.TracerouteStatus) bool {
-	return status == connectors.TracerouteStatusCompleted ||
-		status == connectors.TracerouteStatusFailed ||
-		status == connectors.TracerouteStatusTimedOut
+func isTracerouteCopyAvailable(status traceroute.Status) bool {
+	return status == traceroute.StatusCompleted ||
+		status == traceroute.StatusFailed ||
+		status == traceroute.StatusTimedOut
 }
 
 func formatTracerouteResults(forwardPath, returnPath string) string {
