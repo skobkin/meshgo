@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
@@ -20,8 +19,6 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
 )
-
-const sidebarConnIconSize float32 = 32
 
 var appLogger = slog.With("component", "ui.app")
 
@@ -85,51 +82,6 @@ func Run(dep RuntimeDependencies) error {
 		"App":   resources.UIIconAppSettings,
 	}
 
-	rightStack := container.NewStack()
-	for _, key := range order {
-		rightStack.Add(tabContent[key])
-		tabContent[key].Hide()
-	}
-	active := "Chats"
-	tabContent[active].Show()
-
-	navButtons := make(map[string]*iconNavButton, len(order))
-	disabledTabs := map[string]bool{}
-
-	updateNavSelection := func() {
-		for name, button := range navButtons {
-			button.SetSelected(name == active && !button.Disabled())
-		}
-	}
-
-	switchTab := func(name string) {
-		if name == active {
-			return
-		}
-		appLogger.Debug("switching sidebar tab", "from", active, "to", name)
-		tabContent[active].Hide()
-		active = name
-		tabContent[active].Show()
-		if onShow, ok := tabContent[active].(interface{ OnShow() }); ok {
-			onShow.OnShow()
-		}
-		updateNavSelection()
-		rightStack.Refresh()
-	}
-
-	left := container.NewVBox()
-	for _, name := range order {
-		nameCopy := name
-		button := newIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), 48, func() {
-			switchTab(nameCopy)
-		})
-		if disabledTabs[name] {
-			button.Disable()
-		}
-		navButtons[name] = button
-		left.Add(button)
-	}
-
 	updateIndicator := newUpdateIndicator(
 		initialVariant,
 		initialUpdateSnapshot,
@@ -140,9 +92,6 @@ func Run(dep RuntimeDependencies) error {
 	)
 	updateButton := updateIndicator.Button()
 
-	updateNavSelection()
-	left.Add(layout.NewSpacer())
-	left.Add(updateButton)
 	connStatusPresenter := newConnectionStatusPresenter(
 		window,
 		settingsConnStatus,
@@ -152,21 +101,23 @@ func Run(dep RuntimeDependencies) error {
 			return localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore)
 		},
 	)
-	sidebarConnIcon := connStatusPresenter.SidebarIcon()
-	left.Add(container.NewCenter(container.NewGridWrap(
-		fyne.NewSquareSize(sidebarConnIconSize),
-		sidebarConnIcon,
-	)))
+	sidebar := buildSidebarLayout(
+		initialVariant,
+		tabContent,
+		order,
+		tabIcons,
+		updateButton,
+		connStatusPresenter.SidebarIcon(),
+	)
+	left := sidebar.left
+	rightStack := sidebar.rightStack
 
 	setTrayIcon := func(_ fyne.ThemeVariant) {}
 	applyThemeResources := func(variant fyne.ThemeVariant) {
 		appLogger.Debug("applying theme resources", "theme", variant)
 		fyApp.SetIcon(resources.AppIconResource(variant))
 		setTrayIcon(variant)
-		for tabName, button := range navButtons {
-			icon := resources.UIIconResource(tabIcons[tabName], variant)
-			button.SetIcon(icon)
-		}
+		sidebar.applyTheme(variant)
 		updateIndicator.ApplyTheme(variant)
 		if mapWidget, ok := mapTab.(*mapTabWidget); ok {
 			mapWidget.applyThemeVariant(variant)
