@@ -78,7 +78,7 @@ func buildSidebarLayout(
 	left := container.NewVBox()
 	for _, name := range order {
 		nameCopy := name
-		button := newIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), 48, func() {
+		button := newIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), func() {
 			switchTab(nameCopy)
 		})
 		navButtons[name] = button

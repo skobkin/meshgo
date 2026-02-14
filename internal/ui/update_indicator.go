@@ -29,7 +29,6 @@ func newUpdateIndicator(
 	}
 	indicator.button = newIconNavButton(
 		resources.UIIconResource(resources.UIIconUpdateAvailable, initialVariant),
-		48,
 		indicator.onTap,
 	)
 	indicator.applySnapshotUI(indicator.snapshot, indicator.known)

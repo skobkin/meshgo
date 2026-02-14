@@ -254,3 +254,30 @@ func TestBuildUpdateChangelogText_StripsLeadingCommitHashes(t *testing.T) {
 		t.Fatalf("expected non-hash line to stay unchanged, got %q", text)
 	}
 }
+
+func TestBuildUpdateChangelogText(t *testing.T) {
+	text := buildUpdateChangelogText([]meshapp.ReleaseInfo{
+		{Version: "0.7.0", Body: "First body"},
+		{Version: "0.6.1", Body: "Second body"},
+	})
+
+	if text == "" {
+		t.Fatalf("expected changelog text")
+	}
+	if !containsAll(text, "0.7.0", "First body", "0.6.1", "Second body") {
+		t.Fatalf("unexpected changelog text: %q", text)
+	}
+}
+
+func containsAll(text string, parts ...string) bool {
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if !strings.Contains(text, part) {
+			return false
+		}
+	}
+
+	return true
+}

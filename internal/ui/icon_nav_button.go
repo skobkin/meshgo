@@ -21,10 +21,12 @@ type iconNavButton struct {
 	hovered  bool
 }
 
-func newIconNavButton(icon fyne.Resource, iconSize float32, onTap func()) *iconNavButton {
+const defaultIconNavButtonSize float32 = 48
+
+func newIconNavButton(icon fyne.Resource, onTap func()) *iconNavButton {
 	b := &iconNavButton{
 		icon:     icon,
-		iconSize: iconSize,
+		iconSize: defaultIconNavButtonSize,
 		onTap:    onTap,
 	}
 	b.ExtendBaseWidget(b)
