@@ -15,10 +15,11 @@ import (
 )
 
 type nodeSettingsActionSpy struct {
-	loadSecurityCalls atomic.Int32
-	loadPositionCalls atomic.Int32
-	loadPowerCalls    atomic.Int32
-	loadDisplayCalls  atomic.Int32
+	loadSecurityCalls  atomic.Int32
+	loadPositionCalls  atomic.Int32
+	loadPowerCalls     atomic.Int32
+	loadDisplayCalls   atomic.Int32
+	loadBluetoothCalls atomic.Int32
 }
 
 func (s *nodeSettingsActionSpy) LoadUserSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error) {
@@ -77,6 +78,16 @@ func (s *nodeSettingsActionSpy) SaveDisplaySettings(_ context.Context, _ app.Nod
 	return nil
 }
 
+func (s *nodeSettingsActionSpy) LoadBluetoothSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeBluetoothSettings, error) {
+	s.loadBluetoothCalls.Add(1)
+
+	return app.NodeBluetoothSettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveBluetoothSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeBluetoothSettings) error {
+	return nil
+}
+
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
 }
@@ -91,6 +102,10 @@ func (s *nodeSettingsActionSpy) PowerLoadCalls() int {
 
 func (s *nodeSettingsActionSpy) DisplayLoadCalls() int {
 	return int(s.loadDisplayCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) BluetoothLoadCalls() int {
+	return int(s.loadBluetoothCalls.Load())
 }
 
 func TestParseSecurityAdminKeysInput_Valid(t *testing.T) {
@@ -320,5 +335,44 @@ func TestNodeTabDisplaySettingsLoadIsLazy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.DisplayLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial display load, got %d", got)
+	}
+}
+
+func TestNodeTabBluetoothSettingsLoadIsLazy(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.BluetoothLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager bluetooth load before selecting Bluetooth tab, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Bluetooth")
+	waitForCondition(t, func() bool {
+		return spy.BluetoothLoadCalls() == 1
+	})
+
+	mustSelectAppTabByText(t, tab, "Display")
+	mustSelectAppTabByText(t, tab, "Bluetooth")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.BluetoothLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial bluetooth load, got %d", got)
 	}
 }

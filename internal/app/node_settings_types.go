@@ -92,3 +92,11 @@ type NodeDisplaySettings struct {
 	CompassOrientation     int32
 	Use12HClock            bool
 }
+
+// NodeBluetoothSettings contains editable Bluetooth config settings.
+type NodeBluetoothSettings struct {
+	NodeID   string
+	Enabled  bool
+	Mode     int32
+	FixedPIN uint32
+}

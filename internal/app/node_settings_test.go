@@ -1318,6 +1318,158 @@ func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing
 	}
 }
 
+func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetConfigRequest() != generated.AdminMessage_BLUETOOTH_CONFIG {
+				t.Fatalf("expected bluetooth config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get bluetooth config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   180,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetConfigResponse{
+						GetConfigResponse: &generated.Config{
+							PayloadVariant: &generated.Config_Bluetooth{
+								Bluetooth: &generated.Config_BluetoothConfig{
+									Enabled:  true,
+									Mode:     generated.Config_BluetoothConfig_FIXED_PIN,
+									FixedPin: 123456,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "180", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadBluetoothSettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load bluetooth settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if !settings.Enabled {
+		t.Fatalf("expected bluetooth enabled to be true")
+	}
+	if settings.Mode != int32(generated.Config_BluetoothConfig_FIXED_PIN) {
+		t.Fatalf("unexpected pairing mode: %d", settings.Mode)
+	}
+	if settings.FixedPIN != 123456 {
+		t.Fatalf("unexpected fixed pin: %d", settings.FixedPIN)
+	}
+}
+
+func TestNodeSettingsServiceSaveBluetoothSettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_bluetooth", "commit"}
+	packetIDs := []uint32{800, 801, 802}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_bluetooth":
+				cfg := payload.GetSetConfig()
+				if cfg == nil {
+					t.Fatalf("expected set config payload")
+				}
+				bluetooth := cfg.GetBluetooth()
+				if bluetooth == nil {
+					t.Fatalf("expected bluetooth config payload")
+				}
+				if !bluetooth.GetEnabled() {
+					t.Fatalf("expected bluetooth enabled payload")
+				}
+				if bluetooth.GetMode() != generated.Config_BluetoothConfig_FIXED_PIN {
+					t.Fatalf("unexpected pairing mode payload")
+				}
+				if bluetooth.GetFixedPin() != 654321 {
+					t.Fatalf("unexpected fixed pin payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SaveBluetoothSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeBluetoothSettings{
+		NodeID:   "!00000001",
+		Enabled:  true,
+		Mode:     int32(generated.Config_BluetoothConfig_FIXED_PIN),
+		FixedPIN: 654321,
+	})
+	if err != nil {
+		t.Fatalf("save bluetooth settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func stringFromUint32(v uint32) string {
 	return strconv.FormatUint(uint64(v), 10)
 }
