@@ -1116,6 +1116,7 @@ func TestNodeSettingsServiceLoadDisplaySettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get display config request")
 			}
+			//goland:noinspection GoDeprecation
 			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
@@ -1239,7 +1240,8 @@ func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing
 					t.Fatalf("unexpected carousel seconds payload")
 				}
 				//nolint:staticcheck // Kept for Android parity while this proto field remains present upstream.
-				if !display.GetCompassNorthTop() {
+				if //goland:noinspection GoDeprecation
+				!display.GetCompassNorthTop() {
 					t.Fatalf("expected compass north top payload")
 				}
 				if !display.GetFlipScreen() {
