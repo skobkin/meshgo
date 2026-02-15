@@ -27,7 +27,7 @@ func TestAutostartDevBuildSkipWarningError(t *testing.T) {
 
 func TestRuntimeSyncAutostartSkipsInDevBuildOnStartup(t *testing.T) {
 	originalVersion := Version
-	Version = DevBuildVersion
+	Version = "main-123-gabcdef"
 	t.Cleanup(func() {
 		Version = originalVersion
 	})
@@ -52,7 +52,7 @@ func TestRuntimeSyncAutostartSkipsInDevBuildOnStartup(t *testing.T) {
 
 func TestRuntimeSyncAutostartReturnsDevWarningOnSettingsSave(t *testing.T) {
 	originalVersion := Version
-	Version = DevBuildVersion
+	Version = "nightly-2026-02-15"
 	t.Cleanup(func() {
 		Version = originalVersion
 	})
@@ -82,7 +82,7 @@ func TestRuntimeSyncAutostartReturnsDevWarningOnSettingsSave(t *testing.T) {
 
 func TestRuntimeSyncAutostartAppliesDisableOnSettingsSaveInDevBuild(t *testing.T) {
 	originalVersion := Version
-	Version = DevBuildVersion
+	Version = "feature-branch-build"
 	t.Cleanup(func() {
 		Version = originalVersion
 	})

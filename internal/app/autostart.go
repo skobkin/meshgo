@@ -6,6 +6,7 @@ import (
 
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/platform"
+	"golang.org/x/mod/semver"
 )
 
 // AutostartSyncWarning signals that config save succeeded but autostart sync failed.
@@ -58,7 +59,7 @@ func (r *Runtime) syncAutostart(cfg config.AppConfig, trigger string) error {
 	}
 
 	version := BuildVersion()
-	if version == DevBuildVersion {
+	if !semver.IsValid(normalizeSemver(version)) {
 		allowDisableSync := trigger == "settings_save" && !cfg.UI.Autostart.Enabled
 		if !allowDisableSync {
 			slog.Info(
