@@ -123,3 +123,21 @@ type NodeBluetoothSettings struct {
 	Mode     int32
 	FixedPIN uint32
 }
+
+// NodeMQTTSettings contains editable MQTT module settings.
+type NodeMQTTSettings struct {
+	NodeID                        string
+	Enabled                       bool
+	Address                       string
+	Username                      string
+	Password                      string
+	EncryptionEnabled             bool
+	JSONEnabled                   bool
+	TLSEnabled                    bool
+	Root                          string
+	ProxyToClientEnabled          bool
+	MapReportingEnabled           bool
+	MapReportPublishIntervalSecs  uint32
+	MapReportPositionPrecision    uint32
+	MapReportShouldReportLocation bool
+}

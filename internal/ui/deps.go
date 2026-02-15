@@ -41,6 +41,8 @@ type NodeSettingsAction interface {
 	SaveDisplaySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeDisplaySettings) error
 	LoadBluetoothSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeBluetoothSettings, error)
 	SaveBluetoothSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeBluetoothSettings) error
+	LoadMQTTSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeMQTTSettings, error)
+	SaveMQTTSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeMQTTSettings) error
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

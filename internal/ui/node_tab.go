@@ -29,6 +29,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	displayTab := container.NewTabItem("Display", displayPage)
 	bluetoothPage, onBluetoothTabOpened := newNodeBluetoothSettingsPage(dep, saveGate)
 	bluetoothTab := container.NewTabItem("Bluetooth", bluetoothPage)
+	mqttPage, onMQTTTabOpened := newNodeMQTTSettingsPage(dep, saveGate)
+	mqttTab := container.NewTabItem("MQTT", mqttPage)
 
 	radioTabs := container.NewAppTabs(
 		loraTab,
@@ -86,7 +88,7 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	deviceTabs.OnSelected = func(_ *container.TabItem) { openSelectedDeviceTab() }
 
 	moduleTabs := container.NewAppTabs(
-		container.NewTabItem("MQTT", newSettingsPlaceholderPage("MQTT module settings editing is planned.")),
+		mqttTab,
 		container.NewTabItem("Serial", newSettingsPlaceholderPage("Serial module settings editing is planned.")),
 		container.NewTabItem("External notification", newSettingsPlaceholderPage("External notification module settings editing is planned.")),
 		container.NewTabItem("Store & Forward", newSettingsPlaceholderPage("Store & Forward module settings editing is planned.")),
@@ -96,6 +98,12 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		container.NewTabItem("Status Message", newSettingsPlaceholderPage("Status Message module settings editing is planned.")),
 	)
 	moduleTabs.SetTabLocation(container.TabLocationTop)
+	openSelectedModuleTab := func() {
+		if moduleTabs.Selected() == mqttTab && onMQTTTabOpened != nil {
+			onMQTTTabOpened()
+		}
+	}
+	moduleTabs.OnSelected = func(_ *container.TabItem) { openSelectedModuleTab() }
 
 	importExportTab := newDisabledTopLevelPage("Import/Export is planned and currently disabled.")
 	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
@@ -121,6 +129,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 			openSelectedRadioTab()
 		case deviceConfigTab:
 			openSelectedDeviceTab()
+		case moduleConfigTab:
+			openSelectedModuleTab()
 		}
 	}
 
@@ -133,6 +143,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 			openSelectedRadioTab()
 		case deviceConfigTab:
 			openSelectedDeviceTab()
+		case moduleConfigTab:
+			openSelectedModuleTab()
 		}
 	}
 

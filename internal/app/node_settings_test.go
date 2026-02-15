@@ -1590,6 +1590,244 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 	}
 }
 
+func TestNodeSettingsServiceLoadMQTTSettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetModuleConfigRequest() != generated.AdminMessage_MQTT_CONFIG {
+				t.Fatalf("expected MQTT module config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get MQTT module config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   181,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetModuleConfigResponse{
+						GetModuleConfigResponse: &generated.ModuleConfig{
+							PayloadVariant: &generated.ModuleConfig_Mqtt{
+								Mqtt: &generated.ModuleConfig_MQTTConfig{
+									Enabled:              true,
+									Address:              "broker.example.org",
+									Username:             "mesh",
+									Password:             "secret",
+									EncryptionEnabled:    true,
+									JsonEnabled:          true,
+									TlsEnabled:           true,
+									Root:                 "mesh",
+									ProxyToClientEnabled: true,
+									MapReportingEnabled:  true,
+									MapReportSettings: &generated.ModuleConfig_MapReportSettings{
+										PublishIntervalSecs:  7200,
+										PositionPrecision:    13,
+										ShouldReportLocation: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "181", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadMQTTSettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load MQTT settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if !settings.Enabled {
+		t.Fatalf("expected MQTT enabled to be true")
+	}
+	if settings.Address != "broker.example.org" {
+		t.Fatalf("unexpected address: %q", settings.Address)
+	}
+	if settings.Username != "mesh" {
+		t.Fatalf("unexpected username: %q", settings.Username)
+	}
+	if settings.Password != "secret" {
+		t.Fatalf("unexpected password: %q", settings.Password)
+	}
+	if !settings.EncryptionEnabled {
+		t.Fatalf("expected encryption enabled to be true")
+	}
+	if !settings.JSONEnabled {
+		t.Fatalf("expected JSON enabled to be true")
+	}
+	if !settings.TLSEnabled {
+		t.Fatalf("expected TLS enabled to be true")
+	}
+	if settings.Root != "mesh" {
+		t.Fatalf("unexpected root topic: %q", settings.Root)
+	}
+	if !settings.ProxyToClientEnabled {
+		t.Fatalf("expected proxy to client enabled to be true")
+	}
+	if !settings.MapReportingEnabled {
+		t.Fatalf("expected map reporting enabled to be true")
+	}
+	if settings.MapReportPublishIntervalSecs != 7200 {
+		t.Fatalf("unexpected map report publish interval: %d", settings.MapReportPublishIntervalSecs)
+	}
+	if settings.MapReportPositionPrecision != 13 {
+		t.Fatalf("unexpected map report position precision: %d", settings.MapReportPositionPrecision)
+	}
+	if !settings.MapReportShouldReportLocation {
+		t.Fatalf("expected map report location consent to be true")
+	}
+}
+
+func TestNodeSettingsServiceSaveMQTTSettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_mqtt", "commit"}
+	packetIDs := []uint32{850, 851, 852}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_mqtt":
+				cfg := payload.GetSetModuleConfig()
+				if cfg == nil {
+					t.Fatalf("expected set module config payload")
+				}
+				mqtt := cfg.GetMqtt()
+				if mqtt == nil {
+					t.Fatalf("expected MQTT module config payload")
+				}
+				if !mqtt.GetEnabled() {
+					t.Fatalf("expected MQTT enabled payload")
+				}
+				if mqtt.GetAddress() != "mqtt.internal" {
+					t.Fatalf("unexpected address payload")
+				}
+				if mqtt.GetUsername() != "mesh-user" {
+					t.Fatalf("unexpected username payload")
+				}
+				if mqtt.GetPassword() != "mesh-pass" {
+					t.Fatalf("unexpected password payload")
+				}
+				if !mqtt.GetEncryptionEnabled() {
+					t.Fatalf("expected encryption enabled payload")
+				}
+				if !mqtt.GetJsonEnabled() {
+					t.Fatalf("expected JSON enabled payload")
+				}
+				if !mqtt.GetTlsEnabled() {
+					t.Fatalf("expected TLS enabled payload")
+				}
+				if mqtt.GetRoot() != "mesh-root" {
+					t.Fatalf("unexpected root payload")
+				}
+				if !mqtt.GetProxyToClientEnabled() {
+					t.Fatalf("expected proxy to client enabled payload")
+				}
+				if !mqtt.GetMapReportingEnabled() {
+					t.Fatalf("expected map reporting enabled payload")
+				}
+				mapReport := mqtt.GetMapReportSettings()
+				if mapReport == nil {
+					t.Fatalf("expected map report settings payload")
+				}
+				if mapReport.GetPublishIntervalSecs() != 3600 {
+					t.Fatalf("unexpected map report publish interval payload")
+				}
+				if mapReport.GetPositionPrecision() != 14 {
+					t.Fatalf("unexpected map report position precision payload")
+				}
+				if !mapReport.GetShouldReportLocation() {
+					t.Fatalf("expected map report location consent payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SaveMQTTSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeMQTTSettings{
+		NodeID:                        "!00000001",
+		Enabled:                       true,
+		Address:                       "mqtt.internal",
+		Username:                      "mesh-user",
+		Password:                      "mesh-pass",
+		EncryptionEnabled:             true,
+		JSONEnabled:                   true,
+		TLSEnabled:                    true,
+		Root:                          "mesh-root",
+		ProxyToClientEnabled:          true,
+		MapReportingEnabled:           true,
+		MapReportPublishIntervalSecs:  3600,
+		MapReportPositionPrecision:    14,
+		MapReportShouldReportLocation: true,
+	})
+	if err != nil {
+		t.Fatalf("save MQTT settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 	t.Parallel()
 
