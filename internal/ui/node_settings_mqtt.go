@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -591,16 +590,11 @@ func cloneNodeMQTTSettings(settings app.NodeMQTTSettings) app.NodeMQTTSettings {
 	return settings
 }
 
-type nodeMQTTUint32Option struct {
-	Label string
-	Value uint32
-}
-
-var nodeMQTTMapPrecisionOptions = func() []nodeMQTTUint32Option {
-	out := make([]nodeMQTTUint32Option, 0, nodeMQTTMapPrecisionMax-nodeMQTTMapPrecisionMin+1)
+var nodeMQTTMapPrecisionOptions = func() []nodeSettingsUint32Option {
+	out := make([]nodeSettingsUint32Option, 0, nodeMQTTMapPrecisionMax-nodeMQTTMapPrecisionMin+1)
 	for bits := nodeMQTTMapPrecisionMin; bits <= nodeMQTTMapPrecisionMax; bits++ {
 		bitsValue := uint32(bits)
-		out = append(out, nodeMQTTUint32Option{
+		out = append(out, nodeSettingsUint32Option{
 			Label: nodeMQTTMapPrecisionKnownLabel(bitsValue),
 			Value: bitsValue,
 		})
@@ -609,56 +603,40 @@ var nodeMQTTMapPrecisionOptions = func() []nodeMQTTUint32Option {
 	return out
 }()
 
-var nodeMQTTMapIntervalOptions = []nodeMQTTUint32Option{
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval1Hour), Value: nodeMQTTMapInterval1Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval2Hours), Value: nodeMQTTMapInterval2Hours},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval3Hours), Value: nodeMQTTMapInterval3Hours},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval4Hours), Value: nodeMQTTMapInterval4Hours},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval5Hours), Value: nodeMQTTMapInterval5Hours},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval6Hours), Value: nodeMQTTMapInterval6Hours},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval12Hour), Value: nodeMQTTMapInterval12Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval18Hour), Value: nodeMQTTMapInterval18Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval24Hour), Value: nodeMQTTMapInterval24Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval36Hour), Value: nodeMQTTMapInterval36Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval48Hour), Value: nodeMQTTMapInterval48Hour},
-	{Label: nodeMQTTMapIntervalKnownLabel(nodeMQTTMapInterval72Hour), Value: nodeMQTTMapInterval72Hour},
+var nodeMQTTMapIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval1Hour, ""), Value: nodeMQTTMapInterval1Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval2Hours, ""), Value: nodeMQTTMapInterval2Hours},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval3Hours, ""), Value: nodeMQTTMapInterval3Hours},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval4Hours, ""), Value: nodeMQTTMapInterval4Hours},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval5Hours, ""), Value: nodeMQTTMapInterval5Hours},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval6Hours, ""), Value: nodeMQTTMapInterval6Hours},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval12Hour, ""), Value: nodeMQTTMapInterval12Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval18Hour, ""), Value: nodeMQTTMapInterval18Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval24Hour, ""), Value: nodeMQTTMapInterval24Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval36Hour, ""), Value: nodeMQTTMapInterval36Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval48Hour, ""), Value: nodeMQTTMapInterval48Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeMQTTMapInterval72Hour, ""), Value: nodeMQTTMapInterval72Hour},
 }
 
 func nodeMQTTSetMapPrecisionSelect(selectWidget *widget.Select, value uint32) {
 	if value == 0 {
 		value = nodeMQTTMapPrecisionDefault
 	}
-	nodeMQTTSetUint32Select(selectWidget, nodeMQTTMapPrecisionOptions, value, nodeMQTTMapPrecisionCustomLabel)
+	nodeSettingsSetUint32Select(selectWidget, nodeMQTTMapPrecisionOptions, value, nodeMQTTMapPrecisionCustomLabel)
 }
 
 func nodeMQTTSetMapIntervalSelect(selectWidget *widget.Select, value uint32) {
 	if value == 0 {
 		value = nodeMQTTMinMapReportIntervalSec
 	}
-	nodeMQTTSetUint32Select(selectWidget, nodeMQTTMapIntervalOptions, value, nodeMQTTMapIntervalCustomLabel)
-}
-
-func nodeMQTTSetUint32Select(
-	selectWidget *widget.Select,
-	options []nodeMQTTUint32Option,
-	value uint32,
-	customLabel func(uint32) string,
-) {
-	optionLabels := nodeMQTTUint32OptionLabels(options)
-	selected := nodeMQTTUint32OptionLabel(value, options)
-	if selected == "" {
-		selected = customLabel(value)
-		optionLabels = append(optionLabels, selected)
-	}
-	selectWidget.SetOptions(optionLabels)
-	selectWidget.SetSelected(selected)
+	nodeSettingsSetUint32Select(selectWidget, nodeMQTTMapIntervalOptions, value, nodeSettingsCustomSecondsLabel)
 }
 
 func nodeMQTTMapPrecisionSelectLabel(value uint32) string {
 	if value == 0 {
 		value = nodeMQTTMapPrecisionDefault
 	}
-	label := nodeMQTTUint32OptionLabel(value, nodeMQTTMapPrecisionOptions)
+	label := nodeSettingsUint32OptionLabel(value, nodeMQTTMapPrecisionOptions)
 	if label != "" {
 		return label
 	}
@@ -670,12 +648,12 @@ func nodeMQTTMapIntervalSelectLabel(value uint32) string {
 	if value == 0 {
 		value = nodeMQTTMinMapReportIntervalSec
 	}
-	label := nodeMQTTUint32OptionLabel(value, nodeMQTTMapIntervalOptions)
+	label := nodeSettingsUint32OptionLabel(value, nodeMQTTMapIntervalOptions)
 	if label != "" {
 		return label
 	}
 
-	return nodeMQTTMapIntervalCustomLabel(value)
+	return nodeSettingsCustomSecondsLabel(value)
 }
 
 func nodeMQTTMapPrecisionKnownLabel(bits uint32) string {
@@ -686,67 +664,12 @@ func nodeMQTTMapPrecisionCustomLabel(bits uint32) string {
 	return fmt.Sprintf("Custom (%d bits)", bits)
 }
 
-func nodeMQTTMapIntervalKnownLabel(seconds uint32) string {
-	if seconds%3600 == 0 {
-		hours := seconds / 3600
-		if hours == 1 {
-			return "1 hour"
-		}
-
-		return fmt.Sprintf("%d hours", hours)
-	}
-	if seconds%60 == 0 {
-		minutes := seconds / 60
-		if minutes == 1 {
-			return "1 minute"
-		}
-
-		return fmt.Sprintf("%d minutes", minutes)
-	}
-	if seconds == 1 {
-		return "1 second"
-	}
-
-	return fmt.Sprintf("%d seconds", seconds)
-}
-
-func nodeMQTTMapIntervalCustomLabel(seconds uint32) string {
-	return fmt.Sprintf("Custom (%d seconds)", seconds)
-}
-
 func nodeMQTTParseMapPrecisionLabel(fieldName, selected string) (uint32, error) {
-	return nodeMQTTParseUint32SelectLabel(fieldName, selected, nodeMQTTMapPrecisionOptions, "Custom (", " bits)")
+	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodeMQTTMapPrecisionOptions, " bits)")
 }
 
 func nodeMQTTParseMapIntervalLabel(fieldName, selected string) (uint32, error) {
-	return nodeMQTTParseUint32SelectLabel(fieldName, selected, nodeMQTTMapIntervalOptions, "Custom (", " seconds)")
-}
-
-func nodeMQTTParseUint32SelectLabel(
-	fieldName, selected string,
-	options []nodeMQTTUint32Option,
-	customPrefix, customSuffix string,
-) (uint32, error) {
-	selected = strings.TrimSpace(selected)
-	if selected == "" {
-		return 0, fmt.Errorf("%s must be selected", fieldName)
-	}
-	for _, option := range options {
-		if option.Label == selected {
-			return option.Value, nil
-		}
-	}
-	if strings.HasPrefix(selected, customPrefix) && strings.HasSuffix(selected, customSuffix) {
-		raw := strings.TrimSuffix(strings.TrimPrefix(selected, customPrefix), customSuffix)
-		value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 32)
-		if err != nil {
-			return 0, fmt.Errorf("%s has invalid value", fieldName)
-		}
-
-		return uint32(value), nil
-	}
-
-	return 0, fmt.Errorf("%s has unsupported value", fieldName)
+	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodeMQTTMapIntervalOptions, nodeSettingsCustomSecondsLabelSuffix)
 }
 
 func nodeMQTTPrecisionBitsToMeters(bits uint32) float64 {
@@ -759,25 +682,6 @@ func nodeMQTTFormatMetricDistance(meters float64) string {
 	}
 
 	return fmt.Sprintf("%.0f m", meters)
-}
-
-func nodeMQTTUint32OptionLabel(value uint32, options []nodeMQTTUint32Option) string {
-	for _, option := range options {
-		if option.Value == value {
-			return option.Label
-		}
-	}
-
-	return ""
-}
-
-func nodeMQTTUint32OptionLabels(options []nodeMQTTUint32Option) []string {
-	out := make([]string, 0, len(options))
-	for _, option := range options {
-		out = append(out, option.Label)
-	}
-
-	return out
 }
 
 func validateNodeMQTTTextFieldLen(fieldName, value string, maxLen int) error {

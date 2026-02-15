@@ -17,6 +17,20 @@ import (
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
+const (
+	nodeDeviceNodeInfoIntervalUnset  uint32 = 0            // unset
+	nodeDeviceNodeInfoInterval3Hour  uint32 = 3 * 60 * 60  // 3 hours
+	nodeDeviceNodeInfoInterval4Hour  uint32 = 4 * 60 * 60  // 4 hours
+	nodeDeviceNodeInfoInterval5Hour  uint32 = 5 * 60 * 60  // 5 hours
+	nodeDeviceNodeInfoInterval6Hour  uint32 = 6 * 60 * 60  // 6 hours
+	nodeDeviceNodeInfoInterval12Hour uint32 = 12 * 60 * 60 // 12 hours
+	nodeDeviceNodeInfoInterval18Hour uint32 = 18 * 60 * 60 // 18 hours
+	nodeDeviceNodeInfoInterval24Hour uint32 = 24 * 60 * 60 // 24 hours
+	nodeDeviceNodeInfoInterval36Hour uint32 = 36 * 60 * 60 // 36 hours
+	nodeDeviceNodeInfoInterval48Hour uint32 = 48 * 60 * 60 // 48 hours
+	nodeDeviceNodeInfoInterval72Hour uint32 = 72 * 60 * 60 // 72 hours
+)
+
 func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) (fyne.CanvasObject, func()) {
 	const pageID = "device.device"
 	nodeSettingsTabLogger.Debug("building node device settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
@@ -32,7 +46,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 	roleSelect := widget.NewSelect(nil, nil)
 	rebroadcastModeSelect := widget.NewSelect(nil, nil)
 	buzzerModeSelect := widget.NewSelect(nil, nil)
-	nodeInfoBroadcastSecsEntry := widget.NewEntry()
+	nodeInfoBroadcastSecsSelect := widget.NewSelect(nil, nil)
 	buttonGPIOEntry := widget.NewEntry()
 	buzzerGPIOEntry := widget.NewEntry()
 	tzdefEntry := widget.NewEntry()
@@ -44,7 +58,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 		widget.NewFormItem("Node ID", nodeIDLabel),
 		widget.NewFormItem("Role", roleSelect),
 		widget.NewFormItem("Rebroadcast mode", rebroadcastModeSelect),
-		widget.NewFormItem("Node info broadcast interval (seconds)", nodeInfoBroadcastSecsEntry),
+		widget.NewFormItem("Node info broadcast interval", nodeInfoBroadcastSecsSelect),
 		widget.NewFormItem("Button GPIO", buttonGPIOEntry),
 		widget.NewFormItem("Buzzer GPIO", buzzerGPIOEntry),
 		widget.NewFormItem("Timezone (POSIX TZDEF)", tzdefEntry),
@@ -74,7 +88,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 
 	setForm := func(settings app.NodeDeviceSettings) {
 		nodeIDLabel.SetText(orUnknown(settings.NodeID))
-		nodeInfoBroadcastSecsEntry.SetText(strconv.FormatUint(uint64(settings.NodeInfoBroadcastSecs), 10))
+		nodeDeviceSetNodeInfoBroadcastIntervalSelect(nodeInfoBroadcastSecsSelect, settings.NodeInfoBroadcastSecs)
 		buttonGPIOEntry.SetText(strconv.FormatUint(uint64(settings.ButtonGPIO), 10))
 		buzzerGPIOEntry.SetText(strconv.FormatUint(uint64(settings.BuzzerGPIO), 10))
 		tzdefEntry.SetText(strings.TrimSpace(settings.Tzdef))
@@ -96,7 +110,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 		return nodeDeviceSettingsFormValues{
 			Role:                   strings.TrimSpace(roleSelect.Selected),
 			RebroadcastMode:        strings.TrimSpace(rebroadcastModeSelect.Selected),
-			NodeInfoBroadcastSecs:  strings.TrimSpace(nodeInfoBroadcastSecsEntry.Text),
+			NodeInfoBroadcastSecs:  strings.TrimSpace(nodeInfoBroadcastSecsSelect.Selected),
 			ButtonGPIO:             strings.TrimSpace(buttonGPIOEntry.Text),
 			BuzzerGPIO:             strings.TrimSpace(buzzerGPIOEntry.Text),
 			Tzdef:                  strings.TrimSpace(tzdefEntry.Text),
@@ -170,7 +184,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 		if err != nil {
 			return app.NodeDeviceSettings{}, err
 		}
-		nodeInfoBroadcastSecs, err := parseNodeDeviceUint32Field("node info broadcast interval", nodeInfoBroadcastSecsEntry.Text)
+		nodeInfoBroadcastSecs, err := nodeDeviceParseNodeInfoBroadcastIntervalLabel("node info broadcast interval", nodeInfoBroadcastSecsSelect.Selected)
 		if err != nil {
 			return app.NodeDeviceSettings{}, err
 		}
@@ -247,7 +261,7 @@ func newNodeDeviceSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSa
 	roleSelect.OnChanged = func(_ string) { markDirty() }
 	rebroadcastModeSelect.OnChanged = func(_ string) { markDirty() }
 	buzzerModeSelect.OnChanged = func(_ string) { markDirty() }
-	nodeInfoBroadcastSecsEntry.OnChanged = func(_ string) { markDirty() }
+	nodeInfoBroadcastSecsSelect.OnChanged = func(_ string) { markDirty() }
 	buttonGPIOEntry.OnChanged = func(_ string) { markDirty() }
 	buzzerGPIOEntry.OnChanged = func(_ string) { markDirty() }
 	tzdefEntry.OnChanged = func(_ string) { markDirty() }
@@ -449,11 +463,25 @@ var nodeDeviceBuzzerModeOptions = []nodeDeviceEnumOption{
 	{Label: "Direct messages only", Value: int32(generated.Config_DeviceConfig_DIRECT_MSG_ONLY)},
 }
 
+var nodeDeviceNodeInfoBroadcastIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoIntervalUnset, "Unset"), Value: nodeDeviceNodeInfoIntervalUnset},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval3Hour, "Unset"), Value: nodeDeviceNodeInfoInterval3Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval4Hour, "Unset"), Value: nodeDeviceNodeInfoInterval4Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval5Hour, "Unset"), Value: nodeDeviceNodeInfoInterval5Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval6Hour, "Unset"), Value: nodeDeviceNodeInfoInterval6Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval12Hour, "Unset"), Value: nodeDeviceNodeInfoInterval12Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval18Hour, "Unset"), Value: nodeDeviceNodeInfoInterval18Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval24Hour, "Unset"), Value: nodeDeviceNodeInfoInterval24Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval36Hour, "Unset"), Value: nodeDeviceNodeInfoInterval36Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval48Hour, "Unset"), Value: nodeDeviceNodeInfoInterval48Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodeDeviceNodeInfoInterval72Hour, "Unset"), Value: nodeDeviceNodeInfoInterval72Hour},
+}
+
 func nodeDeviceFormValuesFromSettings(settings app.NodeDeviceSettings) nodeDeviceSettingsFormValues {
 	return nodeDeviceSettingsFormValues{
 		Role:                   nodeDeviceEnumLabel(settings.Role, nodeDeviceRoleOptions),
 		RebroadcastMode:        nodeDeviceEnumLabel(settings.RebroadcastMode, nodeDeviceRebroadcastModeOptions),
-		NodeInfoBroadcastSecs:  strconv.FormatUint(uint64(settings.NodeInfoBroadcastSecs), 10),
+		NodeInfoBroadcastSecs:  nodeDeviceNodeInfoBroadcastIntervalSelectLabel(settings.NodeInfoBroadcastSecs),
 		ButtonGPIO:             strconv.FormatUint(uint64(settings.ButtonGPIO), 10),
 		BuzzerGPIO:             strconv.FormatUint(uint64(settings.BuzzerGPIO), 10),
 		Tzdef:                  strings.TrimSpace(settings.Tzdef),
@@ -479,6 +507,33 @@ func parseNodeDeviceUint32Field(fieldName, raw string) (uint32, error) {
 	}
 
 	return uint32(value), nil
+}
+
+func nodeDeviceSetNodeInfoBroadcastIntervalSelect(selectWidget *widget.Select, value uint32) {
+	nodeSettingsSetUint32Select(
+		selectWidget,
+		nodeDeviceNodeInfoBroadcastIntervalOptions,
+		value,
+		nodeSettingsCustomSecondsLabel,
+	)
+}
+
+func nodeDeviceNodeInfoBroadcastIntervalSelectLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodeDeviceNodeInfoBroadcastIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodeDeviceParseNodeInfoBroadcastIntervalLabel(fieldName, selected string) (uint32, error) {
+	return nodeSettingsParseUint32SelectLabel(
+		fieldName,
+		selected,
+		nodeDeviceNodeInfoBroadcastIntervalOptions,
+		nodeSettingsCustomSecondsLabelSuffix,
+	)
 }
 
 func nodeDeviceSetEnumSelect(selectWidget *widget.Select, options []nodeDeviceEnumOption, value int32) {

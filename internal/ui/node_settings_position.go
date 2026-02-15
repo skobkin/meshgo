@@ -17,6 +17,52 @@ import (
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
+const (
+	nodePositionBroadcastIntervalUnset  uint32 = 0            // unset
+	nodePositionBroadcastInterval1Min   uint32 = 1 * 60       // 1 minute
+	nodePositionBroadcastInterval90Sec  uint32 = 90           // 90 seconds
+	nodePositionBroadcastInterval5Min   uint32 = 5 * 60       // 5 minutes
+	nodePositionBroadcastInterval15Min  uint32 = 15 * 60      // 15 minutes
+	nodePositionBroadcastInterval1Hour  uint32 = 1 * 60 * 60  // 1 hour
+	nodePositionBroadcastInterval2Hour  uint32 = 2 * 60 * 60  // 2 hours
+	nodePositionBroadcastInterval3Hour  uint32 = 3 * 60 * 60  // 3 hours
+	nodePositionBroadcastInterval4Hour  uint32 = 4 * 60 * 60  // 4 hours
+	nodePositionBroadcastInterval5Hour  uint32 = 5 * 60 * 60  // 5 hours
+	nodePositionBroadcastInterval6Hour  uint32 = 6 * 60 * 60  // 6 hours
+	nodePositionBroadcastInterval12Hour uint32 = 12 * 60 * 60 // 12 hours
+	nodePositionBroadcastInterval18Hour uint32 = 18 * 60 * 60 // 18 hours
+	nodePositionBroadcastInterval24Hour uint32 = 24 * 60 * 60 // 24 hours
+	nodePositionBroadcastInterval36Hour uint32 = 36 * 60 * 60 // 36 hours
+	nodePositionBroadcastInterval48Hour uint32 = 48 * 60 * 60 // 48 hours
+	nodePositionBroadcastInterval72Hour uint32 = 72 * 60 * 60 // 72 hours
+
+	nodePositionSmartMinimumInterval15Sec uint32 = 15          // 15 seconds
+	nodePositionSmartMinimumInterval30Sec uint32 = 30          // 30 seconds
+	nodePositionSmartMinimumInterval45Sec uint32 = 45          // 45 seconds
+	nodePositionSmartMinimumInterval1Min  uint32 = 1 * 60      // 1 minute
+	nodePositionSmartMinimumInterval5Min  uint32 = 5 * 60      // 5 minutes
+	nodePositionSmartMinimumInterval10Min uint32 = 10 * 60     // 10 minutes
+	nodePositionSmartMinimumInterval15Min uint32 = 15 * 60     // 15 minutes
+	nodePositionSmartMinimumInterval30Min uint32 = 30 * 60     // 30 minutes
+	nodePositionSmartMinimumInterval1Hour uint32 = 1 * 60 * 60 // 1 hour
+
+	nodePositionGpsUpdateIntervalUnset  uint32 = 0            // unset
+	nodePositionGpsUpdateInterval8Sec   uint32 = 8            // 8 seconds
+	nodePositionGpsUpdateInterval20Sec  uint32 = 20           // 20 seconds
+	nodePositionGpsUpdateInterval40Sec  uint32 = 40           // 40 seconds
+	nodePositionGpsUpdateInterval1Min   uint32 = 1 * 60       // 1 minute
+	nodePositionGpsUpdateInterval80Sec  uint32 = 80           // 80 seconds
+	nodePositionGpsUpdateInterval2Min   uint32 = 2 * 60       // 2 minutes
+	nodePositionGpsUpdateInterval5Min   uint32 = 5 * 60       // 5 minutes
+	nodePositionGpsUpdateInterval10Min  uint32 = 10 * 60      // 10 minutes
+	nodePositionGpsUpdateInterval15Min  uint32 = 15 * 60      // 15 minutes
+	nodePositionGpsUpdateInterval30Min  uint32 = 30 * 60      // 30 minutes
+	nodePositionGpsUpdateInterval1Hour  uint32 = 1 * 60 * 60  // 1 hour
+	nodePositionGpsUpdateInterval6Hour  uint32 = 6 * 60 * 60  // 6 hours
+	nodePositionGpsUpdateInterval12Hour uint32 = 12 * 60 * 60 // 12 hours
+	nodePositionGpsUpdateInterval24Hour uint32 = 24 * 60 * 60 // 24 hours
+)
+
 func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) (fyne.CanvasObject, func()) {
 	const pageID = "device.position"
 	nodeSettingsTabLogger.Debug("building node position settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
@@ -29,16 +75,16 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 	nodeIDLabel := widget.NewLabel("unknown")
 	nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
-	positionBroadcastSecsEntry := widget.NewEntry()
+	positionBroadcastSecsSelect := widget.NewSelect(nil, nil)
 	smartPositionEnabledBox := widget.NewCheck("", nil)
-	minimumIntervalEntry := widget.NewEntry()
+	minimumIntervalSelect := widget.NewSelect(nil, nil)
 	minimumDistanceEntry := widget.NewEntry()
 	fixedPositionBox := widget.NewCheck("", nil)
 	fixedLatitudeEntry := widget.NewEntry()
 	fixedLongitudeEntry := widget.NewEntry()
 	fixedAltitudeEntry := widget.NewEntry()
 	gpsModeSelect := widget.NewSelect(nil, nil)
-	gpsUpdateIntervalEntry := widget.NewEntry()
+	gpsUpdateIntervalSelect := widget.NewSelect(nil, nil)
 	rxGPIOEntry := widget.NewEntry()
 	txGPIOEntry := widget.NewEntry()
 	gpsEnGPIOEntry := widget.NewEntry()
@@ -70,16 +116,16 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeIDLabel),
-		widget.NewFormItem("Position broadcast interval (seconds)", positionBroadcastSecsEntry),
+		widget.NewFormItem("Position broadcast interval", positionBroadcastSecsSelect),
 		widget.NewFormItem("Smart position enabled", smartPositionEnabledBox),
-		widget.NewFormItem("Smart minimum interval (seconds)", minimumIntervalEntry),
+		widget.NewFormItem("Smart minimum interval", minimumIntervalSelect),
 		widget.NewFormItem("Smart minimum distance (meters)", minimumDistanceEntry),
 		widget.NewFormItem("Use fixed position", fixedPositionBox),
 		widget.NewFormItem("Fixed latitude", fixedLatitudeEntry),
 		widget.NewFormItem("Fixed longitude", fixedLongitudeEntry),
 		widget.NewFormItem("Fixed altitude (meters)", fixedAltitudeEntry),
 		widget.NewFormItem("GPS mode (physical hardware)", gpsModeSelect),
-		widget.NewFormItem("GPS update interval (seconds)", gpsUpdateIntervalEntry),
+		widget.NewFormItem("GPS update interval", gpsUpdateIntervalSelect),
 		widget.NewFormItem("Position flags", positionFlags),
 		widget.NewFormItem("GPS RX GPIO", rxGPIOEntry),
 		widget.NewFormItem("GPS TX GPIO", txGPIOEntry),
@@ -106,9 +152,9 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 
 	setForm := func(settings app.NodePositionSettings) {
 		nodeIDLabel.SetText(orUnknown(settings.NodeID))
-		positionBroadcastSecsEntry.SetText(strconv.FormatUint(uint64(settings.PositionBroadcastSecs), 10))
+		nodePositionSetBroadcastIntervalSelect(positionBroadcastSecsSelect, settings.PositionBroadcastSecs)
 		smartPositionEnabledBox.SetChecked(settings.PositionBroadcastSmartEnabled)
-		minimumIntervalEntry.SetText(strconv.FormatUint(uint64(settings.BroadcastSmartMinimumIntervalSecs), 10))
+		nodePositionSetSmartMinimumIntervalSelect(minimumIntervalSelect, settings.BroadcastSmartMinimumIntervalSecs)
 		minimumDistanceEntry.SetText(strconv.FormatUint(uint64(settings.BroadcastSmartMinimumDistance), 10))
 		fixedPositionBox.SetChecked(settings.FixedPosition)
 		if settings.FixedLatitude != nil {
@@ -127,7 +173,7 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 			fixedAltitudeEntry.SetText("")
 		}
 		nodePositionSetEnumSelect(gpsModeSelect, nodePositionGpsModeOptions, settings.GpsMode)
-		gpsUpdateIntervalEntry.SetText(strconv.FormatUint(uint64(settings.GpsUpdateInterval), 10))
+		nodePositionSetGpsUpdateIntervalSelect(gpsUpdateIntervalSelect, settings.GpsUpdateInterval)
 		flagAltitudeBox.SetChecked(nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_ALTITUDE)))
 		flagAltitudeMSLBox.SetChecked(nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_ALTITUDE_MSL)))
 		flagGeoidalSeparationBox.SetChecked(nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_GEOIDAL_SEPARATION)))
@@ -151,16 +197,16 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 
 	readFormValues := func() nodePositionSettingsFormValues {
 		return nodePositionSettingsFormValues{
-			PositionBroadcastSecs:             strings.TrimSpace(positionBroadcastSecsEntry.Text),
+			PositionBroadcastSecs:             strings.TrimSpace(positionBroadcastSecsSelect.Selected),
 			PositionBroadcastSmartEnabled:     smartPositionEnabledBox.Checked,
-			BroadcastSmartMinimumIntervalSecs: strings.TrimSpace(minimumIntervalEntry.Text),
+			BroadcastSmartMinimumIntervalSecs: strings.TrimSpace(minimumIntervalSelect.Selected),
 			BroadcastSmartMinimumDistance:     strings.TrimSpace(minimumDistanceEntry.Text),
 			FixedPosition:                     fixedPositionBox.Checked,
 			FixedLatitude:                     strings.TrimSpace(fixedLatitudeEntry.Text),
 			FixedLongitude:                    strings.TrimSpace(fixedLongitudeEntry.Text),
 			FixedAltitude:                     strings.TrimSpace(fixedAltitudeEntry.Text),
 			GpsMode:                           strings.TrimSpace(gpsModeSelect.Selected),
-			GpsUpdateInterval:                 strings.TrimSpace(gpsUpdateIntervalEntry.Text),
+			GpsUpdateInterval:                 strings.TrimSpace(gpsUpdateIntervalSelect.Selected),
 			FlagAltitude:                      flagAltitudeBox.Checked,
 			FlagAltitudeMSL:                   flagAltitudeMSLBox.Checked,
 			FlagGeoidalSeparation:             flagGeoidalSeparationBox.Checked,
@@ -191,10 +237,10 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 		}
 
 		if !isSaving && smartPositionEnabledBox.Checked {
-			minimumIntervalEntry.Enable()
+			minimumIntervalSelect.Enable()
 			minimumDistanceEntry.Enable()
 		} else {
-			minimumIntervalEntry.Disable()
+			minimumIntervalSelect.Disable()
 			minimumDistanceEntry.Disable()
 		}
 
@@ -210,10 +256,10 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 
 		if !isSaving && !fixedPositionBox.Checked {
 			gpsModeSelect.Enable()
-			gpsUpdateIntervalEntry.Enable()
+			gpsUpdateIntervalSelect.Enable()
 		} else {
 			gpsModeSelect.Disable()
-			gpsUpdateIntervalEntry.Disable()
+			gpsUpdateIntervalSelect.Disable()
 		}
 	}
 
@@ -284,11 +330,11 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 	}
 
 	buildSettingsFromForm := func(target app.NodeSettingsTarget) (app.NodePositionSettings, error) {
-		positionBroadcastSecs, err := parseNodePositionUint32Field("position broadcast interval", positionBroadcastSecsEntry.Text)
+		positionBroadcastSecs, err := nodePositionParseBroadcastIntervalLabel("position broadcast interval", positionBroadcastSecsSelect.Selected)
 		if err != nil {
 			return app.NodePositionSettings{}, err
 		}
-		broadcastSmartMinimumIntervalSecs, err := parseNodePositionUint32Field("smart minimum interval", minimumIntervalEntry.Text)
+		broadcastSmartMinimumIntervalSecs, err := nodePositionParseSmartMinimumIntervalLabel("smart minimum interval", minimumIntervalSelect.Selected)
 		if err != nil {
 			return app.NodePositionSettings{}, err
 		}
@@ -300,7 +346,7 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 		if err != nil {
 			return app.NodePositionSettings{}, err
 		}
-		gpsUpdateInterval, err := parseNodePositionUint32Field("GPS update interval", gpsUpdateIntervalEntry.Text)
+		gpsUpdateInterval, err := nodePositionParseGpsUpdateIntervalLabel("GPS update interval", gpsUpdateIntervalSelect.Selected)
 		if err != nil {
 			return app.NodePositionSettings{}, err
 		}
@@ -404,16 +450,16 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 		}()
 	}
 
-	positionBroadcastSecsEntry.OnChanged = func(_ string) { markDirty() }
+	positionBroadcastSecsSelect.OnChanged = func(_ string) { markDirty() }
 	smartPositionEnabledBox.OnChanged = func(_ bool) { markDirty() }
-	minimumIntervalEntry.OnChanged = func(_ string) { markDirty() }
+	minimumIntervalSelect.OnChanged = func(_ string) { markDirty() }
 	minimumDistanceEntry.OnChanged = func(_ string) { markDirty() }
 	fixedPositionBox.OnChanged = func(_ bool) { markDirty() }
 	fixedLatitudeEntry.OnChanged = func(_ string) { markDirty() }
 	fixedLongitudeEntry.OnChanged = func(_ string) { markDirty() }
 	fixedAltitudeEntry.OnChanged = func(_ string) { markDirty() }
 	gpsModeSelect.OnChanged = func(_ string) { markDirty() }
-	gpsUpdateIntervalEntry.OnChanged = func(_ string) { markDirty() }
+	gpsUpdateIntervalSelect.OnChanged = func(_ string) { markDirty() }
 	flagAltitudeBox.OnChanged = func(_ bool) { markDirty() }
 	flagAltitudeMSLBox.OnChanged = func(_ bool) { markDirty() }
 	flagGeoidalSeparationBox.OnChanged = func(_ bool) { markDirty() }
@@ -608,6 +654,56 @@ var nodePositionGpsModeOptions = []nodePositionEnumOption{
 	{Label: "Not present", Value: int32(generated.Config_PositionConfig_NOT_PRESENT)},
 }
 
+var nodePositionBroadcastIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastIntervalUnset, "Unset"), Value: nodePositionBroadcastIntervalUnset},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval1Min, "Unset"), Value: nodePositionBroadcastInterval1Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval90Sec, "Unset"), Value: nodePositionBroadcastInterval90Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval5Min, "Unset"), Value: nodePositionBroadcastInterval5Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval15Min, "Unset"), Value: nodePositionBroadcastInterval15Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval1Hour, "Unset"), Value: nodePositionBroadcastInterval1Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval2Hour, "Unset"), Value: nodePositionBroadcastInterval2Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval3Hour, "Unset"), Value: nodePositionBroadcastInterval3Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval4Hour, "Unset"), Value: nodePositionBroadcastInterval4Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval5Hour, "Unset"), Value: nodePositionBroadcastInterval5Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval6Hour, "Unset"), Value: nodePositionBroadcastInterval6Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval12Hour, "Unset"), Value: nodePositionBroadcastInterval12Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval18Hour, "Unset"), Value: nodePositionBroadcastInterval18Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval24Hour, "Unset"), Value: nodePositionBroadcastInterval24Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval36Hour, "Unset"), Value: nodePositionBroadcastInterval36Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval48Hour, "Unset"), Value: nodePositionBroadcastInterval48Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionBroadcastInterval72Hour, "Unset"), Value: nodePositionBroadcastInterval72Hour},
+}
+
+var nodePositionSmartMinimumIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval15Sec, "Unset"), Value: nodePositionSmartMinimumInterval15Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval30Sec, "Unset"), Value: nodePositionSmartMinimumInterval30Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval45Sec, "Unset"), Value: nodePositionSmartMinimumInterval45Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval1Min, "Unset"), Value: nodePositionSmartMinimumInterval1Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval5Min, "Unset"), Value: nodePositionSmartMinimumInterval5Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval10Min, "Unset"), Value: nodePositionSmartMinimumInterval10Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval15Min, "Unset"), Value: nodePositionSmartMinimumInterval15Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval30Min, "Unset"), Value: nodePositionSmartMinimumInterval30Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionSmartMinimumInterval1Hour, "Unset"), Value: nodePositionSmartMinimumInterval1Hour},
+}
+
+var nodePositionGpsUpdateIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateIntervalUnset, "Unset"), Value: nodePositionGpsUpdateIntervalUnset},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval8Sec, "Unset"), Value: nodePositionGpsUpdateInterval8Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval20Sec, "Unset"), Value: nodePositionGpsUpdateInterval20Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval40Sec, "Unset"), Value: nodePositionGpsUpdateInterval40Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval1Min, "Unset"), Value: nodePositionGpsUpdateInterval1Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval80Sec, "Unset"), Value: nodePositionGpsUpdateInterval80Sec},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval2Min, "Unset"), Value: nodePositionGpsUpdateInterval2Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval5Min, "Unset"), Value: nodePositionGpsUpdateInterval5Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval10Min, "Unset"), Value: nodePositionGpsUpdateInterval10Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval15Min, "Unset"), Value: nodePositionGpsUpdateInterval15Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval30Min, "Unset"), Value: nodePositionGpsUpdateInterval30Min},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval1Hour, "Unset"), Value: nodePositionGpsUpdateInterval1Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval6Hour, "Unset"), Value: nodePositionGpsUpdateInterval6Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval12Hour, "Unset"), Value: nodePositionGpsUpdateInterval12Hour},
+	{Label: nodeSettingsSecondsKnownLabel(nodePositionGpsUpdateInterval24Hour, "Unset"), Value: nodePositionGpsUpdateInterval24Hour},
+}
+
 func nodePositionFormValuesFromSettings(settings app.NodePositionSettings) nodePositionSettingsFormValues {
 	fixedLatitude := ""
 	if settings.FixedLatitude != nil {
@@ -623,16 +719,16 @@ func nodePositionFormValuesFromSettings(settings app.NodePositionSettings) nodeP
 	}
 
 	return nodePositionSettingsFormValues{
-		PositionBroadcastSecs:             strconv.FormatUint(uint64(settings.PositionBroadcastSecs), 10),
+		PositionBroadcastSecs:             nodePositionBroadcastIntervalSelectLabel(settings.PositionBroadcastSecs),
 		PositionBroadcastSmartEnabled:     settings.PositionBroadcastSmartEnabled,
-		BroadcastSmartMinimumIntervalSecs: strconv.FormatUint(uint64(settings.BroadcastSmartMinimumIntervalSecs), 10),
+		BroadcastSmartMinimumIntervalSecs: nodePositionSmartMinimumIntervalSelectLabel(settings.BroadcastSmartMinimumIntervalSecs),
 		BroadcastSmartMinimumDistance:     strconv.FormatUint(uint64(settings.BroadcastSmartMinimumDistance), 10),
 		FixedPosition:                     settings.FixedPosition,
 		FixedLatitude:                     fixedLatitude,
 		FixedLongitude:                    fixedLongitude,
 		FixedAltitude:                     fixedAltitude,
 		GpsMode:                           nodePositionEnumLabel(settings.GpsMode, nodePositionGpsModeOptions),
-		GpsUpdateInterval:                 strconv.FormatUint(uint64(settings.GpsUpdateInterval), 10),
+		GpsUpdateInterval:                 nodePositionGpsUpdateIntervalSelectLabel(settings.GpsUpdateInterval),
 		FlagAltitude:                      nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_ALTITUDE)),
 		FlagAltitudeMSL:                   nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_ALTITUDE_MSL)),
 		FlagGeoidalSeparation:             nodePositionFlagSet(settings.PositionFlags, uint32(generated.Config_PositionConfig_GEOIDAL_SEPARATION)),
@@ -763,6 +859,72 @@ func parseNodePositionLongitudeField(fieldName, raw string) (float64, error) {
 	}
 
 	return value, nil
+}
+
+func nodePositionSetBroadcastIntervalSelect(selectWidget *widget.Select, value uint32) {
+	nodeSettingsSetUint32Select(selectWidget, nodePositionBroadcastIntervalOptions, value, nodeSettingsCustomSecondsLabel)
+}
+
+func nodePositionSetSmartMinimumIntervalSelect(selectWidget *widget.Select, value uint32) {
+	nodeSettingsSetUint32Select(selectWidget, nodePositionSmartMinimumIntervalOptions, value, nodeSettingsCustomSecondsLabel)
+}
+
+func nodePositionSetGpsUpdateIntervalSelect(selectWidget *widget.Select, value uint32) {
+	nodeSettingsSetUint32Select(selectWidget, nodePositionGpsUpdateIntervalOptions, value, nodeSettingsCustomSecondsLabel)
+}
+
+func nodePositionBroadcastIntervalSelectLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodePositionBroadcastIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodePositionSmartMinimumIntervalSelectLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodePositionSmartMinimumIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodePositionGpsUpdateIntervalSelectLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodePositionGpsUpdateIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodePositionParseBroadcastIntervalLabel(fieldName, selected string) (uint32, error) {
+	return nodeSettingsParseUint32SelectLabel(
+		fieldName,
+		selected,
+		nodePositionBroadcastIntervalOptions,
+		nodeSettingsCustomSecondsLabelSuffix,
+	)
+}
+
+func nodePositionParseSmartMinimumIntervalLabel(fieldName, selected string) (uint32, error) {
+	return nodeSettingsParseUint32SelectLabel(
+		fieldName,
+		selected,
+		nodePositionSmartMinimumIntervalOptions,
+		nodeSettingsCustomSecondsLabelSuffix,
+	)
+}
+
+func nodePositionParseGpsUpdateIntervalLabel(fieldName, selected string) (uint32, error) {
+	return nodeSettingsParseUint32SelectLabel(
+		fieldName,
+		selected,
+		nodePositionGpsUpdateIntervalOptions,
+		nodeSettingsCustomSecondsLabelSuffix,
+	)
 }
 
 func enrichNodePositionSettingsWithLocalCoordinates(settings app.NodePositionSettings, dep RuntimeDependencies) app.NodePositionSettings {
