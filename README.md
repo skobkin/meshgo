@@ -47,9 +47,9 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 </details>
 <details>
-<summary>Node User settings</summary>
+<summary>Node settings</summary>
 
-![node user settings](docs/screenshot_node_settings_user.png)
+![node user settings](docs/screenshot_node_settings_device.png)
 
 </details>
 <details>
