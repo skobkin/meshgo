@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"sync"
 
 	"fyne.io/fyne/v2"
 
@@ -11,6 +12,7 @@ import (
 
 type updateIndicator struct {
 	button     *iconNavButton
+	mu         sync.RWMutex
 	snapshot   meshapp.UpdateSnapshot
 	known      bool
 	onOpenInfo func(meshapp.UpdateSnapshot)
@@ -44,10 +46,12 @@ func (u *updateIndicator) ApplyTheme(variant fyne.ThemeVariant) {
 }
 
 func (u *updateIndicator) ApplySnapshot(snapshot meshapp.UpdateSnapshot) {
+	u.mu.Lock()
 	prevSnapshot := u.snapshot
 	prevKnown := u.known
 	u.snapshot = snapshot
 	u.known = true
+	u.mu.Unlock()
 
 	if !prevKnown || prevSnapshot.UpdateAvailable != snapshot.UpdateAvailable || prevSnapshot.Latest.Version != snapshot.Latest.Version {
 		appLogger.Info(
@@ -67,6 +71,13 @@ func (u *updateIndicator) ApplySnapshot(snapshot meshapp.UpdateSnapshot) {
 	u.applySnapshotUI(snapshot, true)
 }
 
+func (u *updateIndicator) Snapshot() (meshapp.UpdateSnapshot, bool) {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+
+	return u.snapshot, u.known
+}
+
 func (u *updateIndicator) applySnapshotUI(snapshot meshapp.UpdateSnapshot, known bool) {
 	if known && snapshot.UpdateAvailable {
 		u.button.SetText(snapshot.Latest.Version)
@@ -79,18 +90,22 @@ func (u *updateIndicator) applySnapshotUI(snapshot meshapp.UpdateSnapshot, known
 }
 
 func (u *updateIndicator) onTap() {
-	if !u.known || !u.snapshot.UpdateAvailable {
+	u.mu.RLock()
+	known := u.known
+	snapshot := u.snapshot
+	u.mu.RUnlock()
+	if !known || !snapshot.UpdateAvailable {
 		appLogger.Debug("update button tap ignored: no available update")
 
 		return
 	}
 	appLogger.Info(
 		"opening update dialog",
-		"current_version", strings.TrimSpace(u.snapshot.CurrentVersion),
-		"latest_version", strings.TrimSpace(u.snapshot.Latest.Version),
-		"release_count", len(u.snapshot.Releases),
+		"current_version", strings.TrimSpace(snapshot.CurrentVersion),
+		"latest_version", strings.TrimSpace(snapshot.Latest.Version),
+		"release_count", len(snapshot.Releases),
 	)
 	if u.onOpenInfo != nil {
-		u.onOpenInfo(u.snapshot)
+		u.onOpenInfo(snapshot)
 	}
 }

@@ -3,7 +3,6 @@ package ui
 import (
 	"io"
 	"log/slog"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -63,10 +62,15 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 	})
 
 	waitForCondition(t, func() bool {
-		return strings.Contains(statusLabel.Text, "connected") &&
-			strings.Contains(statusLabel.Text, "/dev/ttyUSB0") &&
-			indicator.Button().Visible() &&
-			indicator.Button().text == "0.7.0" &&
+		status := presenter.CurrentStatus()
+		snapshot, known := indicator.Snapshot()
+
+		return status.State == connectors.ConnectionStateConnected &&
+			status.TransportName == "serial" &&
+			status.Target == "/dev/ttyUSB0" &&
+			known &&
+			snapshot.UpdateAvailable &&
+			snapshot.Latest.Version == "0.7.0" &&
 			refreshCalls.Load() >= 1
 	})
 
@@ -85,10 +89,16 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 	})
 
 	waitForCondition(t, func() bool {
-		return strings.Contains(statusLabel.Text, "disconnected") &&
-			strings.Contains(statusLabel.Text, "link lost") &&
-			!indicator.Button().Visible() &&
-			indicator.Button().text == "" &&
+		status := presenter.CurrentStatus()
+		snapshot, known := indicator.Snapshot()
+
+		return status.State == connectors.ConnectionStateDisconnected &&
+			status.TransportName == "serial" &&
+			status.Target == "/dev/ttyUSB0" &&
+			status.Err == "link lost" &&
+			known &&
+			!snapshot.UpdateAvailable &&
+			snapshot.Latest.Version == "0.7.0" &&
 			refreshCalls.Load() >= 2
 	})
 }

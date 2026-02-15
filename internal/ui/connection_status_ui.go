@@ -71,6 +71,13 @@ func (p *connectionStatusPresenter) ApplyTheme(variant fyne.ThemeVariant) {
 	}
 }
 
+func (p *connectionStatusPresenter) CurrentStatus() connectors.ConnectionStatus {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.current
+}
+
 func (p *connectionStatusPresenter) applyUI(status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
 	localShortName := ""
 	if p.localShortName != nil {
