@@ -38,6 +38,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		securityTab,
 	)
 	radioTabs.SetTabLocation(container.TabLocationTop)
+	// Keep unimplemented tabs visibly unavailable, matching top-level disabled sections.
+	radioTabs.DisableIndex(1)
 	openSelectedRadioTab := func() {
 		switch radioTabs.Selected() {
 		case loraTab:
@@ -98,6 +100,13 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		container.NewTabItem("Status Message", newSettingsPlaceholderPage("Status Message module settings editing is planned.")),
 	)
 	moduleTabs.SetTabLocation(container.TabLocationTop)
+	moduleTabs.DisableIndex(1)
+	moduleTabs.DisableIndex(2)
+	moduleTabs.DisableIndex(3)
+	moduleTabs.DisableIndex(4)
+	moduleTabs.DisableIndex(5)
+	moduleTabs.DisableIndex(6)
+	moduleTabs.DisableIndex(7)
 	openSelectedModuleTab := func() {
 		if moduleTabs.Selected() == mqttTab && onMQTTTabOpened != nil {
 			onMQTTTabOpened()
