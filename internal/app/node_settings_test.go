@@ -1318,6 +1318,278 @@ func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing
 	}
 }
 
+func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetConfigRequest() != generated.AdminMessage_LORA_CONFIG {
+				t.Fatalf("expected LoRa config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get LoRa config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   175,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetConfigResponse{
+						GetConfigResponse: &generated.Config{
+							PayloadVariant: &generated.Config_Lora{
+								Lora: &generated.Config_LoRaConfig{
+									UsePreset:           true,
+									ModemPreset:         generated.Config_LoRaConfig_MEDIUM_FAST,
+									Bandwidth:           250,
+									SpreadFactor:        11,
+									CodingRate:          6,
+									FrequencyOffset:     12.25,
+									Region:              generated.Config_LoRaConfig_EU_868,
+									HopLimit:            4,
+									TxEnabled:           true,
+									TxPower:             27,
+									ChannelNum:          12,
+									OverrideDutyCycle:   true,
+									Sx126XRxBoostedGain: true,
+									OverrideFrequency:   869.525,
+									PaFanDisabled:       true,
+									IgnoreIncoming:      []uint32{11, 22},
+									IgnoreMqtt:          true,
+									ConfigOkToMqtt:      true,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "175", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadLoRaSettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load LoRa settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if !settings.UsePreset {
+		t.Fatalf("expected use preset to be true")
+	}
+	if settings.ModemPreset != int32(generated.Config_LoRaConfig_MEDIUM_FAST) {
+		t.Fatalf("unexpected modem preset: %d", settings.ModemPreset)
+	}
+	if settings.Bandwidth != 250 {
+		t.Fatalf("unexpected bandwidth: %d", settings.Bandwidth)
+	}
+	if settings.SpreadFactor != 11 {
+		t.Fatalf("unexpected spread factor: %d", settings.SpreadFactor)
+	}
+	if settings.CodingRate != 6 {
+		t.Fatalf("unexpected coding rate: %d", settings.CodingRate)
+	}
+	if settings.FrequencyOffset != 12.25 {
+		t.Fatalf("unexpected frequency offset: %f", settings.FrequencyOffset)
+	}
+	if settings.Region != int32(generated.Config_LoRaConfig_EU_868) {
+		t.Fatalf("unexpected region: %d", settings.Region)
+	}
+	if settings.HopLimit != 4 {
+		t.Fatalf("unexpected hop limit: %d", settings.HopLimit)
+	}
+	if !settings.TxEnabled {
+		t.Fatalf("expected tx enabled to be true")
+	}
+	if settings.TxPower != 27 {
+		t.Fatalf("unexpected tx power: %d", settings.TxPower)
+	}
+	if settings.ChannelNum != 12 {
+		t.Fatalf("unexpected channel num: %d", settings.ChannelNum)
+	}
+	if !settings.OverrideDutyCycle {
+		t.Fatalf("expected override duty cycle to be true")
+	}
+	if !settings.Sx126XRxBoostedGain {
+		t.Fatalf("expected sx126x rx boosted gain to be true")
+	}
+	if settings.OverrideFrequency != 869.525 {
+		t.Fatalf("unexpected override frequency: %f", settings.OverrideFrequency)
+	}
+	if !settings.PaFanDisabled {
+		t.Fatalf("expected pa fan disabled to be true")
+	}
+	if len(settings.IgnoreIncoming) != 2 || settings.IgnoreIncoming[0] != 11 || settings.IgnoreIncoming[1] != 22 {
+		t.Fatalf("unexpected ignore incoming list: %#v", settings.IgnoreIncoming)
+	}
+	if !settings.IgnoreMqtt {
+		t.Fatalf("expected ignore mqtt to be true")
+	}
+	if !settings.ConfigOkToMqtt {
+		t.Fatalf("expected ok-to-mqtt to be true")
+	}
+}
+
+func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_lora", "commit"}
+	packetIDs := []uint32{750, 751, 752}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_lora":
+				cfg := payload.GetSetConfig()
+				if cfg == nil {
+					t.Fatalf("expected set config payload")
+				}
+				lora := cfg.GetLora()
+				if lora == nil {
+					t.Fatalf("expected LoRa config payload")
+				}
+				if !lora.GetUsePreset() {
+					t.Fatalf("expected use preset payload")
+				}
+				if lora.GetModemPreset() != generated.Config_LoRaConfig_SHORT_FAST {
+					t.Fatalf("unexpected modem preset payload")
+				}
+				if lora.GetBandwidth() != 250 {
+					t.Fatalf("unexpected bandwidth payload")
+				}
+				if lora.GetSpreadFactor() != 10 {
+					t.Fatalf("unexpected spread factor payload")
+				}
+				if lora.GetCodingRate() != 5 {
+					t.Fatalf("unexpected coding rate payload")
+				}
+				if lora.GetFrequencyOffset() != 1.5 {
+					t.Fatalf("unexpected frequency offset payload")
+				}
+				if lora.GetRegion() != generated.Config_LoRaConfig_US {
+					t.Fatalf("unexpected region payload")
+				}
+				if lora.GetHopLimit() != 3 {
+					t.Fatalf("unexpected hop limit payload")
+				}
+				if !lora.GetTxEnabled() {
+					t.Fatalf("expected tx enabled payload")
+				}
+				if lora.GetTxPower() != 20 {
+					t.Fatalf("unexpected tx power payload")
+				}
+				if lora.GetChannelNum() != 8 {
+					t.Fatalf("unexpected channel num payload")
+				}
+				if !lora.GetOverrideDutyCycle() {
+					t.Fatalf("expected override duty cycle payload")
+				}
+				if !lora.GetSx126XRxBoostedGain() {
+					t.Fatalf("expected sx126x rx boosted gain payload")
+				}
+				if lora.GetOverrideFrequency() != 915.5 {
+					t.Fatalf("unexpected override frequency payload")
+				}
+				if !lora.GetPaFanDisabled() {
+					t.Fatalf("expected pa fan disabled payload")
+				}
+				if len(lora.GetIgnoreIncoming()) != 2 || lora.GetIgnoreIncoming()[0] != 123 || lora.GetIgnoreIncoming()[1] != 456 {
+					t.Fatalf("unexpected ignore incoming payload: %#v", lora.GetIgnoreIncoming())
+				}
+				if !lora.GetIgnoreMqtt() {
+					t.Fatalf("expected ignore mqtt payload")
+				}
+				if !lora.GetConfigOkToMqtt() {
+					t.Fatalf("expected ok-to-mqtt payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SaveLoRaSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeLoRaSettings{
+		NodeID:              "!00000001",
+		UsePreset:           true,
+		ModemPreset:         int32(generated.Config_LoRaConfig_SHORT_FAST),
+		Bandwidth:           250,
+		SpreadFactor:        10,
+		CodingRate:          5,
+		FrequencyOffset:     1.5,
+		Region:              int32(generated.Config_LoRaConfig_US),
+		HopLimit:            3,
+		TxEnabled:           true,
+		TxPower:             20,
+		ChannelNum:          8,
+		OverrideDutyCycle:   true,
+		Sx126XRxBoostedGain: true,
+		OverrideFrequency:   915.5,
+		PaFanDisabled:       true,
+		IgnoreIncoming:      []uint32{123, 456},
+		IgnoreMqtt:          true,
+		ConfigOkToMqtt:      true,
+	})
+	if err != nil {
+		t.Fatalf("save LoRa settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 	t.Parallel()
 

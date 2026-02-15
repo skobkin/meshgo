@@ -28,6 +28,29 @@ type NodeSecuritySettings struct {
 	AdminChannelEnabled bool
 }
 
+// NodeLoRaSettings contains editable LoRa config settings.
+type NodeLoRaSettings struct {
+	NodeID              string
+	UsePreset           bool
+	ModemPreset         int32
+	Bandwidth           uint32
+	SpreadFactor        uint32
+	CodingRate          uint32
+	FrequencyOffset     float32
+	Region              int32
+	HopLimit            uint32
+	TxEnabled           bool
+	TxPower             int32
+	ChannelNum          uint32
+	OverrideDutyCycle   bool
+	Sx126XRxBoostedGain bool
+	OverrideFrequency   float32
+	PaFanDisabled       bool
+	IgnoreIncoming      []uint32
+	IgnoreMqtt          bool
+	ConfigOkToMqtt      bool
+}
+
 // NodeDeviceSettings contains editable device config settings.
 type NodeDeviceSettings struct {
 	NodeID                 string

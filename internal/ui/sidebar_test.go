@@ -42,6 +42,7 @@ func TestBuildSidebarLayoutSwitchesTabsAndCallsOnShow(t *testing.T) {
 	layout := buildSidebarLayout(
 		theme.VariantLight,
 		tabContent,
+		nil,
 		order,
 		tabIcons,
 		updateButton,

@@ -51,7 +51,7 @@ func buildMainView(
 		},
 	})
 	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, initialVariant, dep.Actions.OnMapViewportChanged)
-	nodeSettingsTab := newNodeTab(dep)
+	nodeSettingsTab, onNodeSettingsTabShow := newNodeTabWithOnShow(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
 	tabContent := map[string]fyne.CanvasObject{
@@ -60,6 +60,9 @@ func buildMainView(
 		"Map":   mapTab,
 		"Node":  nodeSettingsTab,
 		"App":   settingsTab,
+	}
+	tabOnShow := map[string]func(){
+		"Node": onNodeSettingsTabShow,
 	}
 	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
 	tabIcons := map[string]resources.UIIcon{
@@ -89,6 +92,7 @@ func buildMainView(
 	sidebar := buildSidebarLayout(
 		initialVariant,
 		tabContent,
+		tabOnShow,
 		order,
 		tabIcons,
 		updateIndicator.Button(),

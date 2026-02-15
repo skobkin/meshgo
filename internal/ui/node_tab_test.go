@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/skobkin/meshgo/internal/app"
@@ -16,6 +17,7 @@ import (
 
 type nodeSettingsActionSpy struct {
 	loadSecurityCalls  atomic.Int32
+	loadLoRaCalls      atomic.Int32
 	loadPositionCalls  atomic.Int32
 	loadPowerCalls     atomic.Int32
 	loadDisplayCalls   atomic.Int32
@@ -37,6 +39,16 @@ func (s *nodeSettingsActionSpy) LoadSecuritySettings(_ context.Context, target a
 }
 
 func (s *nodeSettingsActionSpy) SaveSecuritySettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeSecuritySettings) error {
+	return nil
+}
+
+func (s *nodeSettingsActionSpy) LoadLoRaSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeLoRaSettings, error) {
+	s.loadLoRaCalls.Add(1)
+
+	return app.NodeLoRaSettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveLoRaSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeLoRaSettings) error {
 	return nil
 }
 
@@ -90,6 +102,10 @@ func (s *nodeSettingsActionSpy) SaveBluetoothSettings(_ context.Context, _ app.N
 
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) LoRaLoadCalls() int {
+	return int(s.loadLoRaCalls.Load())
 }
 
 func (s *nodeSettingsActionSpy) PositionLoadCalls() int {
@@ -218,6 +234,52 @@ func TestNodeTabSecuritySettingsLoadIsLazy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.SecurityLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial security load, got %d", got)
+	}
+}
+
+func TestNodeTabLoRaSettingsLoadStartsOnNodeTabShow(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab, onShow := newNodeTabWithOnShow(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.LoRaLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager LoRa load before Node tab OnShow, got %d", got)
+	}
+
+	fyne.DoAndWait(func() {
+		onShow()
+	})
+	waitForCondition(t, func() bool { return spy.LoRaLoadCalls() == 1 })
+	fyne.DoAndWait(func() {
+		onShow()
+	})
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.LoRaLoadCalls(); got != 1 {
+		t.Fatalf("expected Node tab OnShow not to trigger redundant LoRa reloads, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Security")
+	mustSelectAppTabByText(t, tab, "LoRa")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.LoRaLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial LoRa load after Node tab open, got %d", got)
 	}
 }
 

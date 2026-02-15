@@ -29,6 +29,8 @@ type NodeSettingsAction interface {
 	SaveUserSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeUserSettings) error
 	LoadSecuritySettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeSecuritySettings, error)
 	SaveSecuritySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeSecuritySettings) error
+	LoadLoRaSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeLoRaSettings, error)
+	SaveLoRaSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeLoRaSettings) error
 	LoadDeviceSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeDeviceSettings, error)
 	SaveDeviceSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeDeviceSettings) error
 	LoadPositionSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodePositionSettings, error)

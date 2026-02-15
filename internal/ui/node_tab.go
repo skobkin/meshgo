@@ -7,8 +7,16 @@ import (
 )
 
 func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
+	tab, _ := newNodeTabWithOnShow(dep)
+
+	return tab
+}
+
+func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	nodeSettingsTabLogger.Info("building node settings tab")
 	saveGate := &nodeSettingsSaveGate{}
+	loraPage, onLoRaTabOpened := newNodeLoRaSettingsPage(dep, saveGate)
+	loraTab := container.NewTabItem("LoRa", loraPage)
 	securityPage, onSecurityTabOpened := newNodeSecuritySettingsPage(dep, saveGate)
 	securityTab := container.NewTabItem("Security", securityPage)
 	devicePage, onDeviceTabOpened := newNodeDeviceSettingsPage(dep, saveGate)
@@ -23,17 +31,24 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	bluetoothTab := container.NewTabItem("Bluetooth", bluetoothPage)
 
 	radioTabs := container.NewAppTabs(
-		container.NewTabItem("LoRa", newSettingsPlaceholderPage("LoRa settings editing is planned.")),
+		loraTab,
 		container.NewTabItem("Channels", newSettingsPlaceholderPage("Channels editor is planned.")),
 		securityTab,
 	)
 	radioTabs.SetTabLocation(container.TabLocationTop)
-	radioTabs.OnSelected = func(item *container.TabItem) {
-		if onSecurityTabOpened == nil || item != securityTab {
-			return
+	openSelectedRadioTab := func() {
+		switch radioTabs.Selected() {
+		case loraTab:
+			if onLoRaTabOpened != nil {
+				onLoRaTabOpened()
+			}
+		case securityTab:
+			if onSecurityTabOpened != nil {
+				onSecurityTabOpened()
+			}
 		}
-		onSecurityTabOpened()
 	}
+	radioTabs.OnSelected = func(_ *container.TabItem) { openSelectedRadioTab() }
 
 	deviceTabs := container.NewAppTabs(
 		container.NewTabItem("User", newNodeUserSettingsPage(dep, saveGate)),
@@ -44,23 +59,31 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 		bluetoothTab,
 	)
 	deviceTabs.SetTabLocation(container.TabLocationTop)
-	deviceTabs.OnSelected = func(item *container.TabItem) {
-		if onDeviceTabOpened != nil && item == deviceTab {
-			onDeviceTabOpened()
-		}
-		if onPositionTabOpened != nil && item == positionTab {
-			onPositionTabOpened()
-		}
-		if onPowerTabOpened != nil && item == powerTab {
-			onPowerTabOpened()
-		}
-		if onDisplayTabOpened != nil && item == displayTab {
-			onDisplayTabOpened()
-		}
-		if onBluetoothTabOpened != nil && item == bluetoothTab {
-			onBluetoothTabOpened()
+	openSelectedDeviceTab := func() {
+		switch deviceTabs.Selected() {
+		case deviceTab:
+			if onDeviceTabOpened != nil {
+				onDeviceTabOpened()
+			}
+		case positionTab:
+			if onPositionTabOpened != nil {
+				onPositionTabOpened()
+			}
+		case powerTab:
+			if onPowerTabOpened != nil {
+				onPowerTabOpened()
+			}
+		case displayTab:
+			if onDisplayTabOpened != nil {
+				onDisplayTabOpened()
+			}
+		case bluetoothTab:
+			if onBluetoothTabOpened != nil {
+				onBluetoothTabOpened()
+			}
 		}
 	}
+	deviceTabs.OnSelected = func(_ *container.TabItem) { openSelectedDeviceTab() }
 
 	moduleTabs := container.NewAppTabs(
 		container.NewTabItem("MQTT", newSettingsPlaceholderPage("MQTT module settings editing is planned.")),
@@ -77,18 +100,43 @@ func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
 	importExportTab := newDisabledTopLevelPage("Import/Export is planned and currently disabled.")
 	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
 
+	radioConfigTab := container.NewTabItem("Radio configuration", radioTabs)
+	deviceConfigTab := container.NewTabItem("Device configuration", deviceTabs)
+	moduleConfigTab := container.NewTabItem("Module configuration", moduleTabs)
+	importExportTopTab := container.NewTabItem("Import/Export", importExportTab)
+	maintenanceTopTab := container.NewTabItem("Maintenance", maintenanceTab)
 	topTabs := container.NewAppTabs(
-		container.NewTabItem("Radio configuration", radioTabs),
-		container.NewTabItem("Device configuration", deviceTabs),
-		container.NewTabItem("Module configuration", moduleTabs),
-		container.NewTabItem("Import/Export", importExportTab),
-		container.NewTabItem("Maintenance", maintenanceTab),
+		radioConfigTab,
+		deviceConfigTab,
+		moduleConfigTab,
+		importExportTopTab,
+		maintenanceTopTab,
 	)
 	topTabs.SetTabLocation(container.TabLocationTop)
 	topTabs.DisableIndex(3)
 	topTabs.DisableIndex(4)
+	topTabs.OnSelected = func(_ *container.TabItem) {
+		switch topTabs.Selected() {
+		case radioConfigTab:
+			openSelectedRadioTab()
+		case deviceConfigTab:
+			openSelectedDeviceTab()
+		}
+	}
 
-	return topTabs
+	onShow := func() {
+		// AppTabs keeps LoRa selected by default, but `OnSelected` does not fire for that
+		// initial selection. Trigger the currently selected nested tab when Node Settings
+		// becomes visible so LoRa performs its first lazy load on first open (not at startup).
+		switch topTabs.Selected() {
+		case radioConfigTab:
+			openSelectedRadioTab()
+		case deviceConfigTab:
+			openSelectedDeviceTab()
+		}
+	}
+
+	return topTabs, onShow
 }
 
 func newSettingsPlaceholderPage(text string) fyne.CanvasObject {
