@@ -1828,6 +1828,166 @@ func TestNodeSettingsServiceSaveMQTTSettings_ImmediateStatusEvents(t *testing.T)
 	}
 }
 
+func TestNodeSettingsServiceLoadRangeTestSettings_MatchesReplyID(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	sender := stubAdminSender{
+		send: func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if payload.GetGetModuleConfigRequest() != generated.AdminMessage_RANGETEST_CONFIG {
+				t.Fatalf("expected range test module config request payload")
+			}
+			if !wantResponse {
+				t.Fatalf("expected wantResponse=true for get range test module config request")
+			}
+			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+				From:      to,
+				RequestID: 777,
+				ReplyID:   182,
+				Message: &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetModuleConfigResponse{
+						GetModuleConfigResponse: &generated.ModuleConfig{
+							PayloadVariant: &generated.ModuleConfig_RangeTest{
+								RangeTest: &generated.ModuleConfig_RangeTestConfig{
+									Enabled:       true,
+									Sender:        900,
+									Save:          true,
+									ClearOnReboot: true,
+								},
+							},
+						},
+					},
+				},
+			})
+
+			return "182", nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{}, false
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	settings, err := service.LoadRangeTestSettings(ctx, NodeSettingsTarget{NodeID: "!0000002A", IsLocal: true})
+	if err != nil {
+		t.Fatalf("load range test settings: %v", err)
+	}
+	if settings.NodeID != "!0000002A" {
+		t.Fatalf("unexpected node id: %q", settings.NodeID)
+	}
+	if !settings.Enabled {
+		t.Fatalf("expected range test enabled to be true")
+	}
+	if settings.Sender != 900 {
+		t.Fatalf("unexpected sender interval: %d", settings.Sender)
+	}
+	if !settings.Save {
+		t.Fatalf("expected save CSV to be true")
+	}
+	if !settings.ClearOnReboot {
+		t.Fatalf("expected clear on reboot to be true")
+	}
+}
+
+func TestNodeSettingsServiceSaveRangeTestSettings_ImmediateStatusEvents(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	messageBus := bus.New(logger)
+	defer messageBus.Close()
+
+	expectedPayloadKinds := []string{"begin", "set_range_test", "commit"}
+	packetIDs := []uint32{860, 861, 862}
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if wantResponse {
+				t.Fatalf("expected wantResponse=false for save flow")
+			}
+			if call >= len(expectedPayloadKinds) {
+				t.Fatalf("unexpected send call %d", call)
+			}
+			switch expectedPayloadKinds[call] {
+			case "begin":
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings payload")
+				}
+			case "set_range_test":
+				cfg := payload.GetSetModuleConfig()
+				if cfg == nil {
+					t.Fatalf("expected set module config payload")
+				}
+				rangeTest := cfg.GetRangeTest()
+				if rangeTest == nil {
+					t.Fatalf("expected range test module config payload")
+				}
+				if !rangeTest.GetEnabled() {
+					t.Fatalf("expected range test enabled payload")
+				}
+				if rangeTest.GetSender() != 600 {
+					t.Fatalf("unexpected sender interval payload")
+				}
+				if !rangeTest.GetSave() {
+					t.Fatalf("expected save CSV payload")
+				}
+				if !rangeTest.GetClearOnReboot() {
+					t.Fatalf("expected clear on reboot payload")
+				}
+			case "commit":
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit edit settings payload")
+				}
+			default:
+				t.Fatalf("unknown expected payload kind at call %d", call)
+			}
+
+			packetID := packetIDs[call]
+			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+				DeviceMessageID: stringFromUint32(packetID),
+				Status:          domain.MessageStatusSent,
+			})
+			call++
+
+			return stringFromUint32(packetID), nil
+		},
+	}
+	service := NewNodeSettingsService(
+		messageBus,
+		sender,
+		func() (connectors.ConnectionStatus, bool) {
+			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		},
+		logger,
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := service.SaveRangeTestSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeRangeTestSettings{
+		NodeID:        "!00000001",
+		Enabled:       true,
+		Sender:        600,
+		Save:          true,
+		ClearOnReboot: true,
+	})
+	if err != nil {
+		t.Fatalf("save range test settings: %v", err)
+	}
+	if call != len(expectedPayloadKinds) {
+		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
+	}
+}
+
 func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 	t.Parallel()
 

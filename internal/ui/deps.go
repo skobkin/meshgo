@@ -43,6 +43,8 @@ type NodeSettingsAction interface {
 	SaveBluetoothSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeBluetoothSettings) error
 	LoadMQTTSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeMQTTSettings, error)
 	SaveMQTTSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeMQTTSettings) error
+	LoadRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeRangeTestSettings, error)
+	SaveRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeRangeTestSettings) error
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

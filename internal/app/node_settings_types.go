@@ -141,3 +141,14 @@ type NodeMQTTSettings struct {
 	MapReportPositionPrecision    uint32
 	MapReportShouldReportLocation bool
 }
+
+// NodeRangeTestSettings contains editable Range Test module settings.
+type NodeRangeTestSettings struct {
+	NodeID string
+	// ClearOnReboot is intentionally tracked even though not exposed in UI yet,
+	// so save operations preserve device-side value for hidden fields.
+	ClearOnReboot bool
+	Enabled       bool
+	Sender        uint32
+	Save          bool
+}

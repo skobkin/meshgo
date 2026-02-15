@@ -23,6 +23,7 @@ type nodeSettingsActionSpy struct {
 	loadDisplayCalls   atomic.Int32
 	loadBluetoothCalls atomic.Int32
 	loadMQTTCalls      atomic.Int32
+	loadRangeTestCalls atomic.Int32
 }
 
 func (s *nodeSettingsActionSpy) LoadUserSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error) {
@@ -111,6 +112,16 @@ func (s *nodeSettingsActionSpy) SaveMQTTSettings(_ context.Context, _ app.NodeSe
 	return nil
 }
 
+func (s *nodeSettingsActionSpy) LoadRangeTestSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeRangeTestSettings, error) {
+	s.loadRangeTestCalls.Add(1)
+
+	return app.NodeRangeTestSettings{NodeID: target.NodeID}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveRangeTestSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeRangeTestSettings) error {
+	return nil
+}
+
 func (s *nodeSettingsActionSpy) SecurityLoadCalls() int {
 	return int(s.loadSecurityCalls.Load())
 }
@@ -137,6 +148,10 @@ func (s *nodeSettingsActionSpy) BluetoothLoadCalls() int {
 
 func (s *nodeSettingsActionSpy) MQTTLoadCalls() int {
 	return int(s.loadMQTTCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) RangeTestLoadCalls() int {
+	return int(s.loadRangeTestCalls.Load())
 }
 
 func TestParseSecurityAdminKeysInput_Valid(t *testing.T) {
@@ -491,5 +506,45 @@ func TestNodeTabMQTTSettingsLoadIsLazy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.MQTTLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial MQTT load, got %d", got)
+	}
+}
+
+func TestNodeTabRangeTestSettingsLoadIsLazy(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
+				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.RangeTestLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager range test load before selecting Module/Range test tabs, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Module configuration")
+	mustSelectAppTabByText(t, tab, "Range test")
+	waitForCondition(t, func() bool {
+		return spy.RangeTestLoadCalls() == 1
+	})
+
+	mustSelectAppTabByText(t, tab, "MQTT")
+	mustSelectAppTabByText(t, tab, "Range test")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.RangeTestLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial range test load, got %d", got)
 	}
 }

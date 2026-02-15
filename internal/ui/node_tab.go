@@ -31,6 +31,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	bluetoothTab := container.NewTabItem("Bluetooth", bluetoothPage)
 	mqttPage, onMQTTTabOpened := newNodeMQTTSettingsPage(dep, saveGate)
 	mqttTab := container.NewTabItem("MQTT", mqttPage)
+	rangeTestPage, onRangeTestTabOpened := newNodeRangeTestSettingsPage(dep, saveGate)
+	rangeTestTab := container.NewTabItem("Range test", rangeTestPage)
 
 	radioTabs := container.NewAppTabs(
 		loraTab,
@@ -94,7 +96,7 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		container.NewTabItem("Serial", newSettingsPlaceholderPage("Serial module settings editing is planned.")),
 		container.NewTabItem("External notification", newSettingsPlaceholderPage("External notification module settings editing is planned.")),
 		container.NewTabItem("Store & Forward", newSettingsPlaceholderPage("Store & Forward module settings editing is planned.")),
-		container.NewTabItem("Range test", newSettingsPlaceholderPage("Range test module settings editing is planned.")),
+		rangeTestTab,
 		container.NewTabItem("Telemetry", newSettingsPlaceholderPage("Telemetry module settings editing is planned.")),
 		container.NewTabItem("Neighbor Info", newSettingsPlaceholderPage("Neighbor Info module settings editing is planned.")),
 		container.NewTabItem("Status Message", newSettingsPlaceholderPage("Status Message module settings editing is planned.")),
@@ -103,13 +105,19 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	moduleTabs.DisableIndex(1)
 	moduleTabs.DisableIndex(2)
 	moduleTabs.DisableIndex(3)
-	moduleTabs.DisableIndex(4)
 	moduleTabs.DisableIndex(5)
 	moduleTabs.DisableIndex(6)
 	moduleTabs.DisableIndex(7)
 	openSelectedModuleTab := func() {
-		if moduleTabs.Selected() == mqttTab && onMQTTTabOpened != nil {
-			onMQTTTabOpened()
+		switch moduleTabs.Selected() {
+		case mqttTab:
+			if onMQTTTabOpened != nil {
+				onMQTTTabOpened()
+			}
+		case rangeTestTab:
+			if onRangeTestTabOpened != nil {
+				onRangeTestTabOpened()
+			}
 		}
 	}
 	moduleTabs.OnSelected = func(_ *container.TabItem) { openSelectedModuleTab() }
