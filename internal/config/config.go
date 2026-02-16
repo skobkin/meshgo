@@ -39,6 +39,9 @@ type ConnectionConfig struct {
 	SerialBaud       int           `json:"serial_baud"`
 	BluetoothAddress string        `json:"bluetooth_address"`
 	BluetoothAdapter string        `json:"bluetooth_adapter"`
+	// Temporary feature gate: keep unfinished BLE transport hidden in UI by default
+	// until Bluetooth support is stabilized (or removed).
+	BluetoothTestingEnabled bool `json:"bluetooth_testing_enabled"`
 }
 
 // UIConfig stores persistent UI preferences.
@@ -87,12 +90,13 @@ type AppConfig struct {
 func Default() AppConfig {
 	return AppConfig{
 		Connection: ConnectionConfig{
-			Connector:        ConnectorIP,
-			Host:             "",
-			SerialPort:       "",
-			SerialBaud:       DefaultSerialBaud,
-			BluetoothAddress: "",
-			BluetoothAdapter: "",
+			Connector:               ConnectorIP,
+			Host:                    "",
+			SerialPort:              "",
+			SerialBaud:              DefaultSerialBaud,
+			BluetoothAddress:        "",
+			BluetoothAdapter:        "",
+			BluetoothTestingEnabled: false,
 		},
 		Logging: LoggingConfig{
 			Level:     "info",
@@ -143,6 +147,11 @@ func Load(path string) (AppConfig, error) {
 func (c *AppConfig) FillMissingDefaults() {
 	if c.Connection.Connector == "" {
 		c.Connection.Connector = ConnectorIP
+	}
+	if c.Connection.Connector == ConnectorBluetooth {
+		// Temporary migration behavior:
+		// when legacy configs already use Bluetooth transport, treat testing flag as enabled.
+		c.Connection.BluetoothTestingEnabled = true
 	}
 	if c.Connection.SerialBaud <= 0 {
 		c.Connection.SerialBaud = DefaultSerialBaud

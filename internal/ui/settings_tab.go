@@ -51,12 +51,14 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		"notify_update_available", current.UI.Notifications.Events.UpdateAvailable,
 	)
 
-	connectorSelect := widget.NewSelect([]string{
-		connectorOptionIP,
-		connectorOptionSerial,
-		connectorOptionBluetooth,
-	}, nil)
-	connectorSelect.SetSelected(connectorOptionFromType(current.Connection.Connector))
+	// Temporary feature gate until BLE transport is stable (or removed):
+	// keep Bluetooth connector hidden for regular users.
+	showBluetoothTestingToggle := current.Connection.BluetoothTestingEnabled
+	connectorSelect := widget.NewSelect(connectorOptionsForBluetoothTesting(current.Connection.BluetoothTestingEnabled), nil)
+	connectorSelect.SetSelected(connectorOptionFromType(normalizeConnectorForOptions(
+		current.Connection.Connector,
+		current.Connection.BluetoothTestingEnabled,
+	)))
 
 	hostEntry := widget.NewEntry()
 	hostEntry.SetText(current.Connection.Host)
@@ -104,6 +106,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	notifyUpdateAvailable.SetChecked(current.UI.Notifications.Events.UpdateAvailable)
 
 	status := widget.NewLabel("")
+	bluetoothTestingEnabledCheck := widget.NewCheck("Enable Bluetooth LE testing transport", nil)
+	bluetoothTestingEnabledCheck.SetChecked(current.Connection.BluetoothTestingEnabled)
 
 	serialPortSelect := widget.NewSelect(nil, nil)
 	serialPortSelect.PlaceHolder = "Select serial port"
@@ -275,6 +279,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	serialPortRow := container.NewBorder(nil, nil, nil, refreshPortsButton, serialPortSelect)
 
 	connectorLabel := widget.NewLabel("Connector")
+	bluetoothTestingEnabledLabel := widget.NewLabel("")
 	ipHostLabel := widget.NewLabel("IP Host")
 	serialPortLabel := widget.NewLabel("Serial Port")
 	serialBaudLabel := widget.NewLabel("Serial Baud")
@@ -285,6 +290,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	connectionFields := container.New(layout.NewFormLayout(),
 		connectorLabel, connectorSelect,
+		bluetoothTestingEnabledLabel, bluetoothTestingEnabledCheck,
 		ipHostLabel, hostEntry,
 		serialPortLabel, serialPortRow,
 		serialBaudLabel, serialBaudSelect,
@@ -294,20 +300,37 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		bluetoothHintLabel, bluetoothPairingHint,
 	)
 
-	setConnectorFields := func(connector config.ConnectorType) {
+	setConnectorFields := func(connector config.ConnectorType, bluetoothTestingEnabled bool) {
 		showIP := connector == config.ConnectorIP
 		showSerial := connector == config.ConnectorSerial
-		showBluetooth := connector == config.ConnectorBluetooth
+		showBluetooth := bluetoothTestingEnabled && connector == config.ConnectorBluetooth
 
 		setVisible(showIP, ipHostLabel, hostEntry)
 		setVisible(showSerial, serialPortLabel, serialPortRow, serialBaudLabel, serialBaudSelect)
 		setVisible(showBluetooth, bluetoothAddressLabel, bluetoothAddressEntry, bluetoothAdapterLabel, bluetoothAdapterEntry, bluetoothActionsLabel, bluetoothActionRow, bluetoothHintLabel, bluetoothPairingHint)
 	}
+	setBluetoothTestingToggleVisible := func(visible bool) {
+		setVisible(visible, bluetoothTestingEnabledLabel, bluetoothTestingEnabledCheck)
+	}
+	selectConnector := func(connector config.ConnectorType, bluetoothTestingEnabled bool) config.ConnectorType {
+		connectorSelect.SetOptions(connectorOptionsForBluetoothTesting(bluetoothTestingEnabled))
+		normalized := normalizeConnectorForOptions(connector, bluetoothTestingEnabled)
+		connectorSelect.SetSelected(connectorOptionFromType(normalized))
+
+		return normalized
+	}
+	applySavedConfigState := func(next config.AppConfig, statusText string) {
+		current = next
+		showBluetoothTestingToggle = current.Connection.BluetoothTestingEnabled
+		setBluetoothTestingToggleVisible(showBluetoothTestingToggle)
+		status.SetText(statusText)
+	}
 
 	connectorSelect.OnChanged = func(value string) {
 		next := connectorTypeFromOption(value)
+		next = normalizeConnectorForOptions(next, bluetoothTestingEnabledCheck.Checked)
 		settingsLogger.Debug("connector changed", "selected", strings.TrimSpace(value), "connector", next)
-		setConnectorFields(next)
+		setConnectorFields(next, bluetoothTestingEnabledCheck.Checked)
 		if next == config.ConnectorSerial {
 			refreshPorts()
 		}
@@ -318,15 +341,36 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		}
 		status.SetText("")
 	}
-	setConnectorFields(current.Connection.Connector)
-	if current.Connection.Connector == config.ConnectorSerial {
+	bluetoothTestingEnabledCheck.OnChanged = func(enabled bool) {
+		settingsLogger.Info("Bluetooth testing feature gate changed", "enabled", enabled)
+		selected := connectorTypeFromOption(connectorSelect.Selected)
+		selected = selectConnector(selected, enabled)
+		setConnectorFields(selected, enabled)
+		if selected == config.ConnectorSerial {
+			refreshPorts()
+		}
+		if selected == config.ConnectorBluetooth {
+			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
+
+			return
+		}
+		status.SetText("")
+	}
+
+	setBluetoothTestingToggleVisible(showBluetoothTestingToggle)
+	selectedConnector := selectConnector(current.Connection.Connector, current.Connection.BluetoothTestingEnabled)
+	setConnectorFields(selectedConnector, current.Connection.BluetoothTestingEnabled)
+	if selectedConnector == config.ConnectorSerial {
 		refreshPorts()
 	}
 
 	applyConfigToForm := func(next config.AppConfig) {
 		next.FillMissingDefaults()
 
-		connectorSelect.SetSelected(connectorOptionFromType(next.Connection.Connector))
+		showBluetoothTestingToggle = next.Connection.BluetoothTestingEnabled
+		setBluetoothTestingToggleVisible(showBluetoothTestingToggle)
+		bluetoothTestingEnabledCheck.SetChecked(next.Connection.BluetoothTestingEnabled)
+		selected := selectConnector(next.Connection.Connector, next.Connection.BluetoothTestingEnabled)
 		hostEntry.SetText(next.Connection.Host)
 		serialPortSelect.SetSelected(next.Connection.SerialPort)
 		serialBaudSelect.SetOptions(uniqueValues(append(defaultSerialBaudOptions, strconv.Itoa(next.Connection.SerialBaud))))
@@ -353,11 +397,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyConnectionStatus.SetChecked(next.UI.Notifications.Events.ConnectionStatus)
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 
-		setConnectorFields(next.Connection.Connector)
-		if next.Connection.Connector == config.ConnectorSerial {
+		setConnectorFields(selected, next.Connection.BluetoothTestingEnabled)
+		if selected == config.ConnectorSerial {
 			refreshPorts()
 		}
-		if next.Connection.Connector == config.ConnectorBluetooth {
+		if selected == config.ConnectorBluetooth {
 			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
 
 			return
@@ -367,9 +411,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	saveButton := widget.NewButton("Save", func() {
 		connector := connectorTypeFromOption(connectorSelect.Selected)
+		connector = normalizeConnectorForOptions(connector, bluetoothTestingEnabledCheck.Checked)
 		settingsLogger.Info(
 			"settings save requested",
 			"connector", connector,
+			"bluetooth_testing_enabled", bluetoothTestingEnabledCheck.Checked,
 			"log_level", strings.TrimSpace(levelSelect.Selected),
 			"log_to_file", logToFile.Checked,
 			"autostart_enabled", autostartEnabled.Checked,
@@ -400,6 +446,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.Connection.SerialBaud = baud
 		cfg.Connection.BluetoothAddress = strings.TrimSpace(bluetoothAddressEntry.Text)
 		cfg.Connection.BluetoothAdapter = strings.TrimSpace(bluetoothAdapterEntry.Text)
+		cfg.Connection.BluetoothTestingEnabled = bluetoothTestingEnabledCheck.Checked
 		cfg.Logging.Level = levelSelect.Selected
 		cfg.Logging.LogToFile = logToFile.Checked
 		cfg.UI.Autostart.Enabled = autostartEnabled.Checked
@@ -431,8 +478,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				var devWarning *app.AutostartDevBuildSkipWarning
 				if errors.As(err, &devWarning) {
 					settingsLogger.Info("settings saved with dev-build autostart skip", "autostart_enabled", devWarning.Enabled)
-					current = cfg
-					status.SetText("Saved")
+					applySavedConfigState(cfg, "Saved")
 
 					if devWarning.Enabled {
 						window := currentWindowFn()
@@ -453,8 +499,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				var warning *app.AutostartSyncWarning
 				if errors.As(err, &warning) {
 					settingsLogger.Info("settings saved with warning", "warning", warning.Error())
-					current = cfg
-					status.SetText("Saved with warning: " + warning.Error())
+					applySavedConfigState(cfg, "Saved with warning: "+warning.Error())
 
 					return
 				}
@@ -464,8 +509,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				return
 			}
 			settingsLogger.Info("settings saved successfully", "connector", cfg.Connection.Connector)
-			current = cfg
-			status.SetText("Saved")
+			applySavedConfigState(cfg, "Saved")
 		}
 
 		if connector != current.Connection.Connector {
@@ -797,6 +841,31 @@ func currentWindow() fyne.Window {
 	}
 
 	return windows[0]
+}
+
+func connectorOptionsForBluetoothTesting(bluetoothTestingEnabled bool) []string {
+	options := []string{
+		connectorOptionIP,
+		connectorOptionSerial,
+	}
+	if bluetoothTestingEnabled {
+		options = append(options, connectorOptionBluetooth)
+	}
+
+	return options
+}
+
+func normalizeConnectorForOptions(connector config.ConnectorType, bluetoothTestingEnabled bool) config.ConnectorType {
+	switch connector {
+	case config.ConnectorIP, config.ConnectorSerial:
+		return connector
+	case config.ConnectorBluetooth:
+		if bluetoothTestingEnabled {
+			return connector
+		}
+	}
+
+	return config.ConnectorIP
 }
 
 func connectorOptionFromType(connector config.ConnectorType) string {

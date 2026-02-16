@@ -16,6 +16,9 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	if cfg.Connection.SerialBaud != DefaultSerialBaud {
 		t.Fatalf("expected default serial baud %d, got %d", DefaultSerialBaud, cfg.Connection.SerialBaud)
 	}
+	if cfg.Connection.BluetoothTestingEnabled {
+		t.Fatalf("expected bluetooth testing to be disabled by default")
+	}
 	if cfg.Logging.Level != "info" {
 		t.Fatalf("expected default log level info, got %q", cfg.Logging.Level)
 	}
@@ -237,6 +240,22 @@ func TestAppConfigFillMissingDefaultsClearsUnsetMapViewport(t *testing.T) {
 	}
 	if cfg.UI.MapViewport.Zoom != 0 || cfg.UI.MapViewport.X != 0 || cfg.UI.MapViewport.Y != 0 {
 		t.Fatalf("expected unset viewport to normalize to zero values, got %+v", cfg.UI.MapViewport)
+	}
+}
+
+func TestAppConfigFillMissingDefaultsEnablesBluetoothTestingForBluetoothConnector(t *testing.T) {
+	cfg := AppConfig{
+		Connection: ConnectionConfig{
+			Connector:               ConnectorBluetooth,
+			BluetoothAddress:        "AA:BB:CC:DD:EE:FF",
+			BluetoothTestingEnabled: false,
+		},
+	}
+
+	cfg.FillMissingDefaults()
+
+	if !cfg.Connection.BluetoothTestingEnabled {
+		t.Fatalf("expected bluetooth testing to be enabled when bluetooth connector is selected")
 	}
 }
 
