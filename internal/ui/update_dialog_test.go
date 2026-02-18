@@ -133,7 +133,7 @@ func TestReadMarkdownImageBytes_RemoteLoadsImageWhenWithinLimit(t *testing.T) {
 }
 
 func TestNewMarkdownImagePlaceholder_UsesCompactHeight(t *testing.T) {
-	placeholder := newMarkdownImagePlaceholder("Loading image...")
+	placeholder := newMarkdownImagePlaceholder("Screenshot", "Loading image...")
 	size := placeholder.MinSize()
 	if size.Width != float32(maxMarkdownImageWidth) {
 		t.Fatalf("expected placeholder width %f, got %f", float32(maxMarkdownImageWidth), size.Width)
@@ -147,7 +147,7 @@ func TestNewMarkdownImagePlaceholder_UsesCompactHeight(t *testing.T) {
 }
 
 func TestNewMarkdownImagePlaceholder_HasVisibleBorder(t *testing.T) {
-	placeholder := newMarkdownImagePlaceholder("Image unavailable")
+	placeholder := newMarkdownImagePlaceholder("Error screenshot", "Image unavailable")
 	if !hasVisiblePlaceholderBorder(placeholder) {
 		t.Fatalf("expected placeholder border with visible stroke")
 	}
@@ -174,6 +174,54 @@ func hasVisiblePlaceholderBorder(object fyne.CanvasObject) bool {
 	}
 
 	return false
+}
+
+func TestExtractMarkdownImageAltTexts(t *testing.T) {
+	tests := []struct {
+		name     string
+		markdown string
+		want     map[string]string
+	}{
+		{
+			name:     "single image with alt text",
+			markdown: `![Screenshot](https://example.com/screenshot.png)`,
+			want:     map[string]string{"https://example.com/screenshot.png": "Screenshot"},
+		},
+		{
+			name:     "image with empty alt text",
+			markdown: `![](https://example.com/image.png)`,
+			want:     map[string]string{},
+		},
+		{
+			name:     "multiple images",
+			markdown: `![First](https://example.com/a.png) and ![Second](https://example.com/b.png)`,
+			want:     map[string]string{"https://example.com/a.png": "First", "https://example.com/b.png": "Second"},
+		},
+		{
+			name:     "no images",
+			markdown: `Just text, no images here.`,
+			want:     map[string]string{},
+		},
+		{
+			name:     "alt text with spaces",
+			markdown: `![This is a screenshot](https://example.com/img.png)`,
+			want:     map[string]string{"https://example.com/img.png": "This is a screenshot"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractMarkdownImageAltTexts(tt.markdown)
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d alt texts, got %d", len(tt.want), len(got))
+			}
+			for url, alt := range tt.want {
+				if got[url] != alt {
+					t.Fatalf("expected alt text %q for url %q, got %q", alt, url, got[url])
+				}
+			}
+		})
+	}
 }
 
 func TestStripLeadingCommitHashesFromMarkdown(t *testing.T) {

@@ -43,6 +43,7 @@ var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 var updateDialogLogger = slog.With("component", "ui.update_dialog")
 var errMarkdownImageTooLarge = errors.New("image too large")
 var markdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
+var markdownImagePattern = regexp.MustCompile(`!\[([^]]*)]\(([^)]+)\)`)
 
 func showUpdateDialog(
 	window fyne.Window,
@@ -206,9 +207,25 @@ func newLazyMarkdownRichText(markdown string) *widget.RichText {
 		"segment_count", len(text.Segments),
 		"image_segments", imageCount,
 	)
-	text.Segments = rewriteMarkdownImageSegments(text.Segments)
+	altTexts := extractMarkdownImageAltTexts(markdown)
+	text.Segments = rewriteMarkdownImageSegments(text.Segments, altTexts)
 
 	return text
+}
+
+func extractMarkdownImageAltTexts(markdown string) map[string]string {
+	altTexts := make(map[string]string)
+	for _, match := range markdownImagePattern.FindAllStringSubmatch(markdown, -1) {
+		if len(match) >= 3 {
+			altText := strings.TrimSpace(match[1])
+			url := strings.TrimSpace(match[2])
+			if url != "" && altText != "" {
+				altTexts[url] = altText
+			}
+		}
+	}
+
+	return altTexts
 }
 
 func countMarkdownImageSegments(segments []widget.RichTextSegment) int {
@@ -227,23 +244,27 @@ func countMarkdownImageSegments(segments []widget.RichTextSegment) int {
 	return count
 }
 
-func rewriteMarkdownImageSegments(segments []widget.RichTextSegment) []widget.RichTextSegment {
+func rewriteMarkdownImageSegments(segments []widget.RichTextSegment, altTexts map[string]string) []widget.RichTextSegment {
 	rewritten := make([]widget.RichTextSegment, 0, len(segments))
 	for _, segment := range segments {
 		switch current := segment.(type) {
 		case *widget.ImageSegment:
+			title := current.Title
+			if title == "" && current.Source != nil {
+				title = altTexts[current.Source.String()]
+			}
 			rewritten = append(rewritten, &lazyMarkdownImageSegment{
 				Source:    current.Source,
-				Title:     current.Title,
+				Title:     title,
 				Alignment: current.Alignment,
 			})
 		case *widget.ListSegment:
 			clone := *current
-			clone.Items = rewriteMarkdownImageSegments(current.Items)
+			clone.Items = rewriteMarkdownImageSegments(current.Items, altTexts)
 			rewritten = append(rewritten, &clone)
 		case *widget.ParagraphSegment:
 			clone := *current
-			clone.Texts = rewriteMarkdownImageSegments(current.Texts)
+			clone.Texts = rewriteMarkdownImageSegments(current.Texts, altTexts)
 			rewritten = append(rewritten, &clone)
 		default:
 			rewritten = append(rewritten, segment)
@@ -270,12 +291,13 @@ func (s *lazyMarkdownImageSegment) Textual() string {
 func (s *lazyMarkdownImageSegment) Update(fyne.CanvasObject) {}
 
 func (s *lazyMarkdownImageSegment) Visual() fyne.CanvasObject {
+	title := strings.TrimSpace(s.Title)
 	lazyMarkdownLogger.Debug(
 		"creating lazy markdown image placeholder",
 		"source", markdownImageSource(s.Source),
-		"title", strings.TrimSpace(s.Title),
+		"title", title,
 	)
-	loading := newMarkdownImagePlaceholder("Loading image...")
+	loading := newMarkdownImagePlaceholder(title, "Loading image...")
 	root, contentIndex := alignObject(s.Alignment, loading)
 	s.loadImageAsync(root, contentIndex)
 
@@ -318,11 +340,7 @@ func (s *lazyMarkdownImageSegment) loadImageAsync(root *fyne.Container, contentI
 					"title", title,
 					"error", err,
 				)
-				text := "Image unavailable"
-				if title != "" {
-					text += ": " + title
-				}
-				root.Objects[contentIndex] = newMarkdownImagePlaceholder(text)
+				root.Objects[contentIndex] = newMarkdownImagePlaceholder(title, "Image unavailable")
 				root.Refresh()
 
 				return
@@ -495,9 +513,14 @@ func remoteMarkdownImageTooLarge(rawURL string) (bool, error) {
 	return response.ContentLength > maxMarkdownImageBytes, nil
 }
 
-func newMarkdownImagePlaceholder(text string) fyne.CanvasObject {
-	label := widget.NewLabel(text)
-	label.Alignment = fyne.TextAlignCenter
+func newMarkdownImagePlaceholder(title, status string) fyne.CanvasObject {
+	titleLabel := widget.NewLabel(strings.TrimSpace(title))
+	titleLabel.Alignment = fyne.TextAlignCenter
+	titleLabel.Importance = widget.MediumImportance
+
+	statusLabel := widget.NewLabel(strings.TrimSpace(status))
+	statusLabel.Alignment = fyne.TextAlignCenter
+	statusLabel.Importance = widget.LowImportance
 
 	background := canvas.NewRectangle(markdownPlaceholderBackgroundColor())
 	border := canvas.NewRectangle(color.Transparent)
@@ -509,7 +532,10 @@ func newMarkdownImagePlaceholder(text string) fyne.CanvasObject {
 		container.NewStack(
 			background,
 			border,
-			container.NewPadded(container.NewCenter(label)),
+			container.NewPadded(container.NewVBox(
+				container.NewCenter(titleLabel),
+				container.NewCenter(statusLabel),
+			)),
 		),
 	)
 }
