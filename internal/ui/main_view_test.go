@@ -6,8 +6,8 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestBuildMainViewBuildsSidebarAndPresentationComponents(t *testing.T) {
@@ -32,8 +32,8 @@ func TestBuildMainViewBuildsSidebarAndPresentationComponents(t *testing.T) {
 		app,
 		window,
 		app.Settings().ThemeVariant(),
-		connectors.ConnectionStatus{
-			State:         connectors.ConnectionStateConnecting,
+		busmsg.ConnectionStatus{
+			State:         busmsg.ConnectionStateConnecting,
 			TransportName: "ip",
 		},
 	)

@@ -6,12 +6,12 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func startUIEventListeners(
 	messageBus bus.MessageBus,
-	onConnStatus func(connectors.ConnectionStatus),
+	onConnStatus func(busmsg.ConnectionStatus),
 	onNodeInfo func(),
 ) func() {
 	if messageBus == nil {
@@ -20,11 +20,11 @@ func startUIEventListeners(
 		return func() {}
 	}
 
-	connSub := messageBus.Subscribe(connectors.TopicConnStatus)
-	nodeSub := messageBus.Subscribe(connectors.TopicNodeInfo)
+	connSub := messageBus.Subscribe(bus.TopicConnStatus)
+	nodeSub := messageBus.Subscribe(bus.TopicNodeInfo)
 	appLogger.Debug(
 		"subscribed to UI bus topics",
-		"topics", []string{connectors.TopicConnStatus, connectors.TopicNodeInfo},
+		"topics", []string{bus.TopicConnStatus, bus.TopicNodeInfo},
 	)
 	done := make(chan struct{})
 	var stopOnce sync.Once
@@ -40,7 +40,7 @@ func startUIEventListeners(
 
 					return
 				}
-				status, ok := raw.(connectors.ConnectionStatus)
+				status, ok := raw.(busmsg.ConnectionStatus)
 				if !ok {
 					appLogger.Debug("ignoring unexpected connection status payload", "payload_type", fmt.Sprintf("%T", raw))
 
@@ -85,8 +85,8 @@ func startUIEventListeners(
 		stopOnce.Do(func() {
 			appLogger.Debug("stopping UI event listeners")
 			close(done)
-			messageBus.Unsubscribe(connSub, connectors.TopicConnStatus)
-			messageBus.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
+			messageBus.Unsubscribe(connSub, bus.TopicConnStatus)
+			messageBus.Unsubscribe(nodeSub, bus.TopicNodeInfo)
 		})
 	}
 }
@@ -101,7 +101,7 @@ func startUpdateSnapshotListener(
 		return func() {}
 	}
 
-	snapshotSub := messageBus.Subscribe(connectors.TopicUpdateSnapshot)
+	snapshotSub := messageBus.Subscribe(bus.TopicUpdateSnapshot)
 	done := make(chan struct{})
 	var stopOnce sync.Once
 
@@ -138,7 +138,7 @@ func startUpdateSnapshotListener(
 		stopOnce.Do(func() {
 			appLogger.Debug("stopping update snapshot listener")
 			close(done)
-			messageBus.Unsubscribe(snapshotSub, connectors.TopicUpdateSnapshot)
+			messageBus.Unsubscribe(snapshotSub, bus.TopicUpdateSnapshot)
 		})
 	}
 }

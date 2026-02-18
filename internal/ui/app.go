@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 var appLogger = slog.With("component", "ui.app")
@@ -15,11 +15,11 @@ func Run(dep RuntimeDependencies) error {
 	return runWithApp(dep, newFyneApp())
 }
 
-func initialConnStatus(dep RuntimeDependencies) connectors.ConnectionStatus {
+func initialConnStatus(dep RuntimeDependencies) busmsg.ConnectionStatus {
 	return meshapp.ConnectionStatusFromConfig(dep.Data.Config.Connection)
 }
 
-func resolveInitialConnStatus(dep RuntimeDependencies) connectors.ConnectionStatus {
+func resolveInitialConnStatus(dep RuntimeDependencies) busmsg.ConnectionStatus {
 	fallback := initialConnStatus(dep)
 	status, ok := currentConnStatus(dep)
 	if !ok || status.State == "" {
@@ -35,9 +35,9 @@ func resolveInitialConnStatus(dep RuntimeDependencies) connectors.ConnectionStat
 	return status
 }
 
-func currentConnStatus(dep RuntimeDependencies) (connectors.ConnectionStatus, bool) {
+func currentConnStatus(dep RuntimeDependencies) (busmsg.ConnectionStatus, bool) {
 	if dep.Data.CurrentConnStatus == nil {
-		return connectors.ConnectionStatus{}, false
+		return busmsg.ConnectionStatus{}, false
 	}
 
 	return dep.Data.CurrentConnStatus()

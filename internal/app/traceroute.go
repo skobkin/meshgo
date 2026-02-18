@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
@@ -61,7 +61,7 @@ type TracerouteService struct {
 	bus            bus.MessageBus
 	radio          tracerouteSender
 	nodeStore      *domain.NodeStore
-	connStatus     func() (connectors.ConnectionStatus, bool)
+	connStatus     func() (busmsg.ConnectionStatus, bool)
 	logger         *slog.Logger
 	requestTimeout time.Duration
 
@@ -75,7 +75,7 @@ func NewTracerouteService(
 	messageBus bus.MessageBus,
 	sender tracerouteSender,
 	nodeStore *domain.NodeStore,
-	connStatus func() (connectors.ConnectionStatus, bool),
+	connStatus func() (busmsg.ConnectionStatus, bool),
 	logger *slog.Logger,
 	requestTimeout time.Duration,
 ) *TracerouteService {
@@ -101,14 +101,14 @@ func (s *TracerouteService) Start(ctx context.Context) {
 	if s == nil || s.bus == nil {
 		return
 	}
-	traceSub := s.bus.Subscribe(connectors.TopicTraceroute)
-	statusSub := s.bus.Subscribe(connectors.TopicMessageStatus)
-	connSub := s.bus.Subscribe(connectors.TopicConnStatus)
+	traceSub := s.bus.Subscribe(bus.TopicTraceroute)
+	statusSub := s.bus.Subscribe(bus.TopicMessageStatus)
+	connSub := s.bus.Subscribe(bus.TopicConnStatus)
 
 	go func() {
-		defer s.bus.Unsubscribe(traceSub, connectors.TopicTraceroute)
-		defer s.bus.Unsubscribe(statusSub, connectors.TopicMessageStatus)
-		defer s.bus.Unsubscribe(connSub, connectors.TopicConnStatus)
+		defer s.bus.Unsubscribe(traceSub, bus.TopicTraceroute)
+		defer s.bus.Unsubscribe(statusSub, bus.TopicMessageStatus)
+		defer s.bus.Unsubscribe(connSub, bus.TopicConnStatus)
 
 		for {
 			select {
@@ -118,7 +118,7 @@ func (s *TracerouteService) Start(ctx context.Context) {
 				if !ok {
 					return
 				}
-				event, ok := raw.(connectors.TracerouteEvent)
+				event, ok := raw.(busmsg.TracerouteEvent)
 				if !ok {
 					continue
 				}
@@ -136,7 +136,7 @@ func (s *TracerouteService) Start(ctx context.Context) {
 				if !ok {
 					continue
 				}
-				status, ok := raw.(connectors.ConnectionStatus)
+				status, ok := raw.(busmsg.ConnectionStatus)
 				if !ok {
 					continue
 				}
@@ -146,12 +146,12 @@ func (s *TracerouteService) Start(ctx context.Context) {
 	}()
 }
 
-func (s *TracerouteService) StartTraceroute(ctx context.Context, target TracerouteTarget) (connectors.TracerouteUpdate, error) {
+func (s *TracerouteService) StartTraceroute(ctx context.Context, target TracerouteTarget) (busmsg.TracerouteUpdate, error) {
 	if s == nil || s.bus == nil || s.radio == nil {
-		return connectors.TracerouteUpdate{}, fmt.Errorf("traceroute service is not initialized")
+		return busmsg.TracerouteUpdate{}, fmt.Errorf("traceroute service is not initialized")
 	}
 	if !s.isConnected() {
-		return connectors.TracerouteUpdate{}, fmt.Errorf("device is not connected")
+		return busmsg.TracerouteUpdate{}, fmt.Errorf("device is not connected")
 	}
 
 	s.startMu.Lock()
@@ -159,22 +159,22 @@ func (s *TracerouteService) StartTraceroute(ctx context.Context, target Tracerou
 
 	now := time.Now()
 	if remaining := s.cooldownRemaining(now); remaining > 0 {
-		return connectors.TracerouteUpdate{}, &TracerouteCooldownError{Remaining: remaining}
+		return busmsg.TracerouteUpdate{}, &TracerouteCooldownError{Remaining: remaining}
 	}
 
 	nodeNum, err := parseNodeID(target.NodeID)
 	if err != nil {
-		return connectors.TracerouteUpdate{}, err
+		return busmsg.TracerouteUpdate{}, err
 	}
 	normalizedNodeID := formatNodeID(nodeNum)
 	channel := s.resolveNodeChannel(normalizedNodeID)
 	packetIDRaw, err := s.radio.SendTraceroute(nodeNum, channel)
 	if err != nil {
-		return connectors.TracerouteUpdate{}, err
+		return busmsg.TracerouteUpdate{}, err
 	}
 	requestID, err := parsePacketID(packetIDRaw)
 	if err != nil {
-		return connectors.TracerouteUpdate{}, err
+		return busmsg.TracerouteUpdate{}, err
 	}
 
 	startedAt := time.Now()
@@ -190,7 +190,7 @@ func (s *TracerouteService) StartTraceroute(ctx context.Context, target Tracerou
 	s.mu.Unlock()
 
 	update := toTracerouteUpdate(requestID, pending, traceroute.StatusStarted, "", time.Time{})
-	s.bus.Publish(connectors.TopicTracerouteUpdate, update)
+	s.bus.Publish(bus.TopicTracerouteUpdate, update)
 	s.logger.Info("started traceroute", "request_id", requestID, "target_node_id", normalizedNodeID, "channel", channel)
 
 	go s.watchTimeout(ctx, requestID)
@@ -221,11 +221,11 @@ func (s *TracerouteService) watchTimeout(ctx context.Context, requestID uint32) 
 	s.mu.Unlock()
 
 	update := toTracerouteUpdate(requestID, pending, traceroute.StatusTimedOut, "traceroute request timed out", now)
-	s.bus.Publish(connectors.TopicTracerouteUpdate, update)
+	s.bus.Publish(bus.TopicTracerouteUpdate, update)
 	s.logger.Warn("traceroute timed out", "request_id", requestID, "target_node_id", pending.targetNodeID)
 }
 
-func (s *TracerouteService) handleTracerouteEvent(event connectors.TracerouteEvent) {
+func (s *TracerouteService) handleTracerouteEvent(event busmsg.TracerouteEvent) {
 	requestID := event.RequestID
 	if requestID == 0 {
 		return
@@ -260,7 +260,7 @@ func (s *TracerouteService) handleTracerouteEvent(event connectors.TracerouteEve
 	s.mu.Unlock()
 
 	update := toTracerouteUpdate(requestID, pending, status, "", completedAt)
-	s.bus.Publish(connectors.TopicTracerouteUpdate, update)
+	s.bus.Publish(bus.TopicTracerouteUpdate, update)
 	if status == traceroute.StatusCompleted {
 		s.logger.Info("traceroute completed", "request_id", requestID, "target_node_id", pending.targetNodeID, "duration_ms", update.DurationMS)
 	}
@@ -292,17 +292,17 @@ func (s *TracerouteService) handleMessageStatus(update domain.MessageStatusUpdat
 		reason = "device rejected traceroute request"
 	}
 	out := toTracerouteUpdate(uint32(requestID), pending, traceroute.StatusFailed, reason, now)
-	s.bus.Publish(connectors.TopicTracerouteUpdate, out)
+	s.bus.Publish(bus.TopicTracerouteUpdate, out)
 	s.logger.Warn("traceroute failed", "request_id", requestID, "target_node_id", pending.targetNodeID, "reason", reason)
 }
 
-func (s *TracerouteService) handleConnectionStatus(status connectors.ConnectionStatus) {
-	if status.State == connectors.ConnectionStateConnected {
+func (s *TracerouteService) handleConnectionStatus(status busmsg.ConnectionStatus) {
+	if status.State == busmsg.ConnectionStateConnected {
 		return
 	}
 
 	now := time.Now()
-	failed := make([]connectors.TracerouteUpdate, 0)
+	failed := make([]busmsg.TracerouteUpdate, 0)
 	s.mu.Lock()
 	for requestID, pending := range s.pending {
 		pending.updatedAt = now
@@ -318,7 +318,7 @@ func (s *TracerouteService) handleConnectionStatus(status connectors.ConnectionS
 	s.mu.Unlock()
 
 	for _, update := range failed {
-		s.bus.Publish(connectors.TopicTracerouteUpdate, update)
+		s.bus.Publish(bus.TopicTracerouteUpdate, update)
 	}
 }
 
@@ -355,7 +355,7 @@ func (s *TracerouteService) isConnected() bool {
 	}
 	status, known := s.connStatus()
 
-	return known && status.State == connectors.ConnectionStateConnected
+	return known && status.State == busmsg.ConnectionStateConnected
 }
 
 func toTracerouteUpdate(
@@ -364,8 +364,8 @@ func toTracerouteUpdate(
 	status traceroute.Status,
 	errMsg string,
 	completedAt time.Time,
-) connectors.TracerouteUpdate {
-	update := connectors.TracerouteUpdate{
+) busmsg.TracerouteUpdate {
+	update := busmsg.TracerouteUpdate{
 		RequestID:    requestID,
 		TargetNodeID: pending.targetNodeID,
 		StartedAt:    pending.startedAt,

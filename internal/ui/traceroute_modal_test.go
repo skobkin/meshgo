@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
@@ -36,14 +36,14 @@ func TestFormatTraceroutePath_InvalidSnrLengthUsesUnknowns(t *testing.T) {
 }
 
 func TestTracerouteProgressValue_CompletedAlwaysFull(t *testing.T) {
-	update := connectors.TracerouteUpdate{Status: traceroute.StatusCompleted}
+	update := busmsg.TracerouteUpdate{Status: traceroute.StatusCompleted}
 	if got := tracerouteProgressValue(update, 5*time.Second); got != 1 {
 		t.Fatalf("expected completed progress to be full, got %f", got)
 	}
 }
 
 func TestTracerouteProgressValue_ClampsBounds(t *testing.T) {
-	update := connectors.TracerouteUpdate{Status: traceroute.StatusProgress}
+	update := busmsg.TracerouteUpdate{Status: traceroute.StatusProgress}
 	if got := tracerouteProgressValue(update, -1*time.Second); got != 0 {
 		t.Fatalf("expected negative progress clamp to 0, got %f", got)
 	}
@@ -96,7 +96,7 @@ func TestTracerouteStatusText(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			update := connectors.TracerouteUpdate{Status: tc.status}
+			update := busmsg.TracerouteUpdate{Status: tc.status}
 			if got := tracerouteStatusText(update); got != tc.want {
 				t.Fatalf("expected %q, got %q", tc.want, got)
 			}

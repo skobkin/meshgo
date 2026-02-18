@@ -10,9 +10,9 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/notifications"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 const (
@@ -32,7 +32,7 @@ type NotificationService struct {
 	logger        *slog.Logger
 
 	connStatusMu     sync.Mutex
-	lastConnState    connectors.ConnectionState
+	lastConnState    busmsg.ConnectionState
 	lastConnStateSet bool
 
 	updateMu            sync.Mutex
@@ -72,16 +72,16 @@ func (s *NotificationService) Start(ctx context.Context) {
 		return
 	}
 
-	textSub := s.bus.Subscribe(connectors.TopicTextMessage)
-	nodeSub := s.bus.Subscribe(connectors.TopicNodeDiscovered)
-	connSub := s.bus.Subscribe(connectors.TopicConnStatus)
-	updateSub := s.bus.Subscribe(connectors.TopicUpdateSnapshot)
+	textSub := s.bus.Subscribe(bus.TopicTextMessage)
+	nodeSub := s.bus.Subscribe(bus.TopicNodeDiscovered)
+	connSub := s.bus.Subscribe(bus.TopicConnStatus)
+	updateSub := s.bus.Subscribe(bus.TopicUpdateSnapshot)
 
 	go func() {
-		defer s.bus.Unsubscribe(textSub, connectors.TopicTextMessage)
-		defer s.bus.Unsubscribe(nodeSub, connectors.TopicNodeDiscovered)
-		defer s.bus.Unsubscribe(connSub, connectors.TopicConnStatus)
-		defer s.bus.Unsubscribe(updateSub, connectors.TopicUpdateSnapshot)
+		defer s.bus.Unsubscribe(textSub, bus.TopicTextMessage)
+		defer s.bus.Unsubscribe(nodeSub, bus.TopicNodeDiscovered)
+		defer s.bus.Unsubscribe(connSub, bus.TopicConnStatus)
+		defer s.bus.Unsubscribe(updateSub, bus.TopicUpdateSnapshot)
 
 		for {
 			select {
@@ -109,7 +109,7 @@ func (s *NotificationService) Start(ctx context.Context) {
 				if !ok {
 					return
 				}
-				status, ok := raw.(connectors.ConnectionStatus)
+				status, ok := raw.(busmsg.ConnectionStatus)
 				if !ok {
 					continue
 				}
@@ -181,7 +181,7 @@ func (s *NotificationService) handleNodeDiscovered(event domain.NodeDiscovered) 
 	})
 }
 
-func (s *NotificationService) handleConnectionStatus(status connectors.ConnectionStatus) {
+func (s *NotificationService) handleConnectionStatus(status busmsg.ConnectionStatus) {
 	prefs := s.notificationPrefs()
 	if status.State == "" {
 		return
@@ -197,8 +197,8 @@ func (s *NotificationService) handleConnectionStatus(status connectors.Connectio
 	s.lastConnStateSet = true
 	s.connStatusMu.Unlock()
 
-	if status.State != connectors.ConnectionStateConnected &&
-		status.State != connectors.ConnectionStateDisconnected {
+	if status.State != busmsg.ConnectionStateConnected &&
+		status.State != busmsg.ConnectionStateDisconnected {
 		return
 	}
 	if !s.shouldNotify(prefs, prefs.Events.ConnectionStatus) {
@@ -213,7 +213,7 @@ func (s *NotificationService) handleConnectionStatus(status connectors.Connectio
 	if details == "" {
 		details = "No connection details"
 	}
-	if status.State == connectors.ConnectionStateDisconnected {
+	if status.State == busmsg.ConnectionStateDisconnected {
 		if errText := strings.TrimSpace(status.Err); errText != "" {
 			details = fmt.Sprintf("%s (error: %s)", details, errText)
 		}

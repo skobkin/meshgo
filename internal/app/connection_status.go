@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TransportNameFromConnector(connector config.ConnectorType) string {
@@ -37,14 +37,14 @@ func ConnectionTarget(cfg config.ConnectionConfig) string {
 	}
 }
 
-func ConnectionStatusFromConfig(cfg config.ConnectionConfig) connectors.ConnectionStatus {
-	status := connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateDisconnected,
+func ConnectionStatusFromConfig(cfg config.ConnectionConfig) busmsg.ConnectionStatus {
+	status := busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateDisconnected,
 		TransportName: TransportNameFromConnector(cfg.Connector),
 		Target:        ConnectionTarget(cfg),
 	}
 	if status.Target != "" {
-		status.State = connectors.ConnectionStateConnecting
+		status.State = busmsg.ConnectionStateConnecting
 	}
 
 	return status

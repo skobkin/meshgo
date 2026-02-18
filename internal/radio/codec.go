@@ -1,8 +1,8 @@
 package radio
 
 import (
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
@@ -13,9 +13,9 @@ type DecodedFrame struct {
 	Channels         *domain.ChannelList
 	TextMessage      *domain.ChatMessage
 	MessageStatus    *domain.MessageStatusUpdate
-	ConfigSnapshot   *connectors.ConfigSnapshot
+	ConfigSnapshot   *busmsg.ConfigSnapshot
 	AdminMessage     *AdminMessageEvent
-	Traceroute       *connectors.TracerouteEvent
+	Traceroute       *busmsg.TracerouteEvent
 	ConfigCompleteID uint32
 	WantConfigReady  bool
 }

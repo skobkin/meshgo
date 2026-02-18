@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/domain"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
@@ -708,7 +708,7 @@ func newNodeLoRaSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 
 	if dep.Data.Bus != nil {
 		nodeSettingsTabLogger.Debug("starting node LoRa settings page listener for connection status updates", "page_id", pageID)
-		connSub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
+		connSub := dep.Data.Bus.Subscribe(bus.TopicConnStatus)
 		go func() {
 			for range connSub {
 				fyne.Do(func() {
@@ -718,7 +718,7 @@ func newNodeLoRaSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 			}
 		}()
 
-		channelSub := dep.Data.Bus.Subscribe(connectors.TopicChannels)
+		channelSub := dep.Data.Bus.Subscribe(bus.TopicChannels)
 		go func() {
 			for raw := range channelSub {
 				channels, ok := raw.(domain.ChannelList)

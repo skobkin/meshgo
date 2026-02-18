@@ -12,7 +12,7 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 type nodeSettingsActionSpy struct {
@@ -237,8 +237,8 @@ func TestNodeTabSecuritySettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -276,8 +276,8 @@ func TestNodeTabLoRaSettingsLoadStartsOnNodeTabShow(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -322,8 +322,8 @@ func TestNodeTabPositionSettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -361,8 +361,8 @@ func TestNodeTabPowerSettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -400,8 +400,8 @@ func TestNodeTabDisplaySettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -439,8 +439,8 @@ func TestNodeTabBluetoothSettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -478,8 +478,8 @@ func TestNodeTabMQTTSettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{
@@ -518,8 +518,8 @@ func TestNodeTabRangeTestSettingsLoadIsLazy(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			LocalNodeID: func() string { return "!00000001" },
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 			},
 		},
 		Actions: ActionDependencies{

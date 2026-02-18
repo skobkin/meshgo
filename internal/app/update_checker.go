@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"golang.org/x/mod/semver"
 )
 
@@ -184,8 +183,8 @@ func (c *UpdateChecker) publishToBus(snapshot UpdateSnapshot) {
 
 		return
 	}
-	c.messageBus.Publish(connectors.TopicUpdateSnapshot, snapshot)
-	c.logger.Debug("published update snapshot to bus", "topic", connectors.TopicUpdateSnapshot)
+	c.messageBus.Publish(bus.TopicUpdateSnapshot, snapshot)
+	c.logger.Debug("published update snapshot to bus", "topic", bus.TopicUpdateSnapshot)
 }
 
 func (c *UpdateChecker) fetchSnapshot(ctx context.Context) (UpdateSnapshot, error) {

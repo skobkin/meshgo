@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
@@ -40,7 +40,7 @@ func TestNodeSettingsServiceLoadUserSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get owner request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   42,
@@ -62,8 +62,8 @@ func TestNodeSettingsServiceLoadUserSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -128,7 +128,7 @@ func TestNodeSettingsServiceSaveUserSettings_ImmediateStatusEvents(t *testing.T)
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -140,8 +140,8 @@ func TestNodeSettingsServiceSaveUserSettings_ImmediateStatusEvents(t *testing.T)
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -184,7 +184,7 @@ func TestNodeSettingsServiceLoadSecuritySettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get security config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   64,
@@ -213,8 +213,8 @@ func TestNodeSettingsServiceLoadSecuritySettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -331,7 +331,7 @@ func TestNodeSettingsServiceSaveSecuritySettings_ImmediateStatusEvents(t *testin
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -343,8 +343,8 @@ func TestNodeSettingsServiceSaveSecuritySettings_ImmediateStatusEvents(t *testin
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -385,7 +385,7 @@ func TestNodeSettingsServiceLoadDeviceSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get device config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   96,
@@ -417,8 +417,8 @@ func TestNodeSettingsServiceLoadDeviceSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -536,7 +536,7 @@ func TestNodeSettingsServiceSaveDeviceSettings_ImmediateStatusEvents(t *testing.
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -548,8 +548,8 @@ func TestNodeSettingsServiceSaveDeviceSettings_ImmediateStatusEvents(t *testing.
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -595,7 +595,7 @@ func TestNodeSettingsServiceLoadPositionSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get position config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   128,
@@ -628,8 +628,8 @@ func TestNodeSettingsServiceLoadPositionSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -767,7 +767,7 @@ func TestNodeSettingsServiceSavePositionSettings_ImmediateStatusEvents(t *testin
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -779,8 +779,8 @@ func TestNodeSettingsServiceSavePositionSettings_ImmediateStatusEvents(t *testin
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -857,7 +857,7 @@ func TestNodeSettingsServiceSavePositionSettings_RemoveFixedPosition_ImmediateSt
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -869,8 +869,8 @@ func TestNodeSettingsServiceSavePositionSettings_RemoveFixedPosition_ImmediateSt
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -916,7 +916,7 @@ func TestNodeSettingsServiceLoadPowerSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get power config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   160,
@@ -947,8 +947,8 @@ func TestNodeSettingsServiceLoadPowerSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -1060,7 +1060,7 @@ func TestNodeSettingsServiceSavePowerSettings_ImmediateStatusEvents(t *testing.T
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -1072,8 +1072,8 @@ func TestNodeSettingsServiceSavePowerSettings_ImmediateStatusEvents(t *testing.T
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -1117,7 +1117,7 @@ func TestNodeSettingsServiceLoadDisplaySettings_MatchesReplyID(t *testing.T) {
 				t.Fatalf("expected wantResponse=true for get display config request")
 			}
 			//goland:noinspection GoDeprecation
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   170,
@@ -1150,8 +1150,8 @@ func TestNodeSettingsServiceLoadDisplaySettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -1277,7 +1277,7 @@ func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -1289,8 +1289,8 @@ func TestNodeSettingsServiceSaveDisplaySettings_ImmediateStatusEvents(t *testing
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -1335,7 +1335,7 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get LoRa config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   175,
@@ -1375,8 +1375,8 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -1542,7 +1542,7 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -1554,8 +1554,8 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -1607,7 +1607,7 @@ func TestNodeSettingsServiceLoadMQTTSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get MQTT module config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   181,
@@ -1644,8 +1644,8 @@ func TestNodeSettingsServiceLoadMQTTSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -1785,7 +1785,7 @@ func TestNodeSettingsServiceSaveMQTTSettings_ImmediateStatusEvents(t *testing.T)
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -1797,8 +1797,8 @@ func TestNodeSettingsServiceSaveMQTTSettings_ImmediateStatusEvents(t *testing.T)
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -1845,7 +1845,7 @@ func TestNodeSettingsServiceLoadRangeTestSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get range test module config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   182,
@@ -1871,8 +1871,8 @@ func TestNodeSettingsServiceLoadRangeTestSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -1954,7 +1954,7 @@ func TestNodeSettingsServiceSaveRangeTestSettings_ImmediateStatusEvents(t *testi
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -1966,8 +1966,8 @@ func TestNodeSettingsServiceSaveRangeTestSettings_ImmediateStatusEvents(t *testi
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)
@@ -2005,7 +2005,7 @@ func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get bluetooth config request")
 			}
-			messageBus.Publish(connectors.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   180,
@@ -2030,8 +2030,8 @@ func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{}, false
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{}, false
 		},
 		logger,
 	)
@@ -2107,7 +2107,7 @@ func TestNodeSettingsServiceSaveBluetoothSettings_ImmediateStatusEvents(t *testi
 			}
 
 			packetID := packetIDs[call]
-			messageBus.Publish(connectors.TopicMessageStatus, domain.MessageStatusUpdate{
+			messageBus.Publish(bus.TopicMessageStatus, domain.MessageStatusUpdate{
 				DeviceMessageID: stringFromUint32(packetID),
 				Status:          domain.MessageStatusSent,
 			})
@@ -2119,8 +2119,8 @@ func TestNodeSettingsServiceSaveBluetoothSettings_ImmediateStatusEvents(t *testi
 	service := NewNodeSettingsService(
 		messageBus,
 		sender,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 	)

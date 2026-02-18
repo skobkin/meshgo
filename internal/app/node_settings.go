@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
@@ -31,7 +31,7 @@ type adminSender interface {
 type NodeSettingsService struct {
 	bus            bus.MessageBus
 	radio          adminSender
-	connStatus     func() (connectors.ConnectionStatus, bool)
+	connStatus     func() (busmsg.ConnectionStatus, bool)
 	logger         *slog.Logger
 	saveInFlightMu sync.Mutex
 	saveInFlight   bool
@@ -40,7 +40,7 @@ type NodeSettingsService struct {
 func NewNodeSettingsService(
 	messageBus bus.MessageBus,
 	sender adminSender,
-	connStatus func() (connectors.ConnectionStatus, bool),
+	connStatus func() (busmsg.ConnectionStatus, bool),
 	logger *slog.Logger,
 ) *NodeSettingsService {
 	if logger == nil {
@@ -81,12 +81,12 @@ func (s *NodeSettingsService) sendAdminAndWaitResponse(
 	action string,
 	message *generated.AdminMessage,
 ) (*generated.AdminMessage, error) {
-	adminSub := s.bus.Subscribe(connectors.TopicAdminMessage)
-	defer s.bus.Unsubscribe(adminSub, connectors.TopicAdminMessage)
-	statusSub := s.bus.Subscribe(connectors.TopicMessageStatus)
-	defer s.bus.Unsubscribe(statusSub, connectors.TopicMessageStatus)
-	connSub := s.bus.Subscribe(connectors.TopicConnStatus)
-	defer s.bus.Unsubscribe(connSub, connectors.TopicConnStatus)
+	adminSub := s.bus.Subscribe(bus.TopicAdminMessage)
+	defer s.bus.Unsubscribe(adminSub, bus.TopicAdminMessage)
+	statusSub := s.bus.Subscribe(bus.TopicMessageStatus)
+	defer s.bus.Unsubscribe(statusSub, bus.TopicMessageStatus)
+	connSub := s.bus.Subscribe(bus.TopicConnStatus)
+	defer s.bus.Unsubscribe(connSub, bus.TopicConnStatus)
 
 	requestID, err := s.sendAdmin(to, true, message)
 	if err != nil {
@@ -116,10 +116,10 @@ func (s *NodeSettingsService) sendAdminAndWaitResponse(
 // sendAdminAndWaitStatus is used for write/update requests where delivery status
 // (sent/acked/failed) is sufficient and no admin response payload is expected.
 func (s *NodeSettingsService) sendAdminAndWaitStatus(ctx context.Context, to uint32, action string, message *generated.AdminMessage) error {
-	sub := s.bus.Subscribe(connectors.TopicMessageStatus)
-	defer s.bus.Unsubscribe(sub, connectors.TopicMessageStatus)
-	connSub := s.bus.Subscribe(connectors.TopicConnStatus)
-	defer s.bus.Unsubscribe(connSub, connectors.TopicConnStatus)
+	sub := s.bus.Subscribe(bus.TopicMessageStatus)
+	defer s.bus.Unsubscribe(sub, bus.TopicMessageStatus)
+	connSub := s.bus.Subscribe(bus.TopicConnStatus)
+	defer s.bus.Unsubscribe(connSub, bus.TopicConnStatus)
 
 	requestID, err := s.sendAdmin(to, false, message)
 	if err != nil {
@@ -200,11 +200,11 @@ func (s *NodeSettingsService) waitAdminResponse(
 			if !ok {
 				continue
 			}
-			status, ok := raw.(connectors.ConnectionStatus)
+			status, ok := raw.(busmsg.ConnectionStatus)
 			if !ok {
 				continue
 			}
-			if status.State != connectors.ConnectionStateConnected {
+			if status.State != busmsg.ConnectionStateConnected {
 				return nil, fmt.Errorf("connection changed to %s while waiting admin response", status.State)
 			}
 		}
@@ -244,11 +244,11 @@ func (s *NodeSettingsService) waitStatus(ctx context.Context, sub bus.Subscripti
 			if !ok {
 				continue
 			}
-			status, ok := raw.(connectors.ConnectionStatus)
+			status, ok := raw.(busmsg.ConnectionStatus)
 			if !ok {
 				continue
 			}
-			if status.State != connectors.ConnectionStateConnected {
+			if status.State != busmsg.ConnectionStateConnected {
 				return fmt.Errorf("connection changed to %s while waiting message status", status.State)
 			}
 		}
@@ -261,7 +261,7 @@ func (s *NodeSettingsService) isConnected() bool {
 	}
 	status, known := s.connStatus()
 
-	return known && status.State == connectors.ConnectionStateConnected
+	return known && status.State == busmsg.ConnectionStateConnected
 }
 
 func parseNodeID(raw string) (uint32, error) {

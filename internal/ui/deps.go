@@ -8,9 +8,9 @@ import (
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 // MessageSender sends user text messages through the active radio service.
@@ -20,7 +20,7 @@ type MessageSender interface {
 
 // TracerouteAction starts traceroute requests for UI actions.
 type TracerouteAction interface {
-	StartTraceroute(ctx context.Context, target app.TracerouteTarget) (connectors.TracerouteUpdate, error)
+	StartTraceroute(ctx context.Context, target app.TracerouteTarget) (busmsg.TracerouteUpdate, error)
 }
 
 // NodeSettingsAction loads and saves node settings from UI.
@@ -57,7 +57,7 @@ type DataDependencies struct {
 	LastSelectedChat  string
 	LocalNodeID       func() string
 	CurrentConfig     func() config.AppConfig
-	CurrentConnStatus func() (connectors.ConnectionStatus, bool)
+	CurrentConnStatus func() (busmsg.ConnectionStatus, bool)
 }
 
 // ActionDependencies contains user-triggered operations invoked from UI.

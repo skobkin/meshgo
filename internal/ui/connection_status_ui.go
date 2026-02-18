@@ -10,8 +10,8 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/resources"
 )
 
@@ -22,13 +22,13 @@ type connectionStatusPresenter struct {
 	localShortName func() string
 
 	mu      sync.RWMutex
-	current connectors.ConnectionStatus
+	current busmsg.ConnectionStatus
 }
 
 func newConnectionStatusPresenter(
 	window fyne.Window,
 	statusLabel *widget.Label,
-	initialStatus connectors.ConnectionStatus,
+	initialStatus busmsg.ConnectionStatus,
 	initialVariant fyne.ThemeVariant,
 	localShortName func() string,
 ) *connectionStatusPresenter {
@@ -48,7 +48,7 @@ func (p *connectionStatusPresenter) SidebarIcon() *widget.Icon {
 	return p.sidebarIcon
 }
 
-func (p *connectionStatusPresenter) Set(status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
+func (p *connectionStatusPresenter) Set(status busmsg.ConnectionStatus, variant fyne.ThemeVariant) {
 	p.mu.Lock()
 	p.current = status
 	p.mu.Unlock()
@@ -71,14 +71,14 @@ func (p *connectionStatusPresenter) ApplyTheme(variant fyne.ThemeVariant) {
 	}
 }
 
-func (p *connectionStatusPresenter) CurrentStatus() connectors.ConnectionStatus {
+func (p *connectionStatusPresenter) CurrentStatus() busmsg.ConnectionStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	return p.current
 }
 
-func (p *connectionStatusPresenter) applyUI(status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
+func (p *connectionStatusPresenter) applyUI(status busmsg.ConnectionStatus, variant fyne.ThemeVariant) {
 	localShortName := ""
 	if p.localShortName != nil {
 		localShortName = p.localShortName()
@@ -86,7 +86,7 @@ func (p *connectionStatusPresenter) applyUI(status connectors.ConnectionStatus, 
 	applyConnStatusUI(p.window, p.statusLabel, p.sidebarIcon, status, variant, localShortName)
 }
 
-func formatConnStatus(status connectors.ConnectionStatus, localShortName string) string {
+func formatConnStatus(status busmsg.ConnectionStatus, localShortName string) string {
 	text := string(status.State)
 	if transportName := transportDisplayName(status.TransportName); transportName != "" {
 		text = transportName + " " + text
@@ -118,7 +118,7 @@ func transportDisplayName(name string) string {
 	}
 }
 
-func formatWindowTitle(status connectors.ConnectionStatus, localShortName string) string {
+func formatWindowTitle(status busmsg.ConnectionStatus, localShortName string) string {
 	return fmt.Sprintf("MeshGo %s - %s", meshapp.BuildVersion(), formatConnStatus(status, localShortName))
 }
 
@@ -126,7 +126,7 @@ func applyConnStatusUI(
 	window fyne.Window,
 	statusLabel *widget.Label,
 	sidebarIcon *widget.Icon,
-	status connectors.ConnectionStatus,
+	status busmsg.ConnectionStatus,
 	variant fyne.ThemeVariant,
 	localShortName string,
 ) {
@@ -141,12 +141,12 @@ func applyConnStatusUI(
 	}
 }
 
-func setConnStatusIcon(sidebarIcon *widget.Icon, status connectors.ConnectionStatus, variant fyne.ThemeVariant) {
+func setConnStatusIcon(sidebarIcon *widget.Icon, status busmsg.ConnectionStatus, variant fyne.ThemeVariant) {
 	sidebarIcon.SetResource(resources.UIIconResource(sidebarStatusIcon(status), variant))
 }
 
-func sidebarStatusIcon(status connectors.ConnectionStatus) resources.UIIcon {
-	if status.State == connectors.ConnectionStateConnected {
+func sidebarStatusIcon(status busmsg.ConnectionStatus) resources.UIIcon {
+	if status.State == busmsg.ConnectionStateConnected {
 		return resources.UIIconConnected
 	}
 

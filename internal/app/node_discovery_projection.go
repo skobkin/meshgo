@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 const nodeDiscoverySourceNodeInfoPacket = "nodeinfo_packet"
@@ -42,14 +42,14 @@ func (p *NodeDiscoveryProjection) Start(ctx context.Context, messageBus bus.Mess
 	if p == nil || messageBus == nil {
 		return
 	}
-	nodeSub := messageBus.Subscribe(connectors.TopicNodeInfo)
-	radioSub := messageBus.Subscribe(connectors.TopicRadioFrom)
-	connSub := messageBus.Subscribe(connectors.TopicConnStatus)
+	nodeSub := messageBus.Subscribe(bus.TopicNodeInfo)
+	radioSub := messageBus.Subscribe(bus.TopicRadioFrom)
+	connSub := messageBus.Subscribe(bus.TopicConnStatus)
 
 	go func() {
-		defer messageBus.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
-		defer messageBus.Unsubscribe(radioSub, connectors.TopicRadioFrom)
-		defer messageBus.Unsubscribe(connSub, connectors.TopicConnStatus)
+		defer messageBus.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+		defer messageBus.Unsubscribe(radioSub, bus.TopicRadioFrom)
+		defer messageBus.Unsubscribe(connSub, bus.TopicConnStatus)
 		for {
 			select {
 			case <-ctx.Done():
@@ -58,7 +58,7 @@ func (p *NodeDiscoveryProjection) Start(ctx context.Context, messageBus bus.Mess
 				if !ok {
 					return
 				}
-				status, ok := raw.(connectors.ConnectionStatus)
+				status, ok := raw.(busmsg.ConnectionStatus)
 				if !ok {
 					continue
 				}
@@ -84,7 +84,7 @@ func (p *NodeDiscoveryProjection) Start(ctx context.Context, messageBus bus.Mess
 				if !shouldPublish {
 					continue
 				}
-				messageBus.Publish(connectors.TopicNodeDiscovered, event)
+				messageBus.Publish(bus.TopicNodeDiscovered, event)
 				p.logger.Info("node discovered", "node_id", event.NodeID, "source", event.Source)
 			}
 		}
@@ -106,11 +106,11 @@ func (p *NodeDiscoveryProjection) ResetFromStore(nodeStore *domain.NodeStore) {
 	p.logger.Info("node discovery baseline reset", "known_nodes", len(known))
 }
 
-func (p *NodeDiscoveryProjection) handleConnStatus(status connectors.ConnectionStatus) {
+func (p *NodeDiscoveryProjection) handleConnStatus(status busmsg.ConnectionStatus) {
 	if p == nil || status.State == "" {
 		return
 	}
-	if status.State == connectors.ConnectionStateConnected {
+	if status.State == busmsg.ConnectionStateConnected {
 		return
 	}
 	p.mu.Lock()

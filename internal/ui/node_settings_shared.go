@@ -10,8 +10,8 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 const nodeSettingsOpTimeout = 12 * time.Second
@@ -82,7 +82,7 @@ func isNodeSettingsConnected(dep RuntimeDependencies) bool {
 		return false
 	}
 
-	return status.State == connectors.ConnectionStateConnected
+	return status.State == busmsg.ConnectionStateConnected
 }
 
 func localNodeSettingsTarget(dep RuntimeDependencies) (app.NodeSettingsTarget, bool) {

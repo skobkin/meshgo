@@ -9,14 +9,14 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/resources"
 )
 
 func TestFormatWindowTitle(t *testing.T) {
-	got := formatWindowTitle(connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	got := formatWindowTitle(busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "ip",
 	}, "")
 	want := "MeshGo " + meshapp.BuildVersion() + " - IP connected"
@@ -26,8 +26,8 @@ func TestFormatWindowTitle(t *testing.T) {
 }
 
 func TestFormatConnStatus_WithTargetAndLocalNodeName(t *testing.T) {
-	got := formatConnStatus(connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	got := formatConnStatus(busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "serial",
 		Target:        "/dev/ttyACM2",
 	}, "ABCD")
@@ -59,22 +59,22 @@ func TestTransportDisplayName(t *testing.T) {
 }
 
 func TestSidebarStatusIcon(t *testing.T) {
-	connected := sidebarStatusIcon(connectors.ConnectionStatus{
-		State: connectors.ConnectionStateConnected,
+	connected := sidebarStatusIcon(busmsg.ConnectionStatus{
+		State: busmsg.ConnectionStateConnected,
 	})
 	if connected != resources.UIIconConnected {
 		t.Fatalf("expected connected icon, got %q", connected)
 	}
 
-	disconnected := sidebarStatusIcon(connectors.ConnectionStatus{
-		State: connectors.ConnectionStateDisconnected,
+	disconnected := sidebarStatusIcon(busmsg.ConnectionStatus{
+		State: busmsg.ConnectionStateDisconnected,
 	})
 	if disconnected != resources.UIIconDisconnected {
 		t.Fatalf("expected disconnected icon, got %q", disconnected)
 	}
 
-	connecting := sidebarStatusIcon(connectors.ConnectionStatus{
-		State: connectors.ConnectionStateConnecting,
+	connecting := sidebarStatusIcon(busmsg.ConnectionStatus{
+		State: busmsg.ConnectionStateConnecting,
 	})
 	if connecting != resources.UIIconDisconnected {
 		t.Fatalf("expected disconnected icon for connecting state, got %q", connecting)
@@ -120,8 +120,8 @@ func TestConnectionStatusPresenterSetRefreshAndApplyTheme(t *testing.T) {
 	presenter := newConnectionStatusPresenter(
 		window,
 		label,
-		connectors.ConnectionStatus{
-			State:         connectors.ConnectionStateConnecting,
+		busmsg.ConnectionStatus{
+			State:         busmsg.ConnectionStateConnecting,
 			TransportName: "ip",
 		},
 		theme.VariantLight,
@@ -142,8 +142,8 @@ func TestConnectionStatusPresenterSetRefreshAndApplyTheme(t *testing.T) {
 		t.Fatalf("expected initial title to include local name, got %q", window.Title())
 	}
 
-	presenter.Set(connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	presenter.Set(busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "serial",
 		Target:        "/dev/ttyACM0",
 	}, theme.VariantDark)
@@ -161,8 +161,8 @@ func TestConnectionStatusPresenterSetRefreshAndApplyTheme(t *testing.T) {
 }
 
 func TestApplyConnStatusUIHandlesNilTargets(t *testing.T) {
-	applyConnStatusUI(nil, nil, nil, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateDisconnected,
+	applyConnStatusUI(nil, nil, nil, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateDisconnected,
 		TransportName: "serial",
 	}, theme.VariantLight, "")
 }

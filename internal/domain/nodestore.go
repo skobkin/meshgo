@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 )
 
 // NodeStore keeps the latest node snapshots in memory for the UI.
@@ -34,9 +33,9 @@ func (s *NodeStore) Load(nodes []Node) {
 }
 
 func (s *NodeStore) Start(ctx context.Context, b bus.MessageBus) {
-	sub := b.Subscribe(connectors.TopicNodeInfo)
+	sub := b.Subscribe(bus.TopicNodeInfo)
 	go func() {
-		defer b.Unsubscribe(sub, connectors.TopicNodeInfo)
+		defer b.Unsubscribe(sub, bus.TopicNodeInfo)
 		for {
 			select {
 			case <-ctx.Done():

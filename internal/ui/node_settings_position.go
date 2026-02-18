@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/bus"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
@@ -586,7 +586,7 @@ func newNodePositionSettingsPage(dep RuntimeDependencies, saveGate *nodeSettings
 
 	if dep.Data.Bus != nil {
 		nodeSettingsTabLogger.Debug("starting node position settings page listener for connection status updates", "page_id", pageID)
-		connSub := dep.Data.Bus.Subscribe(connectors.TopicConnStatus)
+		connSub := dep.Data.Bus.Subscribe(bus.TopicConnStatus)
 		go func() {
 			for range connSub {
 				fyne.Do(func() {

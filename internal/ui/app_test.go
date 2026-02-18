@@ -8,8 +8,8 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestResolveNodeDisplayName_Priority(t *testing.T) {
@@ -79,7 +79,7 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 	if status.TransportName != "bluetooth" {
 		t.Fatalf("expected bluetooth transport, got %q", status.TransportName)
 	}
-	if status.State != connectors.ConnectionStateConnecting {
+	if status.State != busmsg.ConnectionStateConnecting {
 		t.Fatalf("expected connecting state, got %q", status.State)
 	}
 }
@@ -96,9 +96,9 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 					BluetoothAddress: "",
 				},
 			},
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{
-					State:         connectors.ConnectionStateConnected,
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{
+					State:         busmsg.ConnectionStateConnected,
 					TransportName: "serial",
 					Target:        "",
 				}, true
@@ -107,7 +107,7 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 	}
 
 	status := resolveInitialConnStatus(dep)
-	if status.State != connectors.ConnectionStateConnected {
+	if status.State != busmsg.ConnectionStateConnected {
 		t.Fatalf("expected cached connected status, got %q", status.State)
 	}
 	if status.TransportName != "serial" {

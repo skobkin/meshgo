@@ -10,9 +10,9 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/notifications"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestNotificationServiceIncomingDMMessage(t *testing.T) {
@@ -40,7 +40,7 @@ func TestNotificationServiceIncomingDMMessage(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+	messageBus.Publish(bus.TopicTextMessage, domain.ChatMessage{
 		ChatKey:         domain.ChatKeyForDM("!12345678"),
 		Direction:       domain.MessageDirectionIn,
 		Body:            "Hello there",
@@ -87,7 +87,7 @@ func TestNotificationServiceIncomingChannelMessage(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+	messageBus.Publish(bus.TopicTextMessage, domain.ChatMessage{
 		ChatKey:   domain.ChatKeyForChannel(0),
 		Direction: domain.MessageDirectionIn,
 		Body:      "Hi channel",
@@ -120,7 +120,7 @@ func TestNotificationServiceSkipsOutgoingMessages(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicTextMessage, domain.ChatMessage{
+	messageBus.Publish(bus.TopicTextMessage, domain.ChatMessage{
 		ChatKey:   domain.ChatKeyForChannel(0),
 		Direction: domain.MessageDirectionOut,
 		Body:      "outgoing",
@@ -146,7 +146,7 @@ func TestNotificationServiceNodeDiscoveredFormatting(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicNodeDiscovered, domain.NodeDiscovered{
+	messageBus.Publish(bus.TopicNodeDiscovered, domain.NodeDiscovered{
 		NodeID: "!00000001",
 		Node: domain.Node{
 			NodeID:    "!00000001",
@@ -154,7 +154,7 @@ func TestNotificationServiceNodeDiscoveredFormatting(t *testing.T) {
 			LongName:  "Alpha Node",
 		},
 	})
-	messageBus.Publish(connectors.TopicNodeDiscovered, domain.NodeDiscovered{
+	messageBus.Publish(bus.TopicNodeDiscovered, domain.NodeDiscovered{
 		NodeID: "!00000002",
 		Node: domain.Node{
 			NodeID: "!00000002",
@@ -190,8 +190,8 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
@@ -201,24 +201,24 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 	}
 
 	// Duplicate consecutive state must be ignored.
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
 	sender.assertCount(t, 1)
 
 	// Reconnecting itself should not notify.
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateReconnecting,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateReconnecting,
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
 	sender.assertCount(t, 1)
 
 	// Connected again after a different state should notify.
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateConnected,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateConnected,
 		TransportName: "ip",
 		Target:        "192.168.0.156:4403",
 	})
@@ -227,8 +227,8 @@ func TestNotificationServiceConnectionStatusFilteringAndFormatting(t *testing.T)
 		t.Fatalf("expected reconnection title, got %q", got)
 	}
 
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateDisconnected,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateDisconnected,
 		TransportName: "serial",
 		Target:        "/dev/ttyACM0",
 		Err:           "read timeout",
@@ -274,19 +274,19 @@ func TestNotificationServiceForegroundAndPerTypeSettings(t *testing.T) {
 	}
 
 	// Focused app + notify_when_focused=false -> suppressed.
-	messageBus.Publish(connectors.TopicTextMessage, message)
+	messageBus.Publish(bus.TopicTextMessage, message)
 	sender.assertCount(t, 0)
 
 	cfgMu.Lock()
 	cfg.UI.Notifications.NotifyWhenFocused = true
 	cfgMu.Unlock()
-	messageBus.Publish(connectors.TopicTextMessage, message)
+	messageBus.Publish(bus.TopicTextMessage, message)
 	sender.waitForCount(t, 1)
 
 	cfgMu.Lock()
 	cfg.UI.Notifications.Events.IncomingMessage = false
 	cfgMu.Unlock()
-	messageBus.Publish(connectors.TopicTextMessage, message)
+	messageBus.Publish(bus.TopicTextMessage, message)
 	sender.assertCount(t, 1)
 }
 
@@ -307,7 +307,7 @@ func TestNotificationServiceUpdateAvailableOnLaterSnapshot(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: false,
 		Latest: ReleaseInfo{
@@ -316,7 +316,7 @@ func TestNotificationServiceUpdateAvailableOnLaterSnapshot(t *testing.T) {
 	})
 	sender.assertCount(t, 0)
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{
@@ -346,7 +346,7 @@ func TestNotificationServiceUpdateAvailableDedupesAndNotifiesNewer(t *testing.T)
 	defer cancel()
 	service.Start(ctx)
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{
@@ -355,7 +355,7 @@ func TestNotificationServiceUpdateAvailableDedupesAndNotifiesNewer(t *testing.T)
 	})
 	sender.waitForCount(t, 1)
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{
@@ -364,7 +364,7 @@ func TestNotificationServiceUpdateAvailableDedupesAndNotifiesNewer(t *testing.T)
 	})
 	sender.assertCount(t, 1)
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{
@@ -408,14 +408,14 @@ func TestNotificationServiceUpdateAvailableRespectsSettingsAndForeground(t *test
 			Version: "1.1.0",
 		},
 	}
-	messageBus.Publish(connectors.TopicUpdateSnapshot, snapshot)
+	messageBus.Publish(bus.TopicUpdateSnapshot, snapshot)
 	sender.assertCount(t, 0)
 
 	cfgMu.Lock()
 	cfg.UI.Notifications.NotifyWhenFocused = true
 	cfg.UI.Notifications.Events.UpdateAvailable = false
 	cfgMu.Unlock()
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{
@@ -427,7 +427,7 @@ func TestNotificationServiceUpdateAvailableRespectsSettingsAndForeground(t *test
 	cfgMu.Lock()
 	cfg.UI.Notifications.Events.UpdateAvailable = true
 	cfgMu.Unlock()
-	messageBus.Publish(connectors.TopicUpdateSnapshot, UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, UpdateSnapshot{
 		CurrentVersion:  "1.0.0",
 		UpdateAvailable: true,
 		Latest: ReleaseInfo{

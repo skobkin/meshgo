@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
@@ -48,8 +48,8 @@ func TestTracerouteServiceStartTraceroute_EnforcesGlobalCooldown(t *testing.T) {
 			},
 		},
 		nodeStore,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 		0,
@@ -92,8 +92,8 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 			},
 		},
 		nil,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 		0,
@@ -102,8 +102,8 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	sub := messageBus.Subscribe(connectors.TopicTracerouteUpdate)
-	defer messageBus.Unsubscribe(sub, connectors.TopicTracerouteUpdate)
+	sub := messageBus.Subscribe(bus.TopicTracerouteUpdate)
+	defer messageBus.Unsubscribe(sub, bus.TopicTracerouteUpdate)
 
 	if _, err := service.StartTraceroute(context.Background(), TracerouteTarget{NodeID: "!0000002a"}); err != nil {
 		t.Fatalf("start traceroute: %v", err)
@@ -111,7 +111,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 
 	waitTracerouteStatus(t, sub, traceroute.StatusStarted)
 
-	messageBus.Publish(connectors.TopicTraceroute, connectors.TracerouteEvent{
+	messageBus.Publish(bus.TopicTraceroute, busmsg.TracerouteEvent{
 		RequestID: 100,
 		Route:     []uint32{0x2a, 0x10},
 		SnrTowards: []int32{
@@ -126,7 +126,7 @@ func TestTracerouteServiceProgressAndCompletion(t *testing.T) {
 		t.Fatalf("unexpected return route length: %d", len(progress.ReturnRoute))
 	}
 
-	messageBus.Publish(connectors.TopicTraceroute, connectors.TracerouteEvent{
+	messageBus.Publish(bus.TopicTraceroute, busmsg.TracerouteEvent{
 		RequestID:  100,
 		Route:      []uint32{0x2a, 0x10},
 		SnrTowards: []int32{24},
@@ -156,8 +156,8 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 			},
 		},
 		nil,
-		func() (connectors.ConnectionStatus, bool) {
-			return connectors.ConnectionStatus{State: connectors.ConnectionStateConnected}, true
+		func() (busmsg.ConnectionStatus, bool) {
+			return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
 		},
 		logger,
 		50*time.Millisecond,
@@ -166,8 +166,8 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 	defer cancel()
 	service.Start(ctx)
 
-	sub := messageBus.Subscribe(connectors.TopicTracerouteUpdate)
-	defer messageBus.Unsubscribe(sub, connectors.TopicTracerouteUpdate)
+	sub := messageBus.Subscribe(bus.TopicTracerouteUpdate)
+	defer messageBus.Unsubscribe(sub, bus.TopicTracerouteUpdate)
 
 	if _, err := service.StartTraceroute(context.Background(), TracerouteTarget{NodeID: "!00000007"}); err != nil {
 		t.Fatalf("start traceroute: %v", err)
@@ -183,7 +183,7 @@ func TestTracerouteServiceTimesOutPendingRequest(t *testing.T) {
 	}
 }
 
-func waitTracerouteStatus(t *testing.T, sub bus.Subscription, status traceroute.Status) connectors.TracerouteUpdate {
+func waitTracerouteStatus(t *testing.T, sub bus.Subscription, status traceroute.Status) busmsg.TracerouteUpdate {
 	t.Helper()
 	deadline := time.After(3 * time.Second)
 	for {
@@ -194,7 +194,7 @@ func waitTracerouteStatus(t *testing.T, sub bus.Subscription, status traceroute.
 			if !ok {
 				t.Fatalf("traceroute update subscription closed")
 			}
-			update, ok := raw.(connectors.TracerouteUpdate)
+			update, ok := raw.(busmsg.TracerouteUpdate)
 			if !ok {
 				continue
 			}

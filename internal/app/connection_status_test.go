@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestTransportNameFromConnector(t *testing.T) {
@@ -53,7 +53,7 @@ func TestConnectionStatusFromConfig(t *testing.T) {
 		SerialBaud: 115200,
 	})
 
-	if status.State != connectors.ConnectionStateConnecting {
+	if status.State != busmsg.ConnectionStateConnecting {
 		t.Fatalf("expected connecting state, got %q", status.State)
 	}
 	if status.TransportName != "serial" {

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"google.golang.org/protobuf/proto"
 )
@@ -279,13 +279,13 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 	}
 }
 
-func decodeTracerouteEvent(packet *generated.MeshPacket, decoded *generated.Data) (connectors.TracerouteEvent, bool) {
+func decodeTracerouteEvent(packet *generated.MeshPacket, decoded *generated.Data) (busmsg.TracerouteEvent, bool) {
 	if decoded == nil || decoded.GetWantResponse() {
-		return connectors.TracerouteEvent{}, false
+		return busmsg.TracerouteEvent{}, false
 	}
 	var routeDiscovery generated.RouteDiscovery
 	if err := proto.Unmarshal(decoded.GetPayload(), &routeDiscovery); err != nil {
-		return connectors.TracerouteEvent{}, false
+		return busmsg.TracerouteEvent{}, false
 	}
 
 	destinationID := decoded.GetDest()
@@ -325,7 +325,7 @@ func decodeTracerouteEvent(packet *generated.MeshPacket, decoded *generated.Data
 		requestID = decoded.GetReplyId()
 	}
 
-	return connectors.TracerouteEvent{
+	return busmsg.TracerouteEvent{
 		From:       packet.GetFrom(),
 		To:         packet.GetTo(),
 		PacketID:   packet.GetId(),
@@ -465,13 +465,13 @@ func decodeNodeTelemetryFromPacket(packet *generated.MeshPacket, payload []byte,
 	}, true
 }
 
-func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string) (domain.ChannelList, connectors.ConfigSnapshot, bool) {
+func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string) (domain.ChannelList, busmsg.ConfigSnapshot, bool) {
 	if channelInfo.GetRole() == generated.Channel_DISABLED {
-		return domain.ChannelList{}, connectors.ConfigSnapshot{}, false
+		return domain.ChannelList{}, busmsg.ConfigSnapshot{}, false
 	}
 	idx := int(channelInfo.GetIndex())
 	if idx < 0 {
-		return domain.ChannelList{}, connectors.ConfigSnapshot{}, false
+		return domain.ChannelList{}, busmsg.ConfigSnapshot{}, false
 	}
 
 	title := strings.TrimSpace(channelInfo.GetSettings().GetName())
@@ -483,7 +483,7 @@ func decodeChannelInfo(channelInfo *generated.Channel, defaultPresetTitle string
 	}
 
 	list := domain.ChannelList{Items: []domain.ChannelInfo{{Index: idx, Title: title}}}
-	snapshot := connectors.ConfigSnapshot{ChannelTitles: []string{title}}
+	snapshot := busmsg.ConfigSnapshot{ChannelTitles: []string{title}}
 
 	return list, snapshot, true
 }

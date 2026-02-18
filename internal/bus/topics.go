@@ -1,4 +1,4 @@
-package connectors
+package bus
 
 const (
 	TopicConnStatus       = "conn.status"

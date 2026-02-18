@@ -14,11 +14,11 @@ import (
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 const (
@@ -144,14 +144,14 @@ func run() error {
 		return fmt.Errorf("create transport: %w", err)
 	}
 	radioService := radio.NewService(logMgr.Logger("radio"), b, connTransport, codec)
-	initialDecodedSub := b.Subscribe(connectors.TopicRadioFrom)
-	initialConnSub := b.Subscribe(connectors.TopicConnStatus)
-	initialRawInSub := b.Subscribe(connectors.TopicRawFrameIn)
-	initialRawOutSub := b.Subscribe(connectors.TopicRawFrameOut)
-	defer b.Unsubscribe(initialDecodedSub, connectors.TopicRadioFrom)
-	defer b.Unsubscribe(initialConnSub, connectors.TopicConnStatus)
-	defer b.Unsubscribe(initialRawInSub, connectors.TopicRawFrameIn)
-	defer b.Unsubscribe(initialRawOutSub, connectors.TopicRawFrameOut)
+	initialDecodedSub := b.Subscribe(bus.TopicRadioFrom)
+	initialConnSub := b.Subscribe(bus.TopicConnStatus)
+	initialRawInSub := b.Subscribe(bus.TopicRawFrameIn)
+	initialRawOutSub := b.Subscribe(bus.TopicRawFrameOut)
+	defer b.Unsubscribe(initialDecodedSub, bus.TopicRadioFrom)
+	defer b.Unsubscribe(initialConnSub, bus.TopicConnStatus)
+	defer b.Unsubscribe(initialRawInSub, bus.TopicRawFrameIn)
+	defer b.Unsubscribe(initialRawOutSub, bus.TopicRawFrameOut)
 	radioService.Start(ctx)
 
 	logger.Info(
@@ -208,7 +208,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			if !ok {
 				continue
 			}
-			status, ok := raw.(connectors.ConnectionStatus)
+			status, ok := raw.(busmsg.ConnectionStatus)
 			if !ok {
 				continue
 			}
@@ -217,7 +217,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			if !ok {
 				continue
 			}
-			frame, ok := raw.(connectors.RawFrame)
+			frame, ok := raw.(busmsg.RawFrame)
 			if !ok {
 				continue
 			}
@@ -227,7 +227,7 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 			if !ok {
 				continue
 			}
-			frame, ok := raw.(connectors.RawFrame)
+			frame, ok := raw.(busmsg.RawFrame)
 			if !ok {
 				continue
 			}
@@ -262,31 +262,31 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 }
 
 func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
-	connSub := b.Subscribe(connectors.TopicConnStatus)
-	channelSub := b.Subscribe(connectors.TopicChannels)
-	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
-	textSub := b.Subscribe(connectors.TopicTextMessage)
-	statusSub := b.Subscribe(connectors.TopicMessageStatus)
-	configSub := b.Subscribe(connectors.TopicConfigSnapshot)
-	rawInSub := b.Subscribe(connectors.TopicRawFrameIn)
-	rawOutSub := b.Subscribe(connectors.TopicRawFrameOut)
+	connSub := b.Subscribe(bus.TopicConnStatus)
+	channelSub := b.Subscribe(bus.TopicChannels)
+	nodeSub := b.Subscribe(bus.TopicNodeInfo)
+	textSub := b.Subscribe(bus.TopicTextMessage)
+	statusSub := b.Subscribe(bus.TopicMessageStatus)
+	configSub := b.Subscribe(bus.TopicConfigSnapshot)
+	rawInSub := b.Subscribe(bus.TopicRawFrameIn)
+	rawOutSub := b.Subscribe(bus.TopicRawFrameOut)
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
-				b.Unsubscribe(connSub, connectors.TopicConnStatus)
-				b.Unsubscribe(channelSub, connectors.TopicChannels)
-				b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
-				b.Unsubscribe(textSub, connectors.TopicTextMessage)
-				b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
-				b.Unsubscribe(configSub, connectors.TopicConfigSnapshot)
-				b.Unsubscribe(rawInSub, connectors.TopicRawFrameIn)
-				b.Unsubscribe(rawOutSub, connectors.TopicRawFrameOut)
+				b.Unsubscribe(connSub, bus.TopicConnStatus)
+				b.Unsubscribe(channelSub, bus.TopicChannels)
+				b.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+				b.Unsubscribe(textSub, bus.TopicTextMessage)
+				b.Unsubscribe(statusSub, bus.TopicMessageStatus)
+				b.Unsubscribe(configSub, bus.TopicConfigSnapshot)
+				b.Unsubscribe(rawInSub, bus.TopicRawFrameIn)
+				b.Unsubscribe(rawOutSub, bus.TopicRawFrameOut)
 
 				return
 			case raw := <-connSub:
-				if status, ok := raw.(connectors.ConnectionStatus); ok {
+				if status, ok := raw.(busmsg.ConnectionStatus); ok {
 					logger.Info("conn", "state", status.State, "transport", status.TransportName, "error", status.Err)
 				}
 			case raw := <-channelSub:
@@ -306,15 +306,15 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 					logger.Info("message-status", "device_message_id", update.DeviceMessageID, "status", update.Status, "reason", update.Reason)
 				}
 			case raw := <-configSub:
-				if cfg, ok := raw.(connectors.ConfigSnapshot); ok {
+				if cfg, ok := raw.(busmsg.ConfigSnapshot); ok {
 					logger.Info("config-snapshot", "channels", fmt.Sprintf("%v", cfg.ChannelTitles))
 				}
 			case raw := <-rawOutSub:
-				if frame, ok := raw.(connectors.RawFrame); ok {
+				if frame, ok := raw.(busmsg.RawFrame); ok {
 					logger.Info("raw-out", "len", frame.Len, "hex", previewHex(frame.Hex))
 				}
 			case raw := <-rawInSub:
-				if frame, ok := raw.(connectors.RawFrame); ok {
+				if frame, ok := raw.(busmsg.RawFrame); ok {
 					logger.Info("raw-in", "len", frame.Len, "hex", previewHex(frame.Hex))
 				}
 			}

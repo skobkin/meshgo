@@ -14,12 +14,12 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/config"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
 	"github.com/skobkin/meshgo/internal/platform"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 // Runtime wires app services, persistence, transport, and UI-facing stores together.
@@ -35,7 +35,7 @@ type Runtime struct {
 	Connectivity RuntimeConnectivity
 
 	connStatusMu    sync.RWMutex
-	connStatus      connectors.ConnectionStatus
+	connStatus      busmsg.ConnectionStatus
 	connStatusKnown bool
 }
 
@@ -139,7 +139,7 @@ func Initialize(parent context.Context) (*Runtime, error) {
 
 	b := bus.New(logMgr.Logger("bus"))
 	rt.Domain.Bus = b
-	connSub := b.Subscribe(connectors.TopicConnStatus)
+	connSub := b.Subscribe(bus.TopicConnStatus)
 	go rt.captureConnStatus(ctx, connSub)
 	nodeStore.Start(ctx, b)
 	chatStore.Start(ctx, b)
@@ -205,7 +205,7 @@ func (r *Runtime) captureConnStatus(ctx context.Context, sub bus.Subscription) {
 			if !ok {
 				return
 			}
-			status, ok := raw.(connectors.ConnectionStatus)
+			status, ok := raw.(busmsg.ConnectionStatus)
 			if !ok {
 				continue
 			}
@@ -214,14 +214,14 @@ func (r *Runtime) captureConnStatus(ctx context.Context, sub bus.Subscription) {
 	}
 }
 
-func (r *Runtime) setConnStatus(status connectors.ConnectionStatus) {
+func (r *Runtime) setConnStatus(status busmsg.ConnectionStatus) {
 	r.connStatusMu.Lock()
 	r.connStatus = status
 	r.connStatusKnown = true
 	r.connStatusMu.Unlock()
 }
 
-func (r *Runtime) CurrentConnStatus() (connectors.ConnectionStatus, bool) {
+func (r *Runtime) CurrentConnStatus() (busmsg.ConnectionStatus, bool) {
 	r.connStatusMu.RLock()
 	status := r.connStatus
 	known := r.connStatusKnown

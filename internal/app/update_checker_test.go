@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 )
 
 func TestNormalizeSemver(t *testing.T) {
@@ -150,9 +149,9 @@ func TestUpdateCheckerPublishesSnapshotsToBus(t *testing.T) {
 		messageBus.Close()
 	})
 
-	sub := messageBus.Subscribe(connectors.TopicUpdateSnapshot)
+	sub := messageBus.Subscribe(bus.TopicUpdateSnapshot)
 	t.Cleanup(func() {
-		messageBus.Unsubscribe(sub, connectors.TopicUpdateSnapshot)
+		messageBus.Unsubscribe(sub, bus.TopicUpdateSnapshot)
 	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

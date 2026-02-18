@@ -5,8 +5,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/resources"
 )
 
@@ -24,7 +24,7 @@ func buildMainView(
 	fyApp fyne.App,
 	window fyne.Window,
 	initialVariant fyne.ThemeVariant,
-	initialStatus connectors.ConnectionStatus,
+	initialStatus busmsg.ConnectionStatus,
 ) mainView {
 	settingsConnStatus := widget.NewLabel("")
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis

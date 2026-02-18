@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 // WriteQueue serializes persistence writes from async domain events.
@@ -22,17 +22,17 @@ func StartPersistenceProjection(
 	msgRepo MessageRepository,
 	tracerouteRepo TracerouteRepository,
 ) {
-	nodeSub := b.Subscribe(connectors.TopicNodeInfo)
-	channelSub := b.Subscribe(connectors.TopicChannels)
-	textSub := b.Subscribe(connectors.TopicTextMessage)
-	statusSub := b.Subscribe(connectors.TopicMessageStatus)
+	nodeSub := b.Subscribe(bus.TopicNodeInfo)
+	channelSub := b.Subscribe(bus.TopicChannels)
+	textSub := b.Subscribe(bus.TopicTextMessage)
+	statusSub := b.Subscribe(bus.TopicMessageStatus)
 	var tracerouteSub bus.Subscription
 	if tracerouteRepo != nil {
-		tracerouteSub = b.Subscribe(connectors.TopicTracerouteUpdate)
+		tracerouteSub = b.Subscribe(bus.TopicTracerouteUpdate)
 	}
 
 	go func() {
-		defer b.Unsubscribe(nodeSub, connectors.TopicNodeInfo)
+		defer b.Unsubscribe(nodeSub, bus.TopicNodeInfo)
 		for {
 			select {
 			case <-ctx.Done():
@@ -54,7 +54,7 @@ func StartPersistenceProjection(
 	}()
 
 	go func() {
-		defer b.Unsubscribe(channelSub, connectors.TopicChannels)
+		defer b.Unsubscribe(channelSub, bus.TopicChannels)
 		for {
 			select {
 			case <-ctx.Done():
@@ -78,7 +78,7 @@ func StartPersistenceProjection(
 	}()
 
 	go func() {
-		defer b.Unsubscribe(textSub, connectors.TopicTextMessage)
+		defer b.Unsubscribe(textSub, bus.TopicTextMessage)
 		for {
 			select {
 			case <-ctx.Done():
@@ -109,7 +109,7 @@ func StartPersistenceProjection(
 	}()
 
 	go func() {
-		defer b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
+		defer b.Unsubscribe(statusSub, bus.TopicMessageStatus)
 		for {
 			select {
 			case <-ctx.Done():
@@ -132,7 +132,7 @@ func StartPersistenceProjection(
 
 	if tracerouteRepo != nil {
 		go func() {
-			defer b.Unsubscribe(tracerouteSub, connectors.TopicTracerouteUpdate)
+			defer b.Unsubscribe(tracerouteSub, bus.TopicTracerouteUpdate)
 			for {
 				select {
 				case <-ctx.Done():
@@ -141,7 +141,7 @@ func StartPersistenceProjection(
 					if !ok {
 						return
 					}
-					update, ok := raw.(connectors.TracerouteUpdate)
+					update, ok := raw.(busmsg.TracerouteUpdate)
 					if !ok {
 						continue
 					}

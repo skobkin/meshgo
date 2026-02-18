@@ -13,8 +13,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"github.com/skobkin/meshgo/internal/transport"
 )
@@ -110,9 +110,9 @@ func (s *Service) runConnector(ctx context.Context) {
 			return
 		}
 
-		s.publishConnStatus(connectors.ConnectionStateConnecting, nil)
+		s.publishConnStatus(busmsg.ConnectionStateConnecting, nil)
 		if err := s.transport.Connect(ctx); err != nil {
-			s.publishConnStatus(connectors.ConnectionStateReconnecting, err)
+			s.publishConnStatus(busmsg.ConnectionStateReconnecting, err)
 			s.logger.Error("transport connect failed", "error", err)
 			if !sleepWithContext(ctx, backoff) {
 				return
@@ -125,7 +125,7 @@ func (s *Service) runConnector(ctx context.Context) {
 		}
 
 		backoff = time.Second
-		s.publishConnStatus(connectors.ConnectionStateConnected, nil)
+		s.publishConnStatus(busmsg.ConnectionStateConnected, nil)
 		if err := s.sendWantConfig(ctx); err != nil {
 			s.logger.Warn("want_config send failed", "error", err)
 		}
@@ -135,7 +135,7 @@ func (s *Service) runConnector(ctx context.Context) {
 		err := s.runReader(ctx)
 		cancelKeepAlive()
 		_ = s.transport.Close()
-		s.publishConnStatus(connectors.ConnectionStateReconnecting, err)
+		s.publishConnStatus(busmsg.ConnectionStateReconnecting, err)
 
 		if !sleepWithContext(ctx, backoff) {
 			return
@@ -159,36 +159,36 @@ func (s *Service) runReader(ctx context.Context) error {
 			return err
 		}
 
-		s.bus.Publish(connectors.TopicRawFrameIn, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
+		s.bus.Publish(bus.TopicRawFrameIn, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
 		decoded, err := s.codec.DecodeFromRadio(payload)
 		if err != nil {
 			s.logger.Warn("decode fromradio failed", "error", err)
 
 			continue
 		}
-		s.bus.Publish(connectors.TopicRadioFrom, decoded)
+		s.bus.Publish(bus.TopicRadioFrom, decoded)
 
 		if decoded.NodeUpdate != nil {
-			s.bus.Publish(connectors.TopicNodeInfo, *decoded.NodeUpdate)
+			s.bus.Publish(bus.TopicNodeInfo, *decoded.NodeUpdate)
 		}
 		if decoded.Channels != nil {
-			s.bus.Publish(connectors.TopicChannels, *decoded.Channels)
+			s.bus.Publish(bus.TopicChannels, *decoded.Channels)
 		}
 		if decoded.ConfigSnapshot != nil {
-			s.bus.Publish(connectors.TopicConfigSnapshot, *decoded.ConfigSnapshot)
+			s.bus.Publish(bus.TopicConfigSnapshot, *decoded.ConfigSnapshot)
 		}
 		if decoded.TextMessage != nil {
-			s.bus.Publish(connectors.TopicTextMessage, *decoded.TextMessage)
+			s.bus.Publish(bus.TopicTextMessage, *decoded.TextMessage)
 		}
 		if decoded.AdminMessage != nil {
-			s.bus.Publish(connectors.TopicAdminMessage, *decoded.AdminMessage)
+			s.bus.Publish(bus.TopicAdminMessage, *decoded.AdminMessage)
 		}
 		if decoded.Traceroute != nil {
-			s.bus.Publish(connectors.TopicTraceroute, *decoded.Traceroute)
+			s.bus.Publish(bus.TopicTraceroute, *decoded.Traceroute)
 		}
 		if decoded.MessageStatus != nil {
 			status := s.normalizeMessageStatus(*decoded.MessageStatus)
-			s.bus.Publish(connectors.TopicMessageStatus, status)
+			s.bus.Publish(bus.TopicMessageStatus, status)
 		}
 	}
 }
@@ -216,7 +216,7 @@ func (s *Service) runKeepAlive(ctx context.Context) {
 
 				continue
 			}
-			s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
+			s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
 		}
 	}
 }
@@ -261,8 +261,8 @@ func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
 		MetaJSON:        outgoingMessageMetaJSON(s.LocalNodeID()),
 	}
 
-	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
-	s.bus.Publish(connectors.TopicTextMessage, msg)
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+	s.bus.Publish(bus.TopicTextMessage, msg)
 
 	return SendResult{Message: msg}
 }
@@ -277,7 +277,7 @@ func (s *Service) sendWantConfig(ctx context.Context) error {
 	if err := s.transport.WriteFrame(writeCtx, payload); err != nil {
 		return err
 	}
-	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(payload)), Len: len(payload)})
 
 	return nil
 }
@@ -296,7 +296,7 @@ func (s *Service) SendAdmin(to uint32, channel uint32, wantResponse bool, payloa
 	if err != nil {
 		return "", fmt.Errorf("send admin frame: %w", err)
 	}
-	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
 
 	return encoded.DeviceMessageID, nil
 }
@@ -312,13 +312,13 @@ func (s *Service) SendTraceroute(to uint32, channel uint32) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("send traceroute frame: %w", err)
 	}
-	s.bus.Publish(connectors.TopicRawFrameOut, connectors.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
 
 	return encoded.DeviceMessageID, nil
 }
 
-func (s *Service) publishConnStatus(state connectors.ConnectionState, err error) {
-	status := connectors.ConnectionStatus{
+func (s *Service) publishConnStatus(state busmsg.ConnectionState, err error) {
+	status := busmsg.ConnectionStatus{
 		State:         state,
 		TransportName: s.transport.Name(),
 		Timestamp:     time.Now(),
@@ -329,7 +329,7 @@ func (s *Service) publishConnStatus(state connectors.ConnectionState, err error)
 	if err != nil {
 		status.Err = err.Error()
 	}
-	s.bus.Publish(connectors.TopicConnStatus, status)
+	s.bus.Publish(bus.TopicConnStatus, status)
 }
 
 func sleepWithContext(ctx context.Context, d time.Duration) bool {

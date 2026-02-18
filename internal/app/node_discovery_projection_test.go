@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
 )
@@ -26,13 +25,13 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	t.Cleanup(cancel)
 	proj.Start(ctx, messageBus)
 
-	sub := messageBus.Subscribe(connectors.TopicNodeDiscovered)
+	sub := messageBus.Subscribe(bus.TopicNodeDiscovered)
 	t.Cleanup(func() {
-		messageBus.Unsubscribe(sub, connectors.TopicNodeDiscovered)
+		messageBus.Unsubscribe(sub, bus.TopicNodeDiscovered)
 	})
 
 	// Before bootstrap completion, discovery must stay muted.
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000099",
 		},
@@ -43,7 +42,7 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	armBootstrap(messageBus)
 
 	// Non-nodeinfo packets must not trigger discovery.
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000098",
 		},
@@ -52,7 +51,7 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	assertNoNodeDiscovered(t, sub)
 
 	// Already-known startup node should not emit.
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000001",
 		},
@@ -61,7 +60,7 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	assertNoNodeDiscovered(t, sub)
 
 	// Unknown node discovered post-bootstrap emits once.
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID:    "!00000099",
 			ShortName: "N99",
@@ -76,7 +75,7 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 		t.Fatalf("unexpected discovery source: %q", event.Source)
 	}
 
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000099",
 		},
@@ -96,13 +95,13 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 	t.Cleanup(cancel)
 	proj.Start(ctx, messageBus)
 
-	sub := messageBus.Subscribe(connectors.TopicNodeDiscovered)
+	sub := messageBus.Subscribe(bus.TopicNodeDiscovered)
 	t.Cleanup(func() {
-		messageBus.Unsubscribe(sub, connectors.TopicNodeDiscovered)
+		messageBus.Unsubscribe(sub, bus.TopicNodeDiscovered)
 	})
 
 	armBootstrap(messageBus)
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000042",
 		},
@@ -115,7 +114,7 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 	proj.ResetFromStore(store)
 
 	// Must remain muted again until bootstrap is ready.
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000042",
 		},
@@ -125,7 +124,7 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 
 	// After re-arming bootstrap, the same node can be discovered again.
 	armBootstrap(messageBus)
-	messageBus.Publish(connectors.TopicNodeInfo, domain.NodeUpdate{
+	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
 		Node: domain.Node{
 			NodeID: "!00000042",
 		},
@@ -212,6 +211,6 @@ func assertNoNodeDiscovered(t *testing.T, sub bus.Subscription) {
 }
 
 func armBootstrap(messageBus bus.MessageBus) {
-	messageBus.Publish(connectors.TopicRadioFrom, radio.DecodedFrame{WantConfigReady: true})
+	messageBus.Publish(bus.TopicRadioFrom, radio.DecodedFrame{WantConfigReady: true})
 	time.Sleep(20 * time.Millisecond)
 }

@@ -11,7 +11,7 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
@@ -20,8 +20,8 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 
 	window := app.NewWindow("bindings")
 	statusLabel := widget.NewLabel("")
-	initialStatus := connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateDisconnected,
+	initialStatus := busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateDisconnected,
 		TransportName: "ip",
 	}
 	presenter := newConnectionStatusPresenter(window, statusLabel, initialStatus, app.Settings().ThemeVariant(), nil)
@@ -34,9 +34,9 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 	dep := RuntimeDependencies{
 		Data: DataDependencies{
 			Bus: messageBus,
-			CurrentConnStatus: func() (connectors.ConnectionStatus, bool) {
-				return connectors.ConnectionStatus{
-					State:         connectors.ConnectionStateConnected,
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{
+					State:         busmsg.ConnectionStateConnected,
 					TransportName: "serial",
 					Target:        "/dev/ttyUSB0",
 				}, true
@@ -53,7 +53,7 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		messageBus.Close()
 	}()
 
-	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
 		CurrentVersion:  "0.6.0",
 		UpdateAvailable: true,
 		Latest: meshapp.ReleaseInfo{
@@ -65,7 +65,7 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		status := presenter.CurrentStatus()
 		snapshot, known := indicator.Snapshot()
 
-		return status.State == connectors.ConnectionStateConnected &&
+		return status.State == busmsg.ConnectionStateConnected &&
 			status.TransportName == "serial" &&
 			status.Target == "/dev/ttyUSB0" &&
 			known &&
@@ -74,13 +74,13 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 			refreshCalls.Load() >= 1
 	})
 
-	messageBus.Publish(connectors.TopicConnStatus, connectors.ConnectionStatus{
-		State:         connectors.ConnectionStateDisconnected,
+	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{
+		State:         busmsg.ConnectionStateDisconnected,
 		TransportName: "serial",
 		Target:        "/dev/ttyUSB0",
 		Err:           "link lost",
 	})
-	messageBus.Publish(connectors.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
+	messageBus.Publish(bus.TopicUpdateSnapshot, meshapp.UpdateSnapshot{
 		CurrentVersion:  "0.7.0",
 		UpdateAvailable: false,
 		Latest: meshapp.ReleaseInfo{
@@ -92,7 +92,7 @@ func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 		status := presenter.CurrentStatus()
 		snapshot, known := indicator.Snapshot()
 
-		return status.State == connectors.ConnectionStateDisconnected &&
+		return status.State == busmsg.ConnectionStateDisconnected &&
 			status.TransportName == "serial" &&
 			status.Target == "/dev/ttyUSB0" &&
 			status.Err == "link lost" &&

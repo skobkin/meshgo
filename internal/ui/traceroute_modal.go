@@ -16,8 +16,8 @@ import (
 
 	"github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
@@ -58,7 +58,7 @@ func showTracerouteModal(
 	messageBus bus.MessageBus,
 	nodeStore *domain.NodeStore,
 	targetNode domain.Node,
-	initial connectors.TracerouteUpdate,
+	initial busmsg.TracerouteUpdate,
 ) {
 	if window == nil {
 		return
@@ -124,7 +124,7 @@ func showTracerouteModal(
 		stopOnce.Do(func() {
 			close(stopCh)
 			if messageBus != nil && sub != nil {
-				messageBus.Unsubscribe(sub, connectors.TopicTracerouteUpdate)
+				messageBus.Unsubscribe(sub, bus.TopicTracerouteUpdate)
 			}
 			if modal != nil {
 				modal.Hide()
@@ -166,7 +166,7 @@ func showTracerouteModal(
 	refresh(time.Now())
 
 	if messageBus != nil {
-		sub = messageBus.Subscribe(connectors.TopicTracerouteUpdate)
+		sub = messageBus.Subscribe(bus.TopicTracerouteUpdate)
 		go func() {
 			for {
 				select {
@@ -176,7 +176,7 @@ func showTracerouteModal(
 					if !ok {
 						return
 					}
-					update, ok := raw.(connectors.TracerouteUpdate)
+					update, ok := raw.(busmsg.TracerouteUpdate)
 					if !ok || update.RequestID != initial.RequestID {
 						continue
 					}
@@ -213,7 +213,7 @@ func showTracerouteModal(
 	modal.Show()
 }
 
-func tracerouteStatusText(update connectors.TracerouteUpdate) string {
+func tracerouteStatusText(update busmsg.TracerouteUpdate) string {
 	switch update.Status {
 	case traceroute.StatusStarted:
 		return "Started"
@@ -234,7 +234,7 @@ func isTracerouteRunning(status traceroute.Status) bool {
 	return status == traceroute.StatusStarted || status == traceroute.StatusProgress
 }
 
-func tracerouteElapsedDuration(update connectors.TracerouteUpdate, now time.Time) time.Duration {
+func tracerouteElapsedDuration(update busmsg.TracerouteUpdate, now time.Time) time.Duration {
 	elapsedDuration := update.UpdatedAt.Sub(update.StartedAt)
 	if isTracerouteRunning(update.Status) {
 		elapsedDuration = now.Sub(update.StartedAt)
@@ -246,7 +246,7 @@ func tracerouteElapsedDuration(update connectors.TracerouteUpdate, now time.Time
 	return elapsedDuration
 }
 
-func tracerouteProgressValue(update connectors.TracerouteUpdate, elapsedDuration time.Duration) float64 {
+func tracerouteProgressValue(update busmsg.TracerouteUpdate, elapsedDuration time.Duration) float64 {
 	if update.Status == traceroute.StatusCompleted {
 		return 1
 	}

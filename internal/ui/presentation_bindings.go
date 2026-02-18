@@ -4,7 +4,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
-	"github.com/skobkin/meshgo/internal/connectors"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func bindPresentationListeners(
@@ -17,7 +17,7 @@ func bindPresentationListeners(
 	appLogger.Debug("starting UI event listeners")
 	stopUIListeners := startUIEventListeners(
 		dep.Data.Bus,
-		func(status connectors.ConnectionStatus) {
+		func(status busmsg.ConnectionStatus) {
 			fyne.Do(func() {
 				if connStatusPresenter != nil {
 					connStatusPresenter.Set(status, fyApp.Settings().ThemeVariant())

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
-	"github.com/skobkin/meshgo/internal/connectors"
 )
 
 // ChatStore keeps chats and per-chat messages in memory for UI reads.
@@ -42,12 +41,12 @@ func (s *ChatStore) Load(chats []Chat, messages map[string][]ChatMessage) {
 }
 
 func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
-	textSub := b.Subscribe(connectors.TopicTextMessage)
-	statusSub := b.Subscribe(connectors.TopicMessageStatus)
-	channelsSub := b.Subscribe(connectors.TopicChannels)
+	textSub := b.Subscribe(bus.TopicTextMessage)
+	statusSub := b.Subscribe(bus.TopicMessageStatus)
+	channelsSub := b.Subscribe(bus.TopicChannels)
 
 	go func() {
-		defer b.Unsubscribe(textSub, connectors.TopicTextMessage)
+		defer b.Unsubscribe(textSub, bus.TopicTextMessage)
 		for {
 			select {
 			case <-ctx.Done():
@@ -66,7 +65,7 @@ func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
 	}()
 
 	go func() {
-		defer b.Unsubscribe(statusSub, connectors.TopicMessageStatus)
+		defer b.Unsubscribe(statusSub, bus.TopicMessageStatus)
 		for {
 			select {
 			case <-ctx.Done():
@@ -85,7 +84,7 @@ func (s *ChatStore) Start(ctx context.Context, b bus.MessageBus) {
 	}()
 
 	go func() {
-		defer b.Unsubscribe(channelsSub, connectors.TopicChannels)
+		defer b.Unsubscribe(channelsSub, bus.TopicChannels)
 		for {
 			select {
 			case <-ctx.Done():
