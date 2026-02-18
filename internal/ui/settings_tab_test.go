@@ -24,7 +24,7 @@ func (f bluetoothScannerFunc) Scan(ctx context.Context, adapterID string) ([]Dis
 
 func TestSettingsTabBluetoothScanAutofillsAddress(t *testing.T) {
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorBluetooth
+	cfg.Connection.Transport = config.TransportBluetooth
 
 	var window fyne.Window
 	dep := RuntimeDependencies{
@@ -79,7 +79,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 	}
 
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorBluetooth
+	cfg.Connection.Transport = config.TransportBluetooth
 
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -147,7 +147,7 @@ func TestSettingsTabBluetoothScanButtonsReEnabledAfterError(t *testing.T) {
 
 func TestSettingsTabOpenBluetoothSettingsErrorIsShown(t *testing.T) {
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorBluetooth
+	cfg.Connection.Transport = config.TransportBluetooth
 
 	var window fyne.Window
 	dep := RuntimeDependencies{
@@ -182,9 +182,9 @@ func TestSettingsTabBluetoothTestingHiddenByDefault(t *testing.T) {
 	_ = fynetest.NewTempWindow(t, tab)
 	mustSelectAppTabByText(t, tab, "Connection")
 
-	connectorSelect := mustFindConnectorSelect(t, tab)
-	if hasOption(connectorSelect.Options, connectorOptionBluetooth) {
-		t.Fatalf("expected bluetooth connector option to be hidden by default")
+	transportSelect := mustFindTransportSelect(t, tab)
+	if hasOption(transportSelect.Options, transportOptionBluetooth) {
+		t.Fatalf("expected bluetooth transport option to be hidden by default")
 	}
 
 	bluetoothTestingCheck := mustFindCheckByText(t, tab, "Enable Bluetooth LE testing transport")
@@ -204,9 +204,9 @@ func TestSettingsTabBluetoothTestingFlagShowsBluetoothOption(t *testing.T) {
 	_ = fynetest.NewTempWindow(t, tab)
 	mustSelectAppTabByText(t, tab, "Connection")
 
-	connectorSelect := mustFindConnectorSelect(t, tab)
-	if !hasOption(connectorSelect.Options, connectorOptionBluetooth) {
-		t.Fatalf("expected bluetooth connector option to be visible when testing is enabled")
+	transportSelect := mustFindTransportSelect(t, tab)
+	if !hasOption(transportSelect.Options, transportOptionBluetooth) {
+		t.Fatalf("expected bluetooth transport option to be visible when testing is enabled")
 	}
 
 	bluetoothTestingCheck := mustFindCheckByText(t, tab, "Enable Bluetooth LE testing transport")
@@ -218,9 +218,9 @@ func TestSettingsTabBluetoothTestingFlagShowsBluetoothOption(t *testing.T) {
 	}
 }
 
-func TestSettingsTabBluetoothConnectorInfersBluetoothTestingEnabled(t *testing.T) {
+func TestSettingsTabBluetoothTransportInfersBluetoothTestingEnabled(t *testing.T) {
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorBluetooth
+	cfg.Connection.Transport = config.TransportBluetooth
 	cfg.Connection.BluetoothAddress = "AA:BB:CC:DD:EE:FF"
 
 	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: cfg}}, widget.NewLabel(""))
@@ -229,21 +229,21 @@ func TestSettingsTabBluetoothConnectorInfersBluetoothTestingEnabled(t *testing.T
 
 	bluetoothTestingCheck := mustFindCheckByText(t, tab, "Enable Bluetooth LE testing transport")
 	if !bluetoothTestingCheck.Visible() {
-		t.Fatalf("expected bluetooth testing checkbox to be visible for bluetooth connector")
+		t.Fatalf("expected bluetooth testing checkbox to be visible for bluetooth transport")
 	}
 	if !bluetoothTestingCheck.Checked {
-		t.Fatalf("expected bluetooth testing checkbox to be checked for bluetooth connector")
+		t.Fatalf("expected bluetooth testing checkbox to be checked for bluetooth transport")
 	}
 
-	connectorSelect := mustFindConnectorSelect(t, tab)
-	if connectorSelect.Selected != connectorOptionBluetooth {
-		t.Fatalf("expected bluetooth connector to remain selected, got %q", connectorSelect.Selected)
+	transportSelect := mustFindTransportSelect(t, tab)
+	if transportSelect.Selected != transportOptionBluetooth {
+		t.Fatalf("expected bluetooth transport to remain selected, got %q", transportSelect.Selected)
 	}
 }
 
-func TestSettingsTabDisablingBluetoothTestingHidesConnectorOption(t *testing.T) {
+func TestSettingsTabDisablingBluetoothTestingHidesTransportOption(t *testing.T) {
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorBluetooth
+	cfg.Connection.Transport = config.TransportBluetooth
 	cfg.Connection.BluetoothAddress = "AA:BB:CC:DD:EE:FF"
 	cfg.Connection.BluetoothTestingEnabled = true
 
@@ -252,7 +252,7 @@ func TestSettingsTabDisablingBluetoothTestingHidesConnectorOption(t *testing.T) 
 	mustSelectAppTabByText(t, tab, "Connection")
 
 	bluetoothTestingCheck := mustFindCheckByText(t, tab, "Enable Bluetooth LE testing transport")
-	connectorSelect := mustFindConnectorSelect(t, tab)
+	transportSelect := mustFindTransportSelect(t, tab)
 
 	fynetest.Tap(bluetoothTestingCheck)
 
@@ -262,17 +262,17 @@ func TestSettingsTabDisablingBluetoothTestingHidesConnectorOption(t *testing.T) 
 	if !bluetoothTestingCheck.Visible() {
 		t.Fatalf("expected bluetooth testing checkbox to remain visible until save")
 	}
-	if hasOption(connectorSelect.Options, connectorOptionBluetooth) {
-		t.Fatalf("expected bluetooth connector option to be hidden immediately when testing is disabled")
+	if hasOption(transportSelect.Options, transportOptionBluetooth) {
+		t.Fatalf("expected bluetooth transport option to be hidden immediately when testing is disabled")
 	}
-	if connectorSelect.Selected != connectorOptionIP {
-		t.Fatalf("expected connector to fall back to IP, got %q", connectorSelect.Selected)
+	if transportSelect.Selected != transportOptionIP {
+		t.Fatalf("expected transport to fall back to IP, got %q", transportSelect.Selected)
 	}
 }
 
 func TestSettingsTabSaveDisabledBluetoothTestingHidesCheckbox(t *testing.T) {
 	cfg := config.Default()
-	cfg.Connection.Connector = config.ConnectorIP
+	cfg.Connection.Transport = config.TransportIP
 	cfg.Connection.Host = "192.168.1.10"
 	cfg.Connection.BluetoothTestingEnabled = true
 
@@ -733,7 +733,7 @@ func mustFindLabelByPrefix(t *testing.T, root fyne.CanvasObject, prefix string) 
 	return nil
 }
 
-func mustFindConnectorSelect(t *testing.T, root fyne.CanvasObject) *widget.Select {
+func mustFindTransportSelect(t *testing.T, root fyne.CanvasObject) *widget.Select {
 	t.Helper()
 	var found *widget.Select
 	walkCanvasObjects(root, func(object fyne.CanvasObject) bool {
@@ -741,10 +741,10 @@ func mustFindConnectorSelect(t *testing.T, root fyne.CanvasObject) *widget.Selec
 		if !ok {
 			return false
 		}
-		if !hasOption(selectWidget.Options, connectorOptionIP) {
+		if !hasOption(selectWidget.Options, transportOptionIP) {
 			return false
 		}
-		if !hasOption(selectWidget.Options, connectorOptionSerial) {
+		if !hasOption(selectWidget.Options, transportOptionSerial) {
 			return false
 		}
 		found = selectWidget
@@ -754,7 +754,7 @@ func mustFindConnectorSelect(t *testing.T, root fyne.CanvasObject) *widget.Selec
 	if found != nil {
 		return found
 	}
-	t.Fatalf("connector select not found")
+	t.Fatalf("transport select not found")
 
 	return nil
 }

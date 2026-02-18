@@ -17,7 +17,7 @@ func TestNewTransportForConnection(t *testing.T) {
 		{
 			name: "ip",
 			cfg: config.ConnectionConfig{
-				Connector: config.ConnectorIP,
+				Transport: config.TransportIP,
 				Host:      "127.0.0.1",
 			},
 			want: "ip",
@@ -25,7 +25,7 @@ func TestNewTransportForConnection(t *testing.T) {
 		{
 			name: "serial",
 			cfg: config.ConnectionConfig{
-				Connector:  config.ConnectorSerial,
+				Transport:  config.TransportSerial,
 				SerialPort: "/dev/ttyACM0",
 				SerialBaud: 115200,
 			},
@@ -34,7 +34,7 @@ func TestNewTransportForConnection(t *testing.T) {
 		{
 			name: "bluetooth",
 			cfg: config.ConnectionConfig{
-				Connector:        config.ConnectorBluetooth,
+				Transport:        config.TransportBluetooth,
 				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
 			},
 			want: "bluetooth",
@@ -61,7 +61,7 @@ func TestNewTransportForConnection(t *testing.T) {
 
 func TestConnectionTransportApplySwitchesImplementation(t *testing.T) {
 	initial := config.ConnectionConfig{
-		Connector: config.ConnectorIP,
+		Transport: config.TransportIP,
 		Host:      "192.168.1.10",
 	}
 	connTr, err := NewConnectionTransport(initial)
@@ -74,7 +74,7 @@ func TestConnectionTransportApplySwitchesImplementation(t *testing.T) {
 	}
 
 	next := config.ConnectionConfig{
-		Connector:  config.ConnectorSerial,
+		Transport:  config.TransportSerial,
 		SerialPort: "COM3",
 		SerialBaud: 115200,
 	}
@@ -86,14 +86,14 @@ func TestConnectionTransportApplySwitchesImplementation(t *testing.T) {
 	}
 
 	gotCfg := connTr.Config()
-	if gotCfg.Connector != config.ConnectorSerial {
-		t.Fatalf("expected serial config, got %q", gotCfg.Connector)
+	if gotCfg.Transport != config.TransportSerial {
+		t.Fatalf("expected serial config, got %q", gotCfg.Transport)
 	}
 }
 
 func TestConnectionTransportApplyKeepsCurrentOnError(t *testing.T) {
 	initial := config.ConnectionConfig{
-		Connector: config.ConnectorIP,
+		Transport: config.TransportIP,
 		Host:      "192.168.1.10",
 	}
 	connTr, err := NewConnectionTransport(initial)
@@ -102,10 +102,10 @@ func TestConnectionTransportApplyKeepsCurrentOnError(t *testing.T) {
 	}
 
 	err = connTr.Apply(config.ConnectionConfig{
-		Connector: config.ConnectorType("usb"),
+		Transport: config.TransportType("usb"),
 	})
 	if err == nil {
-		t.Fatalf("expected apply error for unknown connector")
+		t.Fatalf("expected apply error for unknown transport")
 	}
 	if connTr.Name() != "ip" {
 		t.Fatalf("expected transport to remain ip after failed apply, got %q", connTr.Name())
@@ -114,7 +114,7 @@ func TestConnectionTransportApplyKeepsCurrentOnError(t *testing.T) {
 
 func TestConnectionTransportImplementsTransportInterface(t *testing.T) {
 	initial := config.ConnectionConfig{
-		Connector: config.ConnectorIP,
+		Transport: config.TransportIP,
 		Host:      "192.168.1.10",
 	}
 	connTr, err := NewConnectionTransport(initial)
@@ -134,7 +134,7 @@ func TestConnectionTransportStatusTarget(t *testing.T) {
 		{
 			name: "ip",
 			cfg: config.ConnectionConfig{
-				Connector: config.ConnectorIP,
+				Transport: config.TransportIP,
 				Host:      "192.168.1.10",
 			},
 			want: "192.168.1.10:4403",
@@ -142,7 +142,7 @@ func TestConnectionTransportStatusTarget(t *testing.T) {
 		{
 			name: "serial",
 			cfg: config.ConnectionConfig{
-				Connector:  config.ConnectorSerial,
+				Transport:  config.TransportSerial,
 				SerialPort: "/dev/ttyACM0",
 				SerialBaud: 115200,
 			},
@@ -151,7 +151,7 @@ func TestConnectionTransportStatusTarget(t *testing.T) {
 		{
 			name: "bluetooth",
 			cfg: config.ConnectionConfig{
-				Connector:        config.ConnectorBluetooth,
+				Transport:        config.TransportBluetooth,
 				BluetoothAddress: "AA:BB:CC:DD:EE:FF",
 			},
 			want: "AA:BB:CC:DD:EE:FF",

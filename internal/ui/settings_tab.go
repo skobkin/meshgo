@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	connectorOptionIP        = "IP"
-	connectorOptionSerial    = "Serial"
-	connectorOptionBluetooth = "Bluetooth LE (unstable)"
+	transportOptionIP        = "IP"
+	transportOptionSerial    = "Serial"
+	transportOptionBluetooth = "Bluetooth LE (unstable)"
 	autostartOptionNormal    = "Normal window"
 	autostartOptionTray      = "Background tray"
 )
@@ -39,7 +39,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	current.FillMissingDefaults()
 	settingsLogger.Debug(
 		"building settings tab",
-		"connector", current.Connection.Connector,
+		"transport", current.Connection.Transport,
 		"log_level", strings.ToLower(strings.TrimSpace(current.Logging.Level)),
 		"log_to_file", current.Logging.LogToFile,
 		"autostart_enabled", current.UI.Autostart.Enabled,
@@ -52,11 +52,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	)
 
 	// Temporary feature gate until BLE transport is stable (or removed):
-	// keep Bluetooth connector hidden for regular users.
+	// keep Bluetooth transport hidden for regular users.
 	showBluetoothTestingToggle := current.Connection.BluetoothTestingEnabled
-	connectorSelect := widget.NewSelect(connectorOptionsForBluetoothTesting(current.Connection.BluetoothTestingEnabled), nil)
-	connectorSelect.SetSelected(connectorOptionFromType(normalizeConnectorForOptions(
-		current.Connection.Connector,
+	transportSelect := widget.NewSelect(transportOptionsForBluetoothTesting(current.Connection.BluetoothTestingEnabled), nil)
+	transportSelect.SetSelected(transportOptionFromType(normalizeTransportForOptions(
+		current.Connection.Transport,
 		current.Connection.BluetoothTestingEnabled,
 	)))
 
@@ -278,7 +278,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	refreshPortsButton := widget.NewButton("Refresh", refreshPorts)
 	serialPortRow := container.NewBorder(nil, nil, nil, refreshPortsButton, serialPortSelect)
 
-	connectorLabel := widget.NewLabel("Connector")
+	transportLabel := widget.NewLabel("Transport")
 	bluetoothTestingEnabledLabel := widget.NewLabel("")
 	ipHostLabel := widget.NewLabel("IP Host")
 	serialPortLabel := widget.NewLabel("Serial Port")
@@ -289,7 +289,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	bluetoothHintLabel := widget.NewLabel("")
 
 	connectionFields := container.New(layout.NewFormLayout(),
-		connectorLabel, connectorSelect,
+		transportLabel, transportSelect,
 		bluetoothTestingEnabledLabel, bluetoothTestingEnabledCheck,
 		ipHostLabel, hostEntry,
 		serialPortLabel, serialPortRow,
@@ -300,10 +300,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		bluetoothHintLabel, bluetoothPairingHint,
 	)
 
-	setConnectorFields := func(connector config.ConnectorType, bluetoothTestingEnabled bool) {
-		showIP := connector == config.ConnectorIP
-		showSerial := connector == config.ConnectorSerial
-		showBluetooth := bluetoothTestingEnabled && connector == config.ConnectorBluetooth
+	setTransportFields := func(transport config.TransportType, bluetoothTestingEnabled bool) {
+		showIP := transport == config.TransportIP
+		showSerial := transport == config.TransportSerial
+		showBluetooth := bluetoothTestingEnabled && transport == config.TransportBluetooth
 
 		setVisible(showIP, ipHostLabel, hostEntry)
 		setVisible(showSerial, serialPortLabel, serialPortRow, serialBaudLabel, serialBaudSelect)
@@ -312,10 +312,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	setBluetoothTestingToggleVisible := func(visible bool) {
 		setVisible(visible, bluetoothTestingEnabledLabel, bluetoothTestingEnabledCheck)
 	}
-	selectConnector := func(connector config.ConnectorType, bluetoothTestingEnabled bool) config.ConnectorType {
-		connectorSelect.SetOptions(connectorOptionsForBluetoothTesting(bluetoothTestingEnabled))
-		normalized := normalizeConnectorForOptions(connector, bluetoothTestingEnabled)
-		connectorSelect.SetSelected(connectorOptionFromType(normalized))
+	selectTransport := func(transport config.TransportType, bluetoothTestingEnabled bool) config.TransportType {
+		transportSelect.SetOptions(transportOptionsForBluetoothTesting(bluetoothTestingEnabled))
+		normalized := normalizeTransportForOptions(transport, bluetoothTestingEnabled)
+		transportSelect.SetSelected(transportOptionFromType(normalized))
 
 		return normalized
 	}
@@ -326,15 +326,15 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		status.SetText(statusText)
 	}
 
-	connectorSelect.OnChanged = func(value string) {
-		next := connectorTypeFromOption(value)
-		next = normalizeConnectorForOptions(next, bluetoothTestingEnabledCheck.Checked)
-		settingsLogger.Debug("connector changed", "selected", strings.TrimSpace(value), "connector", next)
-		setConnectorFields(next, bluetoothTestingEnabledCheck.Checked)
-		if next == config.ConnectorSerial {
+	transportSelect.OnChanged = func(value string) {
+		next := transportTypeFromOption(value)
+		next = normalizeTransportForOptions(next, bluetoothTestingEnabledCheck.Checked)
+		settingsLogger.Debug("transport changed", "selected", strings.TrimSpace(value), "transport", next)
+		setTransportFields(next, bluetoothTestingEnabledCheck.Checked)
+		if next == config.TransportSerial {
 			refreshPorts()
 		}
-		if next == config.ConnectorBluetooth {
+		if next == config.TransportBluetooth {
 			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
 
 			return
@@ -343,13 +343,13 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	}
 	bluetoothTestingEnabledCheck.OnChanged = func(enabled bool) {
 		settingsLogger.Info("Bluetooth testing feature gate changed", "enabled", enabled)
-		selected := connectorTypeFromOption(connectorSelect.Selected)
-		selected = selectConnector(selected, enabled)
-		setConnectorFields(selected, enabled)
-		if selected == config.ConnectorSerial {
+		selected := transportTypeFromOption(transportSelect.Selected)
+		selected = selectTransport(selected, enabled)
+		setTransportFields(selected, enabled)
+		if selected == config.TransportSerial {
 			refreshPorts()
 		}
-		if selected == config.ConnectorBluetooth {
+		if selected == config.TransportBluetooth {
 			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
 
 			return
@@ -358,9 +358,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	}
 
 	setBluetoothTestingToggleVisible(showBluetoothTestingToggle)
-	selectedConnector := selectConnector(current.Connection.Connector, current.Connection.BluetoothTestingEnabled)
-	setConnectorFields(selectedConnector, current.Connection.BluetoothTestingEnabled)
-	if selectedConnector == config.ConnectorSerial {
+	selectedTransport := selectTransport(current.Connection.Transport, current.Connection.BluetoothTestingEnabled)
+	setTransportFields(selectedTransport, current.Connection.BluetoothTestingEnabled)
+	if selectedTransport == config.TransportSerial {
 		refreshPorts()
 	}
 
@@ -370,7 +370,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		showBluetoothTestingToggle = next.Connection.BluetoothTestingEnabled
 		setBluetoothTestingToggleVisible(showBluetoothTestingToggle)
 		bluetoothTestingEnabledCheck.SetChecked(next.Connection.BluetoothTestingEnabled)
-		selected := selectConnector(next.Connection.Connector, next.Connection.BluetoothTestingEnabled)
+		selected := selectTransport(next.Connection.Transport, next.Connection.BluetoothTestingEnabled)
 		hostEntry.SetText(next.Connection.Host)
 		serialPortSelect.SetSelected(next.Connection.SerialPort)
 		serialBaudSelect.SetOptions(uniqueValues(append(defaultSerialBaudOptions, strconv.Itoa(next.Connection.SerialBaud))))
@@ -397,11 +397,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyConnectionStatus.SetChecked(next.UI.Notifications.Events.ConnectionStatus)
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 
-		setConnectorFields(selected, next.Connection.BluetoothTestingEnabled)
-		if selected == config.ConnectorSerial {
+		setTransportFields(selected, next.Connection.BluetoothTestingEnabled)
+		if selected == config.TransportSerial {
 			refreshPorts()
 		}
-		if selected == config.ConnectorBluetooth {
+		if selected == config.TransportBluetooth {
 			status.SetText("Pair the node in OS Bluetooth settings before connecting.")
 
 			return
@@ -410,11 +410,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	}
 
 	saveButton := widget.NewButton("Save", func() {
-		connector := connectorTypeFromOption(connectorSelect.Selected)
-		connector = normalizeConnectorForOptions(connector, bluetoothTestingEnabledCheck.Checked)
+		transport := transportTypeFromOption(transportSelect.Selected)
+		transport = normalizeTransportForOptions(transport, bluetoothTestingEnabledCheck.Checked)
 		settingsLogger.Info(
 			"settings save requested",
-			"connector", connector,
+			"transport", transport,
 			"bluetooth_testing_enabled", bluetoothTestingEnabledCheck.Checked,
 			"log_level", strings.TrimSpace(levelSelect.Selected),
 			"log_to_file", logToFile.Checked,
@@ -428,7 +428,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		)
 
 		baud := current.Connection.SerialBaud
-		if connector == config.ConnectorSerial {
+		if transport == config.TransportSerial {
 			var err error
 			baud, err = parseSerialBaud(serialBaudSelect.Selected)
 			if err != nil {
@@ -440,7 +440,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		}
 
 		cfg := current
-		cfg.Connection.Connector = connector
+		cfg.Connection.Transport = transport
 		cfg.Connection.Host = strings.TrimSpace(hostEntry.Text)
 		cfg.Connection.SerialPort = strings.TrimSpace(serialPortSelect.Selected)
 		cfg.Connection.SerialBaud = baud
@@ -458,7 +458,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Notifications.Events.UpdateAvailable = notifyUpdateAvailable.Checked
 
 		saveConfig := func(clearDatabase bool) {
-			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "connector", cfg.Connection.Connector)
+			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "transport", cfg.Connection.Transport)
 			if clearDatabase {
 				if dep.Actions.OnClearDB == nil {
 					settingsLogger.Warn("settings save failed: database clear action unavailable")
@@ -508,15 +508,15 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 				return
 			}
-			settingsLogger.Info("settings saved successfully", "connector", cfg.Connection.Connector)
+			settingsLogger.Info("settings saved successfully", "transport", cfg.Connection.Transport)
 			applySavedConfigState(cfg, "Saved")
 		}
 
-		if connector != current.Connection.Connector {
+		if transport != current.Connection.Transport {
 			settingsLogger.Info(
 				"transport change requires confirmation",
-				"from", current.Connection.Connector,
-				"to", connector,
+				"from", current.Connection.Transport,
+				"to", transport,
 			)
 			window := currentWindow()
 			if window == nil {
@@ -843,54 +843,54 @@ func currentWindow() fyne.Window {
 	return windows[0]
 }
 
-func connectorOptionsForBluetoothTesting(bluetoothTestingEnabled bool) []string {
+func transportOptionsForBluetoothTesting(bluetoothTestingEnabled bool) []string {
 	options := []string{
-		connectorOptionIP,
-		connectorOptionSerial,
+		transportOptionIP,
+		transportOptionSerial,
 	}
 	if bluetoothTestingEnabled {
-		options = append(options, connectorOptionBluetooth)
+		options = append(options, transportOptionBluetooth)
 	}
 
 	return options
 }
 
-func normalizeConnectorForOptions(connector config.ConnectorType, bluetoothTestingEnabled bool) config.ConnectorType {
-	switch connector {
-	case config.ConnectorIP, config.ConnectorSerial:
-		return connector
-	case config.ConnectorBluetooth:
+func normalizeTransportForOptions(transport config.TransportType, bluetoothTestingEnabled bool) config.TransportType {
+	switch transport {
+	case config.TransportIP, config.TransportSerial:
+		return transport
+	case config.TransportBluetooth:
 		if bluetoothTestingEnabled {
-			return connector
+			return transport
 		}
 	}
 
-	return config.ConnectorIP
+	return config.TransportIP
 }
 
-func connectorOptionFromType(connector config.ConnectorType) string {
-	switch connector {
-	case config.ConnectorIP:
-		return connectorOptionIP
-	case config.ConnectorSerial:
-		return connectorOptionSerial
-	case config.ConnectorBluetooth:
-		return connectorOptionBluetooth
+func transportOptionFromType(transport config.TransportType) string {
+	switch transport {
+	case config.TransportIP:
+		return transportOptionIP
+	case config.TransportSerial:
+		return transportOptionSerial
+	case config.TransportBluetooth:
+		return transportOptionBluetooth
 	default:
-		return connectorOptionIP
+		return transportOptionIP
 	}
 }
 
-func connectorTypeFromOption(value string) config.ConnectorType {
+func transportTypeFromOption(value string) config.TransportType {
 	switch strings.TrimSpace(value) {
-	case connectorOptionIP:
-		return config.ConnectorIP
-	case connectorOptionSerial:
-		return config.ConnectorSerial
-	case connectorOptionBluetooth:
-		return config.ConnectorBluetooth
+	case transportOptionIP:
+		return config.TransportIP
+	case transportOptionSerial:
+		return config.TransportSerial
+	case transportOptionBluetooth:
+		return config.TransportBluetooth
 	default:
-		return config.ConnectorIP
+		return config.TransportIP
 	}
 }
 

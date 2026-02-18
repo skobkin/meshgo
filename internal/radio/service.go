@@ -64,7 +64,7 @@ func NewService(logger *slog.Logger, b bus.MessageBus, tr transport.Transport, c
 
 func (s *Service) Start(ctx context.Context) {
 	go s.runOutbox(ctx)
-	go s.runConnector(ctx)
+	go s.runTransport(ctx)
 }
 
 func (s *Service) SendText(chatKey, text string) <-chan SendResult {
@@ -103,7 +103,7 @@ func (s *Service) LocalNodeID() string {
 	return strings.TrimSpace(codec.LocalNodeID())
 }
 
-func (s *Service) runConnector(ctx context.Context) {
+func (s *Service) runTransport(ctx context.Context) {
 	backoff := time.Second
 	for {
 		if err := ctx.Err(); err != nil {

@@ -69,7 +69,7 @@ func TestInitialConnStatusBluetooth(t *testing.T) {
 		Data: DataDependencies{
 			Config: config.AppConfig{
 				Connection: config.ConnectionConfig{
-					Connector:        config.ConnectorBluetooth,
+					Transport:        config.TransportBluetooth,
 					BluetoothAddress: "AA:BB:CC:DD:EE:FF",
 				},
 			},
@@ -89,7 +89,7 @@ func TestResolveInitialConnStatus_UsesCachedStatus(t *testing.T) {
 		Data: DataDependencies{
 			Config: config.AppConfig{
 				Connection: config.ConnectionConfig{
-					Connector:        config.ConnectorSerial,
+					Transport:        config.TransportSerial,
 					SerialPort:       "/dev/ttyACM0",
 					SerialBaud:       115200,
 					Host:             "",

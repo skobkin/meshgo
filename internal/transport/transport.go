@@ -2,7 +2,7 @@ package transport
 
 import "context"
 
-// Transport is the common framed I/O contract for connector implementations.
+// Transport is the common framed I/O contract for transport implementations.
 type Transport interface {
 	Name() string
 	Connect(ctx context.Context) error

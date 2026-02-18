@@ -7,21 +7,21 @@ import (
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
-func TestTransportNameFromConnector(t *testing.T) {
+func TestTransportNameFromType(t *testing.T) {
 	tests := []struct {
 		name      string
-		connector config.ConnectorType
+		transport config.TransportType
 		want      string
 	}{
-		{name: "ip", connector: config.ConnectorIP, want: "ip"},
-		{name: "serial", connector: config.ConnectorSerial, want: "serial"},
-		{name: "bluetooth", connector: config.ConnectorBluetooth, want: "bluetooth"},
-		{name: "unknown", connector: "custom", want: "custom"},
-		{name: "empty", connector: "", want: "unknown"},
+		{name: "ip", transport: config.TransportIP, want: "ip"},
+		{name: "serial", transport: config.TransportSerial, want: "serial"},
+		{name: "bluetooth", transport: config.TransportBluetooth, want: "bluetooth"},
+		{name: "unknown", transport: "custom", want: "custom"},
+		{name: "empty", transport: "", want: "unknown"},
 	}
 
 	for _, tc := range tests {
-		if got := TransportNameFromConnector(tc.connector); got != tc.want {
+		if got := TransportNameFromType(tc.transport); got != tc.want {
 			t.Fatalf("%s: expected %q, got %q", tc.name, tc.want, got)
 		}
 	}
@@ -33,10 +33,10 @@ func TestConnectionTarget(t *testing.T) {
 		cfg  config.ConnectionConfig
 		want string
 	}{
-		{name: "ip", cfg: config.ConnectionConfig{Connector: config.ConnectorIP, Host: "192.168.1.10"}, want: "192.168.1.10"},
-		{name: "serial", cfg: config.ConnectionConfig{Connector: config.ConnectorSerial, SerialPort: "/dev/ttyACM0", SerialBaud: 115200}, want: "/dev/ttyACM0"},
-		{name: "bluetooth", cfg: config.ConnectionConfig{Connector: config.ConnectorBluetooth, BluetoothAddress: "AA:BB:CC:DD:EE:FF"}, want: "AA:BB:CC:DD:EE:FF"},
-		{name: "unknown", cfg: config.ConnectionConfig{Connector: "custom"}, want: ""},
+		{name: "ip", cfg: config.ConnectionConfig{Transport: config.TransportIP, Host: "192.168.1.10"}, want: "192.168.1.10"},
+		{name: "serial", cfg: config.ConnectionConfig{Transport: config.TransportSerial, SerialPort: "/dev/ttyACM0", SerialBaud: 115200}, want: "/dev/ttyACM0"},
+		{name: "bluetooth", cfg: config.ConnectionConfig{Transport: config.TransportBluetooth, BluetoothAddress: "AA:BB:CC:DD:EE:FF"}, want: "AA:BB:CC:DD:EE:FF"},
+		{name: "unknown", cfg: config.ConnectionConfig{Transport: "custom"}, want: ""},
 	}
 
 	for _, tc := range tests {
@@ -48,7 +48,7 @@ func TestConnectionTarget(t *testing.T) {
 
 func TestConnectionStatusFromConfig(t *testing.T) {
 	status := ConnectionStatusFromConfig(config.ConnectionConfig{
-		Connector:  config.ConnectorSerial,
+		Transport:  config.TransportSerial,
 		SerialPort: "/dev/ttyACM2",
 		SerialBaud: 115200,
 	})

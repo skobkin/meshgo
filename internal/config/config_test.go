@@ -10,8 +10,8 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	cfg := AppConfig{}
 	cfg.FillMissingDefaults()
 
-	if cfg.Connection.Connector != ConnectorIP {
-		t.Fatalf("expected default connector %q, got %q", ConnectorIP, cfg.Connection.Connector)
+	if cfg.Connection.Transport != TransportIP {
+		t.Fatalf("expected default transport %q, got %q", TransportIP, cfg.Connection.Transport)
 	}
 	if cfg.Connection.SerialBaud != DefaultSerialBaud {
 		t.Fatalf("expected default serial baud %d, got %d", DefaultSerialBaud, cfg.Connection.SerialBaud)
@@ -243,10 +243,10 @@ func TestAppConfigFillMissingDefaultsClearsUnsetMapViewport(t *testing.T) {
 	}
 }
 
-func TestAppConfigFillMissingDefaultsEnablesBluetoothTestingForBluetoothConnector(t *testing.T) {
+func TestAppConfigFillMissingDefaultsEnablesBluetoothTestingForBluetoothTransport(t *testing.T) {
 	cfg := AppConfig{
 		Connection: ConnectionConfig{
-			Connector:               ConnectorBluetooth,
+			Transport:               TransportBluetooth,
 			BluetoothAddress:        "AA:BB:CC:DD:EE:FF",
 			BluetoothTestingEnabled: false,
 		},
@@ -255,7 +255,7 @@ func TestAppConfigFillMissingDefaultsEnablesBluetoothTestingForBluetoothConnecto
 	cfg.FillMissingDefaults()
 
 	if !cfg.Connection.BluetoothTestingEnabled {
-		t.Fatalf("expected bluetooth testing to be enabled when bluetooth connector is selected")
+		t.Fatalf("expected bluetooth testing to be enabled when bluetooth transport is selected")
 	}
 }
 
@@ -269,7 +269,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "valid ip",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector: ConnectorIP,
+					Transport: TransportIP,
 					Host:      "192.168.1.10",
 				},
 			},
@@ -278,7 +278,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "invalid ip without host",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector: ConnectorIP,
+					Transport: TransportIP,
 				},
 			},
 			wantErr: true,
@@ -287,7 +287,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "valid serial",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector:  ConnectorSerial,
+					Transport:  TransportSerial,
 					SerialPort: "/dev/ttyACM0",
 					SerialBaud: 115200,
 				},
@@ -297,7 +297,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "invalid serial without port",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector:  ConnectorSerial,
+					Transport:  TransportSerial,
 					SerialBaud: 115200,
 				},
 			},
@@ -307,7 +307,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "invalid serial with non-positive baud",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector:  ConnectorSerial,
+					Transport:  TransportSerial,
 					SerialPort: "COM3",
 					SerialBaud: 0,
 				},
@@ -318,7 +318,7 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "valid bluetooth",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector:        ConnectorBluetooth,
+					Transport:        TransportBluetooth,
 					BluetoothAddress: "AA:BB:CC:DD:EE:FF",
 				},
 			},
@@ -327,16 +327,16 @@ func TestAppConfigValidate(t *testing.T) {
 			name: "invalid bluetooth without address",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector: ConnectorBluetooth,
+					Transport: TransportBluetooth,
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "unknown connector",
+			name: "unknown transport",
 			cfg: AppConfig{
 				Connection: ConnectionConfig{
-					Connector: ConnectorType("usb"),
+					Transport: TransportType("usb"),
 				},
 			},
 			wantErr: true,

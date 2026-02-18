@@ -7,16 +7,16 @@ import (
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
-func TransportNameFromConnector(connector config.ConnectorType) string {
-	switch connector {
-	case config.ConnectorIP:
+func TransportNameFromType(transport config.TransportType) string {
+	switch transport {
+	case config.TransportIP:
 		return "ip"
-	case config.ConnectorSerial:
+	case config.TransportSerial:
 		return "serial"
-	case config.ConnectorBluetooth:
+	case config.TransportBluetooth:
 		return "bluetooth"
 	default:
-		if value := strings.TrimSpace(string(connector)); value != "" {
+		if value := strings.TrimSpace(string(transport)); value != "" {
 			return value
 		}
 
@@ -25,12 +25,12 @@ func TransportNameFromConnector(connector config.ConnectorType) string {
 }
 
 func ConnectionTarget(cfg config.ConnectionConfig) string {
-	switch cfg.Connector {
-	case config.ConnectorIP:
+	switch cfg.Transport {
+	case config.TransportIP:
 		return strings.TrimSpace(cfg.Host)
-	case config.ConnectorSerial:
+	case config.TransportSerial:
 		return strings.TrimSpace(cfg.SerialPort)
-	case config.ConnectorBluetooth:
+	case config.TransportBluetooth:
 		return strings.TrimSpace(cfg.BluetoothAddress)
 	default:
 		return ""
@@ -40,7 +40,7 @@ func ConnectionTarget(cfg config.ConnectionConfig) string {
 func ConnectionStatusFromConfig(cfg config.ConnectionConfig) busmsg.ConnectionStatus {
 	status := busmsg.ConnectionStatus{
 		State:         busmsg.ConnectionStateDisconnected,
-		TransportName: TransportNameFromConnector(cfg.Connector),
+		TransportName: TransportNameFromType(cfg.Transport),
 		Target:        ConnectionTarget(cfg),
 	}
 	if status.Target != "" {

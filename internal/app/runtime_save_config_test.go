@@ -16,7 +16,7 @@ func TestRuntimeSaveAndApplyConfig_TransportSwitchResetsInMemoryStores(t *testin
 	rt := newRuntimeForSaveConfigTests(t)
 
 	next := rt.Core.Config
-	next.Connection.Connector = config.ConnectorSerial
+	next.Connection.Transport = config.TransportSerial
 	next.Connection.SerialPort = "/dev/ttyUSB0"
 	next.Connection.SerialBaud = config.DefaultSerialBaud
 
@@ -202,7 +202,7 @@ func newRuntimeForSaveConfigTests(t *testing.T) *Runtime {
 	t.Helper()
 
 	initial := config.Default()
-	initial.Connection.Connector = config.ConnectorIP
+	initial.Connection.Transport = config.TransportIP
 	initial.Connection.Host = "192.168.1.10"
 
 	chatStore := domain.NewChatStore()

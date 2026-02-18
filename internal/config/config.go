@@ -9,16 +9,16 @@ import (
 	"strings"
 )
 
-// ConnectorType identifies which transport backend should be used.
-type ConnectorType string
+// TransportType identifies which transport backend should be used.
+type TransportType string
 
 // AutostartMode controls how the app is launched by OS autostart.
 type AutostartMode string
 
 const (
-	ConnectorIP        ConnectorType = "ip"
-	ConnectorBluetooth ConnectorType = "bluetooth"
-	ConnectorSerial    ConnectorType = "serial"
+	TransportIP        TransportType = "ip"
+	TransportBluetooth TransportType = "bluetooth"
+	TransportSerial    TransportType = "serial"
 	DefaultSerialBaud                = 115200
 
 	AutostartModeNormal     AutostartMode = "normal"
@@ -31,9 +31,9 @@ type LoggingConfig struct {
 	LogToFile bool   `json:"log_to_file"`
 }
 
-// ConnectionConfig contains connector-specific connection parameters.
+// ConnectionConfig contains transport-specific connection parameters.
 type ConnectionConfig struct {
-	Connector        ConnectorType `json:"connector"`
+	Transport        TransportType `json:"connector"`
 	Host             string        `json:"host"`
 	SerialPort       string        `json:"serial_port"`
 	SerialBaud       int           `json:"serial_baud"`
@@ -90,7 +90,7 @@ type AppConfig struct {
 func Default() AppConfig {
 	return AppConfig{
 		Connection: ConnectionConfig{
-			Connector:               ConnectorIP,
+			Transport:               TransportIP,
 			Host:                    "",
 			SerialPort:              "",
 			SerialBaud:              DefaultSerialBaud,
@@ -145,10 +145,10 @@ func Load(path string) (AppConfig, error) {
 }
 
 func (c *AppConfig) FillMissingDefaults() {
-	if c.Connection.Connector == "" {
-		c.Connection.Connector = ConnectorIP
+	if c.Connection.Transport == "" {
+		c.Connection.Transport = TransportIP
 	}
-	if c.Connection.Connector == ConnectorBluetooth {
+	if c.Connection.Transport == TransportBluetooth {
 		// Temporary migration behavior:
 		// when legacy configs already use Bluetooth transport, treat testing flag as enabled.
 		c.Connection.BluetoothTestingEnabled = true
@@ -187,24 +187,24 @@ func normalizeMapViewport(viewport MapViewportConfig) MapViewportConfig {
 }
 
 func (c AppConfig) Validate() error {
-	switch c.Connection.Connector {
-	case ConnectorIP:
+	switch c.Connection.Transport {
+	case TransportIP:
 		if strings.TrimSpace(c.Connection.Host) == "" {
 			return errors.New("ip host is required")
 		}
-	case ConnectorSerial:
+	case TransportSerial:
 		if strings.TrimSpace(c.Connection.SerialPort) == "" {
 			return errors.New("serial port is required")
 		}
 		if c.Connection.SerialBaud <= 0 {
 			return errors.New("serial baud must be positive")
 		}
-	case ConnectorBluetooth:
+	case TransportBluetooth:
 		if strings.TrimSpace(c.Connection.BluetoothAddress) == "" {
 			return errors.New("bluetooth address is required")
 		}
 	default:
-		return fmt.Errorf("unknown connector: %s", c.Connection.Connector)
+		return fmt.Errorf("unknown transport: %s", c.Connection.Transport)
 	}
 
 	return nil

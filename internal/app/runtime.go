@@ -281,12 +281,12 @@ func (r *Runtime) SaveAndApplyConfig(cfg config.AppConfig) error {
 	} else if !connectionChanged {
 		slog.Debug("transport apply skipped: connection config unchanged")
 	}
-	if cfg.Connection.Connector != prevConnection.Connector {
+	if cfg.Connection.Transport != prevConnection.Transport {
 		r.resetInMemoryStores()
 		slog.Info(
 			"cleared in-memory stores after transport switch",
-			"from", prevConnection.Connector,
-			"to", cfg.Connection.Connector,
+			"from", prevConnection.Transport,
+			"to", cfg.Connection.Transport,
 		)
 	}
 	if err := r.syncAutostart(cfg, "settings_save"); err != nil {

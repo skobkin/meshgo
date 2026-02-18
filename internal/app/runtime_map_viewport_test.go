@@ -14,7 +14,7 @@ func TestRuntimeRememberMapViewport_PersistsConfig(t *testing.T) {
 			Paths: Paths{ConfigFile: configPath},
 			Config: config.AppConfig{
 				Connection: config.ConnectionConfig{
-					Connector: config.ConnectorIP,
+					Transport: config.TransportIP,
 					Host:      "192.168.1.1",
 				},
 			},

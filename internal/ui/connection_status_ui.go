@@ -109,10 +109,10 @@ func formatConnStatus(status busmsg.ConnectionStatus, localShortName string) str
 }
 
 func transportDisplayName(name string) string {
-	normalized := config.ConnectorType(strings.ToLower(strings.TrimSpace(name)))
+	normalized := config.TransportType(strings.ToLower(strings.TrimSpace(name)))
 	switch normalized {
-	case config.ConnectorIP, config.ConnectorSerial, config.ConnectorBluetooth:
-		return connectorOptionFromType(normalized)
+	case config.TransportIP, config.TransportSerial, config.TransportBluetooth:
+		return transportOptionFromType(normalized)
 	default:
 		return strings.TrimSpace(name)
 	}

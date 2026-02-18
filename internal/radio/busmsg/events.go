@@ -6,7 +6,7 @@ import (
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
-// ConnectionState describes the connector lifecycle state shown in UI.
+// ConnectionState describes the transport lifecycle state shown in UI.
 type ConnectionState string
 
 const (
@@ -16,7 +16,7 @@ const (
 	ConnectionStateReconnecting ConnectionState = "reconnecting"
 )
 
-// ConnectionStatus is a bus event snapshot of current connector status.
+// ConnectionStatus is a bus event snapshot of current transport status.
 type ConnectionStatus struct {
 	State         ConnectionState
 	Err           string

@@ -10,7 +10,7 @@ import (
 	"github.com/skobkin/meshgo/internal/transport"
 )
 
-// SwitchableTransport wraps the active connector and lets runtime swap it on config updates.
+// SwitchableTransport wraps the active transport and lets runtime swap it on config updates.
 type SwitchableTransport struct {
 	mu sync.RWMutex
 
@@ -129,14 +129,14 @@ func NewTransportForConnection(cfg config.ConnectionConfig) (transport.Transport
 }
 
 func newTransportForConnection(cfg config.ConnectionConfig) (transport.Transport, error) {
-	switch cfg.Connector {
-	case config.ConnectorIP:
+	switch cfg.Transport {
+	case config.TransportIP:
 		return transport.NewIPTransport(cfg.Host, DefaultIPPort), nil
-	case config.ConnectorSerial:
+	case config.TransportSerial:
 		return transport.NewSerialTransport(cfg.SerialPort, cfg.SerialBaud), nil
-	case config.ConnectorBluetooth:
+	case config.TransportBluetooth:
 		return transport.NewBluetoothTransport(cfg.BluetoothAddress, cfg.BluetoothAdapter), nil
 	default:
-		return nil, fmt.Errorf("unknown connector: %q", cfg.Connector)
+		return nil, fmt.Errorf("unknown transport: %q", cfg.Transport)
 	}
 }

@@ -34,7 +34,7 @@ func main() {
 }
 
 func run() error {
-	connector := flag.String("connector", "", "connector type (ip|serial|bluetooth); defaults to config value")
+	transportFlag := flag.String("transport", "", "transport type (ip|serial|bluetooth); defaults to config value")
 	host := flag.String("host", "", "ip/hostname")
 	serialPort := flag.String("serial-port", "", "serial port path/name (example: /dev/ttyACM0, COM3)")
 	serialBaud := flag.Int("serial-baud", 0, "serial baud rate (example: 115200)")
@@ -57,9 +57,9 @@ func run() error {
 	}
 	cfg.FillMissingDefaults()
 
-	selectedConnector := strings.ToLower(strings.TrimSpace(*connector))
-	if selectedConnector != "" {
-		cfg.Connection.Connector = config.ConnectorType(selectedConnector)
+	selectedTransport := strings.ToLower(strings.TrimSpace(*transportFlag))
+	if selectedTransport != "" {
+		cfg.Connection.Transport = config.TransportType(selectedTransport)
 	}
 	if strings.TrimSpace(*host) != "" {
 		cfg.Connection.Host = strings.TrimSpace(*host)
@@ -156,8 +156,8 @@ func run() error {
 
 	logger.Info(
 		"waiting for initial config completion",
-		"connector",
-		cfg.Connection.Connector,
+		"transport",
+		cfg.Connection.Transport,
 		"target",
 		connectionTarget(cfg.Connection),
 		"timeout",
@@ -358,10 +358,10 @@ func previewHex(hex string) string {
 func connectionTarget(connection config.ConnectionConfig) string {
 	baseTarget := app.ConnectionTarget(connection)
 
-	switch connection.Connector {
-	case config.ConnectorSerial:
+	switch connection.Transport {
+	case config.TransportSerial:
 		return fmt.Sprintf("%s@%d", baseTarget, connection.SerialBaud)
-	case config.ConnectorBluetooth:
+	case config.TransportBluetooth:
 		if baseTarget == "" {
 			return ""
 		}
@@ -370,9 +370,9 @@ func connectionTarget(connection config.ConnectionConfig) string {
 		}
 
 		return baseTarget
-	case config.ConnectorIP:
+	case config.TransportIP:
 		return baseTarget
 	default:
-		return string(connection.Connector)
+		return string(connection.Transport)
 	}
 }
