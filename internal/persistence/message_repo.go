@@ -20,9 +20,9 @@ func NewMessageRepo(db *sql.DB) *MessageRepo {
 
 func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO messages(chat_key, device_message_id, direction, body, status, at, meta_json)
-		VALUES(?, ?, ?, ?, ?, ?, ?)
-	`, m.ChatKey, nullableString(m.DeviceMessageID), int(m.Direction), m.Body, int(m.Status), timeToUnixMillis(m.At), nullableString(m.MetaJSON))
+		INSERT OR IGNORE INTO messages(chat_key, device_message_id, reply_to_device_message_id, emoji, direction, body, status, at, meta_json)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, m.ChatKey, nullableString(m.DeviceMessageID), nullableString(m.ReplyToDeviceMessageID), int(m.Emoji), int(m.Direction), m.Body, int(m.Status), timeToUnixMillis(m.At), nullableString(m.MetaJSON))
 	if err != nil {
 		return 0, fmt.Errorf("insert message: %w", err)
 	}
@@ -40,7 +40,7 @@ func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, 
 
 func (r *MessageRepo) ListRecentByChat(ctx context.Context, chatKey string, limit int) ([]domain.ChatMessage, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT local_id, chat_key, device_message_id, direction, body, status, at, meta_json
+		SELECT local_id, chat_key, device_message_id, reply_to_device_message_id, emoji, direction, body, status, at, meta_json
 		FROM messages
 		WHERE chat_key = ?
 		ORDER BY at DESC
@@ -168,16 +168,22 @@ func scanMessage(scanner interface {
 		direction   int
 		status      int
 		deviceIDRaw sql.NullString
+		replyIDRaw  sql.NullString
+		emojiRaw    uint32
 		metaRaw     sql.NullString
 	)
-	if err := scanner.Scan(&m.LocalID, &m.ChatKey, &deviceIDRaw, &direction, &m.Body, &status, &atMs, &metaRaw); err != nil {
+	if err := scanner.Scan(&m.LocalID, &m.ChatKey, &deviceIDRaw, &replyIDRaw, &emojiRaw, &direction, &m.Body, &status, &atMs, &metaRaw); err != nil {
 		return domain.ChatMessage{}, fmt.Errorf("scan message: %w", err)
 	}
 	m.Direction = domain.MessageDirection(direction)
 	m.Status = domain.MessageStatus(status)
+	m.Emoji = emojiRaw
 	m.At = unixMillisToTime(atMs)
 	if deviceIDRaw.Valid {
 		m.DeviceMessageID = deviceIDRaw.String
+	}
+	if replyIDRaw.Valid {
+		m.ReplyToDeviceMessageID = replyIDRaw.String
 	}
 	if metaRaw.Valid {
 		m.MetaJSON = metaRaw.String

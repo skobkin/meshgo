@@ -28,6 +28,7 @@ type SendResult struct {
 type sendRequest struct {
 	chatKey string
 	text    string
+	opts    TextSendOptions
 	result  chan SendResult
 }
 
@@ -67,7 +68,7 @@ func (s *Service) Start(ctx context.Context) {
 	go s.runTransport(ctx)
 }
 
-func (s *Service) SendText(chatKey, text string) <-chan SendResult {
+func (s *Service) SendText(chatKey, text string, opts TextSendOptions) <-chan SendResult {
 	resCh := make(chan SendResult, 1)
 	chatKey = strings.TrimSpace(chatKey)
 	if chatKey == "" {
@@ -89,7 +90,7 @@ func (s *Service) SendText(chatKey, text string) <-chan SendResult {
 		return resCh
 	}
 
-	s.outbox <- sendRequest{chatKey: chatKey, text: text, result: resCh}
+	s.outbox <- sendRequest{chatKey: chatKey, text: text, opts: opts, result: resCh}
 
 	return resCh
 }
@@ -235,7 +236,7 @@ func (s *Service) runOutbox(ctx context.Context) {
 }
 
 func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
-	encoded, err := s.codec.EncodeText(req.chatKey, req.text)
+	encoded, err := s.codec.EncodeText(req.chatKey, req.text, req.opts)
 	if err != nil {
 		return SendResult{Err: fmt.Errorf("encode outgoing message: %w", err)}
 	}
@@ -252,13 +253,15 @@ func (s *Service) handleSend(ctx context.Context, req sendRequest) SendResult {
 		s.markAckTracked(encoded.DeviceMessageID, encoded.TargetNodeNum)
 	}
 	msg := domain.ChatMessage{
-		DeviceMessageID: encoded.DeviceMessageID,
-		ChatKey:         req.chatKey,
-		Direction:       domain.MessageDirectionOut,
-		Body:            req.text,
-		Status:          initialStatus,
-		At:              now,
-		MetaJSON:        outgoingMessageMetaJSON(s.LocalNodeID()),
+		DeviceMessageID:        encoded.DeviceMessageID,
+		ReplyToDeviceMessageID: strings.TrimSpace(req.opts.ReplyToDeviceMessageID),
+		Emoji:                  req.opts.Emoji,
+		ChatKey:                req.chatKey,
+		Direction:              domain.MessageDirectionOut,
+		Body:                   req.text,
+		Status:                 initialStatus,
+		At:                     now,
+		MetaJSON:               outgoingMessageMetaJSON(s.LocalNodeID()),
 	}
 
 	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})

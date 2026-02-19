@@ -148,6 +148,14 @@ func (s *ChatStore) AppendMessage(msg ChatMessage) {
 				msgs[i].Body = msg.Body
 				changed = true
 			}
+			if msgs[i].ReplyToDeviceMessageID == "" && msg.ReplyToDeviceMessageID != "" {
+				msgs[i].ReplyToDeviceMessageID = msg.ReplyToDeviceMessageID
+				changed = true
+			}
+			if msgs[i].Emoji == 0 && msg.Emoji != 0 {
+				msgs[i].Emoji = msg.Emoji
+				changed = true
+			}
 			if msgs[i].MetaJSON == "" && msg.MetaJSON != "" {
 				msgs[i].MetaJSON = msg.MetaJSON
 				changed = true

@@ -6,17 +6,20 @@ import (
 	"image/color"
 	"log/slog"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/ui/widgets"
 	chatlayout "github.com/skobkin/meshgo/internal/ui/widgets/layout"
 )
@@ -55,13 +58,21 @@ func newChatsTab(
 	)
 	markChatRead(store, readIncomingUpToByKey, selectedKey)
 	unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
-	messages := store.Messages(selectedKey)
+	messageView := buildChatMessageView(store.Messages(selectedKey), nodeNameByID, localNodeID)
 	var messageList *widget.List
 	var chatTitle *widget.Label
 	var entry *widget.Entry
 	var tooltipManager *widgets.HoverTooltipManager
+	var replyLabel *widget.Label
+	var replyIndicator *fyne.Container
+	var sendStatusLabel *widget.Label
+	var refreshReplyIndicator func()
+	var ensureReplyShortcut func()
 	pendingScrollChatKey := ""
 	pendingScrollMinCount := 0
+	replyToDeviceMessageID := ""
+	hoveredReplyTargetDeviceMessageID := ""
+	replyShortcutRegistered := false
 	messageItemHeightByID := make(map[widget.ListItemID]float32)
 	messageItemWidthByID := make(map[widget.ListItemID]float32)
 
@@ -118,13 +129,17 @@ func newChatsTab(
 		if onChatSelected != nil {
 			onChatSelected(selectedKey)
 		}
-		messages = store.Messages(selectedKey)
+		messageView = buildChatMessageView(store.Messages(selectedKey), nodeNameByID, localNodeID)
+		replyToDeviceMessageID = ""
+		hoveredReplyTargetDeviceMessageID = ""
 		clear(messageItemHeightByID)
 		clear(messageItemWidthByID)
+		refreshReplyIndicator()
 		chatList.Refresh()
 		messageList.Refresh()
 		chatTitle.SetText(chatDisplayTitle(chats[id], nodeNameByID))
-		scrollMessageListToEnd(messageList, len(messages))
+		scrollMessageListToEnd(messageList, len(messageView.Timeline))
+		ensureReplyShortcut()
 		focusEntry(entry)
 	}
 
@@ -136,9 +151,106 @@ func newChatsTab(
 	tooltipLayer := container.NewWithoutLayout()
 	tooltipManager = widgets.NewHoverTooltipManager(tooltipLayer)
 
+	refreshReplyIndicator = func() {
+		if replyIndicator == nil || replyLabel == nil {
+			return
+		}
+		replyID := strings.TrimSpace(replyToDeviceMessageID)
+		if replyID == "" {
+			replyIndicator.Hide()
+			replyLabel.SetText("")
+			replyIndicator.Refresh()
+
+			return
+		}
+		replyLabel.SetText("Replying to message: original message unavailable")
+		if original, ok := messageView.ByDeviceID[replyID]; ok {
+			meta, hasMeta := parseMessageMeta(original.MetaJSON)
+			sender, _, hasSender := messageTextParts(*original, meta, hasMeta, nodeNameByID, localNodeID)
+			body := compactWhitespace(original.Body)
+			if body == "" {
+				body = "(empty)"
+			}
+			if hasSender {
+				replyLabel.SetText(fmt.Sprintf("Replying to %s: %s", sender, body))
+			} else {
+				replyLabel.SetText(fmt.Sprintf("Replying to message: %s", body))
+			}
+		}
+		replyIndicator.Show()
+		replyIndicator.Refresh()
+	}
+
+	clearReplyTarget := func() {
+		replyToDeviceMessageID = ""
+		refreshReplyIndicator()
+	}
+
+	setReplyTarget := func(message *domain.ChatMessage) bool {
+		if message == nil || !canReplyToMessage(*message) {
+			if sendStatusLabel != nil {
+				sendStatusLabel.SetText("Reply unavailable for this message")
+			}
+
+			return false
+		}
+		replyToDeviceMessageID = strings.TrimSpace(message.DeviceMessageID)
+		refreshReplyIndicator()
+		focusEntry(entry)
+
+		return true
+	}
+
+	replyFromShortcut := func() {
+		if entry == nil || !entry.Visible() {
+			return
+		}
+		if hoveredID := strings.TrimSpace(hoveredReplyTargetDeviceMessageID); hoveredID != "" {
+			if hovered, ok := messageView.ByDeviceID[hoveredID]; ok {
+				if setReplyTarget(hovered) {
+					return
+				}
+			}
+		}
+		if latest := latestReplyTarget(messageView.Timeline); latest != nil {
+			_ = setReplyTarget(latest)
+		}
+	}
+
+	ensureReplyShortcut = func() {
+		if replyShortcutRegistered || entry == nil {
+			return
+		}
+		fyneCanvas := canvasForObject(entry)
+		if fyneCanvas == nil {
+			return
+		}
+		shortcut := &desktop.CustomShortcut{KeyName: fyne.KeyR, Modifier: fyne.KeyModifierControl}
+		fyneCanvas.AddShortcut(shortcut, func(fyne.Shortcut) {
+			replyFromShortcut()
+		})
+		replyShortcutRegistered = true
+	}
+
 	messageList = widget.NewList(
-		func() int { return len(messages) },
+		func() int { return len(messageView.Timeline) },
 		func() fyne.CanvasObject {
+			quoteText := widget.NewRichTextWithText("")
+			quoteText.Wrapping = fyne.TextWrapWord
+			quoteBar := canvas.NewRectangle(color.NRGBA{R: 120, G: 120, B: 120, A: 255})
+			quoteBar.SetMinSize(fyne.NewSize(3, 1))
+			quoteLine := container.NewBorder(
+				nil,
+				nil,
+				container.NewHBox(
+					quoteBar,
+					horizontalSpacer(theme.Padding()/2),
+				),
+				nil,
+				quoteText,
+			)
+			quoteLine.Hide()
+
 			transportBadge := widgets.NewTooltipLabel("", "", tooltipManager)
 			messageText := widget.NewRichTextWithText("message")
 			messageText.Wrapping = fyne.TextWrapWord
@@ -152,27 +264,59 @@ func newChatsTab(
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
 			statusBadge := widgets.NewTooltipLabel("", "", tooltipManager)
 			timeLabel := widget.NewLabel("time")
+			reactionsRow := container.NewHBox()
+			reactionsRow.Hide()
 			row := container.NewVBox(
+				quoteLine,
 				messageLine,
 				container.NewHBox(
 					metaParts,
 					layout.NewSpacer(),
 					container.NewHBox(statusBadge, horizontalSpacer(theme.Padding()/2), timeLabel, horizontalSpacer(0)),
 				),
+				reactionsRow,
 			)
 			bubbleBg := canvas.NewRectangle(chatBubbleFillColor(domain.MessageDirectionIn))
 			bubbleBg.CornerRadius = 10
 			bubble := container.NewStack(bubbleBg, container.NewPadded(row))
 
-			return container.New(chatlayout.NewChatRowLayout(false), bubble)
+			return newChatMessageRowItem(container.New(chatlayout.NewChatRowLayout(false), bubble))
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
-			if id < 0 || id >= len(messages) {
+			if id < 0 || id >= len(messageView.Timeline) {
 				return
 			}
-			msg := messages[id]
+			msg := messageView.Timeline[id]
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
-			rowContainer := obj.(*fyne.Container)
+			rowItem, ok := obj.(*chatMessageRowItem)
+			if !ok {
+				return
+			}
+			message := msg
+			rowItem.onSecondary = func(position fyne.Position) {
+				showChatMessageContextMenu(canvasForObject(rowItem), position, message, func(message domain.ChatMessage, action ChatAction) {
+					if action != ChatActionReply {
+						return
+					}
+					_ = setReplyTarget(&message)
+				})
+			}
+			rowItem.onHoverChange = func(hovered bool) {
+				if hovered {
+					if canReplyToMessage(message) {
+						hoveredReplyTargetDeviceMessageID = message.DeviceMessageID
+					}
+
+					return
+				}
+				if hoveredReplyTargetDeviceMessageID == message.DeviceMessageID {
+					hoveredReplyTargetDeviceMessageID = ""
+				}
+			}
+			rowContainer, ok := rowItem.content.(*fyne.Container)
+			if !ok {
+				return
+			}
 			rowLayout, ok := rowContainer.Layout.(*chatlayout.ChatRowLayout)
 			if ok {
 				rowLayout.SetAlignRight(msg.Direction == domain.MessageDirectionOut)
@@ -182,7 +326,23 @@ func newChatsTab(
 			bubbleBg.FillColor = chatBubbleFillColor(msg.Direction)
 			bubbleBg.Refresh()
 			box := bubble.Objects[1].(*fyne.Container).Objects[0].(*fyne.Container)
-			messageLine := box.Objects[0].(*fyne.Container)
+			quoteLine := box.Objects[0].(*fyne.Container)
+			quoteText := quoteLine.Objects[0].(*widget.RichText)
+			replyID := strings.TrimSpace(msg.ReplyToDeviceMessageID)
+			if replyID != "" {
+				if original, ok := messageView.ByDeviceID[replyID]; ok {
+					quoteText.Segments = quoteSegments(*original, nodeNameByID, localNodeID)
+				} else {
+					quoteText.Segments = []widget.RichTextSegment{
+						&widget.TextSegment{Text: "Original message unavailable", Style: widget.RichTextStyleInline},
+					}
+				}
+				quoteText.Refresh()
+				quoteLine.Show()
+			} else {
+				quoteLine.Hide()
+			}
+			messageLine := box.Objects[1].(*fyne.Container)
 			messageText := messageLine.Objects[0].(*widget.RichText)
 			transportSlot := messageLine.Objects[1].(*fyne.Container)
 			transportBadge := transportSlot.Objects[1].(*widgets.TooltipWidget)
@@ -190,7 +350,7 @@ func newChatsTab(
 			messageText.Wrapping = fyne.TextWrapWord
 			messageText.Refresh()
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
-			metaRow := box.Objects[1].(*fyne.Container)
+			metaRow := box.Objects[2].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
 			widgets.HideTooltipWidgets(metaParts.Objects)
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte, tooltipManager)
@@ -204,6 +364,19 @@ func newChatsTab(
 				statusBadge.SetBadge(statusText, statusTooltip)
 			}
 			metaRight.Objects[2].(*widget.Label).SetText(messageTimeLabel(msg.At))
+			reactionsRow := box.Objects[3].(*fyne.Container)
+			widgets.HideTooltipWidgets(reactionsRow.Objects)
+			reactionsRow.Objects = messageReactionWidgets(
+				msg.DeviceMessageID,
+				messageView.ReactionsByTargetDeviceID,
+				tooltipManager,
+			)
+			if len(reactionsRow.Objects) == 0 {
+				reactionsRow.Hide()
+			} else {
+				reactionsRow.Show()
+				reactionsRow.Refresh()
+			}
 
 			// During early startup refreshes list width can still be zero. Skip
 			// height caching in that state to avoid overestimating wrapped row height.
@@ -213,10 +386,8 @@ func newChatsTab(
 				return
 			}
 
-			// Chat rows can have different heights (e.g. multiline message text).
-			// Update heights when they grow and also allow shrink after row width
-			// increases (startup/layout settle case). This avoids preserving early
-			// overestimated heights while still preventing width jitter loops.
+			// Chat rows can have different heights (e.g. multiline message text or
+			// reaction rows). Update item height when meaningful change is observed.
 			rowHeight := rowContainer.MinSize().Height
 			rowWidth := rowContainer.Size().Width
 			prevHeight, hasPrev := messageItemHeightByID[id]
@@ -233,9 +404,23 @@ func newChatsTab(
 	entry = widget.NewEntry()
 	entry.SetPlaceHolder("Type message (max 200 bytes)")
 	counterLabel := widget.NewLabel("0/200 bytes")
-	sendStatusLabel := widget.NewLabel("")
+	sendStatusLabel = widget.NewLabel("")
 	sendStatusLabel.Truncation = fyne.TextTruncateEllipsis
 	sendButton := widget.NewButton("Send", nil)
+	replyLabel = widget.NewLabel("")
+	replyLabel.Truncation = fyne.TextTruncateEllipsis
+	replyCancelButton := widget.NewButton("Cancel", func() {
+		clearReplyTarget()
+		focusEntry(entry)
+	})
+	replyIndicator = container.NewBorder(
+		nil,
+		nil,
+		nil,
+		replyCancelButton,
+		replyLabel,
+	)
+	replyIndicator.Hide()
 
 	updateCounter := func(text string) {
 		count := len([]byte(text))
@@ -274,11 +459,12 @@ func newChatsTab(
 
 		chatsLogger.Info("sending chat message", "chat_key", selectedKey, "bytes", len([]byte(text)))
 		pendingScrollChatKey = selectedKey
-		pendingScrollMinCount = len(messages) + 1
+		pendingScrollMinCount = len(messageView.Timeline) + 1
 		sendStatusLabel.SetText("")
+		opts := radio.TextSendOptions{ReplyToDeviceMessageID: strings.TrimSpace(replyToDeviceMessageID)}
 		setSending(true)
-		go func(chatKey, body string) {
-			res := <-sender.SendText(chatKey, body)
+		go func(chatKey, body string, sendOpts radio.TextSendOptions) {
+			res := <-sender.SendText(chatKey, body, sendOpts)
 			if res.Err != nil {
 				fyne.Do(func() {
 					chatsLogger.Warn("chat message send failed", "chat_key", chatKey, "bytes", len([]byte(body)), "error", res.Err)
@@ -296,9 +482,10 @@ func newChatsTab(
 				chatsLogger.Info("chat message sent", "chat_key", chatKey, "bytes", len([]byte(body)))
 				sendStatusLabel.SetText("")
 				entry.SetText("")
+				clearReplyTarget()
 				setSending(false)
 			})
-		}(selectedKey, text)
+		}(selectedKey, text, opts)
 	}
 
 	entry.OnSubmitted = func(_ string) { sendCurrent() }
@@ -308,7 +495,7 @@ func newChatsTab(
 	composerStatusRow := container.NewHBox(counterLabel, layout.NewSpacer(), sendStatusLabel)
 	right := container.NewBorder(
 		chatTitle,
-		container.NewVBox(composerStatusRow, composer),
+		container.NewVBox(replyIndicator, composerStatusRow, composer),
 		nil,
 		nil,
 		messageList,
@@ -337,10 +524,11 @@ func newChatsTab(
 				nextSelectedKey = updatedChats[0].Key
 			}
 		}
-		updatedMessages := store.Messages(nextSelectedKey)
+		updatedView := buildChatMessageView(store.Messages(nextSelectedKey), nodeNameByID, localNodeID)
 		if slices.Equal(chats, updatedChats) &&
 			nextSelectedKey == selectedKey &&
-			slices.Equal(messages, updatedMessages) {
+			slices.Equal(messageView.Timeline, updatedView.Timeline) &&
+			reactionMapEqual(messageView.ReactionsByTargetDeviceID, updatedView.ReactionsByTargetDeviceID) {
 			chatsLogger.Debug(
 				"skipping chat refresh: store snapshot unchanged",
 				"selected_chat", selectedKey,
@@ -354,16 +542,27 @@ func newChatsTab(
 		chats = updatedChats
 		pruneReadIncomingByChat(readIncomingUpToByKey, chats)
 		previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
+		if nextSelectedKey != selectedKey {
+			replyToDeviceMessageID = ""
+			hoveredReplyTargetDeviceMessageID = ""
+		}
 		selectedKey = nextSelectedKey
 		selectedIndex := chatIndexByKey(chats, selectedKey)
-		messages = updatedMessages
+		messageView = updatedView
 		clear(messageItemHeightByID)
 		clear(messageItemWidthByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
 		chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
+		if replyToDeviceMessageID != "" {
+			if _, ok := messageView.ByDeviceID[replyToDeviceMessageID]; !ok {
+				replyToDeviceMessageID = ""
+			}
+		}
+		refreshReplyIndicator()
 		chatList.Refresh()
 		messageList.Refresh()
+		ensureReplyShortcut()
 		if selectedIndex >= 0 {
 			chatList.Select(selectedIndex)
 		} else {
@@ -371,13 +570,13 @@ func newChatsTab(
 		}
 		if pendingScrollChatKey != "" &&
 			selectedKey == pendingScrollChatKey &&
-			len(messages) >= pendingScrollMinCount {
+			len(messageView.Timeline) >= pendingScrollMinCount {
 			chatsLogger.Debug(
 				"auto-scrolling to latest message after send",
 				"chat_key", selectedKey,
-				"message_count", len(messages),
+				"message_count", len(messageView.Timeline),
 			)
-			scrollMessageListToEnd(messageList, len(messages))
+			scrollMessageListToEnd(messageList, len(messageView.Timeline))
 			pendingScrollChatKey = ""
 			pendingScrollMinCount = 0
 		}
@@ -386,11 +585,15 @@ func newChatsTab(
 	if selectedIndex := chatIndexByKey(chats, selectedKey); selectedIndex >= 0 {
 		chatList.Select(selectedIndex)
 		fyne.Do(func() {
+			refreshReplyIndicator()
+			ensureReplyShortcut()
 			messageList.Refresh()
 		})
 	} else if len(chats) > 0 {
 		chatList.Select(0)
 		fyne.Do(func() {
+			refreshReplyIndicator()
+			ensureReplyShortcut()
 			messageList.Refresh()
 		})
 	}
@@ -411,6 +614,7 @@ func newChatsTab(
 					tooltipManager.Hide(nil)
 					previewsByKey = chatPreviewByKey(store, chats, nodeNameByID)
 					chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
+					refreshReplyIndicator()
 					chatList.Refresh()
 					messageList.Refresh()
 				})
@@ -451,9 +655,10 @@ func shouldUpdateMessageItemHeight(hasPrev bool, prevHeight, prevWidth, rowHeigh
 	if rowHeight > prevHeight+messageRowMeasureEpsilon {
 		return true
 	}
-	if rowWidth > prevWidth+messageRowMeasureEpsilon &&
-		rowHeight < prevHeight-messageRowMeasureEpsilon {
-		return true
+	if rowHeight < prevHeight-messageRowMeasureEpsilon {
+		if rowWidth > prevWidth+messageRowMeasureEpsilon {
+			return true
+		}
 	}
 
 	return false
@@ -477,10 +682,10 @@ func chatPreviewByKey(store *domain.ChatStore, chats []domain.Chat, nodeNameByID
 }
 
 func chatPreviewLine(messages []domain.ChatMessage, nodeNameByID func(string) string) string {
-	if len(messages) == 0 {
+	last, ok := latestNonReactionMessage(messages)
+	if !ok {
 		return "No messages yet"
 	}
-	last := messages[len(messages)-1]
 	body := compactWhitespace(last.Body)
 	if body == "" {
 		body = "(empty)"
@@ -531,6 +736,8 @@ func truncatePreview(s string, limit int) string {
 type messageMeta struct {
 	From      string   `json:"from"`
 	To        string   `json:"to"`
+	ReplyID   *uint32  `json:"reply_id"`
+	Emoji     *uint32  `json:"emoji"`
 	Hops      *int     `json:"hops"`
 	HopStart  *uint32  `json:"hop_start"`
 	HopLimit  *uint32  `json:"hop_limit"`
@@ -1009,6 +1216,254 @@ func isDarkColor(c color.NRGBA) bool {
 
 func colorLuma(c color.NRGBA) float32 {
 	return (0.299*float32(c.R) + 0.587*float32(c.G) + 0.114*float32(c.B)) / 255
+}
+
+type chatMessageView struct {
+	Timeline                  []domain.ChatMessage
+	ByDeviceID                map[string]*domain.ChatMessage
+	ReactionsByTargetDeviceID map[string][]reactionChip
+}
+
+type reactionChip struct {
+	Emoji   string
+	Senders []string
+}
+
+func buildChatMessageView(
+	messages []domain.ChatMessage,
+	nodeNameByID func(string) string,
+	localNodeID func() string,
+) chatMessageView {
+	view := chatMessageView{
+		Timeline:                  make([]domain.ChatMessage, 0, len(messages)),
+		ByDeviceID:                make(map[string]*domain.ChatMessage),
+		ReactionsByTargetDeviceID: make(map[string][]reactionChip),
+	}
+	reactionSenderSetByTargetAndEmoji := make(map[string]map[string]map[string]string)
+	reactionEmojiOrderByTarget := make(map[string][]string)
+	for _, msg := range messages {
+		if isReactionMessage(msg) {
+			targetID := strings.TrimSpace(msg.ReplyToDeviceMessageID)
+			if targetID == "" {
+				continue
+			}
+			emoji := strings.TrimSpace(msg.Body)
+			if emoji == "" {
+				continue
+			}
+			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
+			senderKey, senderLabel := reactionSenderKeyAndLabel(msg, meta, hasMeta, nodeNameByID, localNodeID)
+			targetMap, ok := reactionSenderSetByTargetAndEmoji[targetID]
+			if !ok {
+				targetMap = make(map[string]map[string]string)
+				reactionSenderSetByTargetAndEmoji[targetID] = targetMap
+			}
+			senderSet, ok := targetMap[emoji]
+			if !ok {
+				senderSet = make(map[string]string)
+				targetMap[emoji] = senderSet
+				reactionEmojiOrderByTarget[targetID] = append(reactionEmojiOrderByTarget[targetID], emoji)
+			}
+			if senderKey == "" {
+				senderKey = senderLabel
+			}
+			if senderKey == "" {
+				senderKey = "unknown"
+				senderLabel = "someone"
+			}
+			senderSet[senderKey] = senderLabel
+
+			continue
+		}
+
+		view.Timeline = append(view.Timeline, msg)
+	}
+	for i := range view.Timeline {
+		deviceID := strings.TrimSpace(view.Timeline[i].DeviceMessageID)
+		if deviceID == "" {
+			continue
+		}
+		view.ByDeviceID[deviceID] = &view.Timeline[i]
+	}
+	for targetID, byEmoji := range reactionSenderSetByTargetAndEmoji {
+		emojiOrder := reactionEmojiOrderByTarget[targetID]
+		chips := make([]reactionChip, 0, len(byEmoji))
+		for _, emoji := range emojiOrder {
+			senderSet := byEmoji[emoji]
+			if len(senderSet) == 0 {
+				continue
+			}
+			senders := make([]string, 0, len(senderSet))
+			for _, sender := range senderSet {
+				senders = append(senders, sender)
+			}
+			sort.Strings(senders)
+			chips = append(chips, reactionChip{Emoji: emoji, Senders: senders})
+		}
+		if len(chips) > 0 {
+			view.ReactionsByTargetDeviceID[targetID] = chips
+		}
+	}
+
+	return view
+}
+
+func isReactionMessage(message domain.ChatMessage) bool {
+	return strings.TrimSpace(message.ReplyToDeviceMessageID) != "" && message.Emoji != 0
+}
+
+func canReplyToMessage(message domain.ChatMessage) bool {
+	if isReactionMessage(message) {
+		return false
+	}
+
+	return strings.TrimSpace(message.DeviceMessageID) != ""
+}
+
+func latestReplyTarget(messages []domain.ChatMessage) *domain.ChatMessage {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if !canReplyToMessage(messages[i]) {
+			continue
+		}
+		target := messages[i]
+
+		return &target
+	}
+
+	return nil
+}
+
+func latestNonReactionMessage(messages []domain.ChatMessage) (domain.ChatMessage, bool) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if isReactionMessage(messages[i]) {
+			continue
+		}
+
+		return messages[i], true
+	}
+
+	return domain.ChatMessage{}, false
+}
+
+func quoteSegments(message domain.ChatMessage, nodeNameByID func(string) string, localNodeID func() string) []widget.RichTextSegment {
+	meta, hasMeta := parseMessageMeta(message.MetaJSON)
+	sender, body, hasSender := messageTextParts(message, meta, hasMeta, nodeNameByID, localNodeID)
+	if !hasSender {
+		return []widget.RichTextSegment{
+			&widget.TextSegment{Text: body, Style: widget.RichTextStyleInline},
+		}
+	}
+
+	return []widget.RichTextSegment{
+		&widget.TextSegment{Text: sender, Style: widget.RichTextStyleStrong},
+		&widget.TextSegment{Text: "\n" + body, Style: widget.RichTextStyleInline},
+	}
+}
+
+func messageReactionWidgets(
+	targetDeviceMessageID string,
+	reactionsByTarget map[string][]reactionChip,
+	tooltipManager *widgets.HoverTooltipManager,
+) []fyne.CanvasObject {
+	targetDeviceMessageID = strings.TrimSpace(targetDeviceMessageID)
+	if targetDeviceMessageID == "" {
+		return nil
+	}
+	chips := reactionsByTarget[targetDeviceMessageID]
+	if len(chips) == 0 {
+		return nil
+	}
+	objects := make([]fyne.CanvasObject, 0, len(chips))
+	for _, chip := range chips {
+		segments := reactionChipSegments(chip)
+		tooltip := []widget.RichTextSegment{
+			&widget.TextSegment{
+				Text:  strings.Join(chip.Senders, "\n"),
+				Style: widget.RichTextStyleInline,
+			},
+		}
+		objects = append(objects, widgets.NewTooltipRichText(segments, tooltip, tooltipManager))
+	}
+
+	return objects
+}
+
+func reactionChipSegments(chip reactionChip) []widget.RichTextSegment {
+	emojiStyle := widget.RichTextStyleInline
+	emojiStyle.SizeName = theme.SizeNameHeadingText
+	segments := []widget.RichTextSegment{
+		&widget.TextSegment{Text: chip.Emoji, Style: emojiStyle},
+	}
+	if len(chip.Senders) > 1 {
+		segments = append(segments,
+			&widget.TextSegment{Text: " ", Style: widget.RichTextStyleInline},
+			&widget.TextSegment{Text: fmt.Sprintf("%d", len(chip.Senders)), Style: widget.RichTextStyleInline},
+		)
+	}
+
+	return segments
+}
+
+func reactionSenderKeyAndLabel(
+	message domain.ChatMessage,
+	meta messageMeta,
+	hasMeta bool,
+	nodeNameByID func(string) string,
+	localNodeID func() string,
+) (string, string) {
+	if hasMeta {
+		if sender := domain.NormalizeNodeID(meta.From); sender != "" {
+			return sender, displaySender(sender, nodeNameByID)
+		}
+	}
+	if message.Direction == domain.MessageDirectionOut {
+		if localNodeID != nil {
+			if local := domain.NormalizeNodeID(localNodeID()); local != "" {
+				return local, displaySender(local, nodeNameByID)
+			}
+		}
+
+		return "you", "you"
+	}
+
+	return "someone", "someone"
+}
+
+func reactionMapEqual(a, b map[string][]reactionChip) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for key, left := range a {
+		right, ok := b[key]
+		if !ok {
+			return false
+		}
+		if len(left) != len(right) {
+			return false
+		}
+		for i := range left {
+			if left[i].Emoji != right[i].Emoji {
+				return false
+			}
+			if !slices.Equal(left[i].Senders, right[i].Senders) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func canvasForObject(obj fyne.CanvasObject) fyne.Canvas {
+	if obj == nil {
+		return nil
+	}
+	app := fyne.CurrentApp()
+	if app == nil {
+		return nil
+	}
+
+	return app.Driver().CanvasForObject(obj)
 }
 
 func displaySender(nodeID string, nodeNameByID func(string) string) string {

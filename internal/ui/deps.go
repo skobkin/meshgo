@@ -15,7 +15,7 @@ import (
 
 // MessageSender sends user text messages through the active radio service.
 type MessageSender interface {
-	SendText(chatKey, text string) <-chan radio.SendResult
+	SendText(chatKey, text string, opts radio.TextSendOptions) <-chan radio.SendResult
 }
 
 // TracerouteAction starts traceroute requests for UI actions.

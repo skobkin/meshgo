@@ -68,12 +68,16 @@ func (c *MeshtasticCodec) EncodeHeartbeat() ([]byte, error) {
 	return proto.Marshal(wire)
 }
 
-func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) {
+func (c *MeshtasticCodec) EncodeText(chatKey, text string, opts TextSendOptions) (EncodedText, error) {
 	to, channel, err := parseChatTarget(chatKey)
 	if err != nil {
 		return EncodedText{}, err
 	}
 	packetID := c.nextNonZeroID()
+	replyID, err := parseDeviceMessageID(opts.ReplyToDeviceMessageID)
+	if err != nil {
+		return EncodedText{}, err
+	}
 
 	packet := &generated.MeshPacket{
 		To:      to,
@@ -83,6 +87,8 @@ func (c *MeshtasticCodec) EncodeText(chatKey, text string) (EncodedText, error) 
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
 			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
 			Payload: []byte(text),
+			ReplyId: replyID,
+			Emoji:   opts.Emoji,
 		}},
 	}
 	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
@@ -236,12 +242,14 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		}
 
 		msg := domain.ChatMessage{
-			ChatKey:   chatKeyForPacket(packet, direction),
-			Direction: direction,
-			Body:      text,
-			Status:    status,
-			At:        packetTimestamp(packet.GetRxTime(), now),
-			MetaJSON:  packetMetaJSON(decoded.GetPortnum(), packet),
+			ReplyToDeviceMessageID: formatPacketID(decoded.GetReplyId()),
+			Emoji:                  decoded.GetEmoji(),
+			ChatKey:                chatKeyForPacket(packet, direction),
+			Direction:              direction,
+			Body:                   text,
+			Status:                 status,
+			At:                     packetTimestamp(packet.GetRxTime(), now),
+			MetaJSON:               packetMetaJSON(decoded.GetPortnum(), packet),
 		}
 		if packet.GetId() != 0 {
 			msg.DeviceMessageID = strconv.FormatUint(uint64(packet.GetId()), 10)
@@ -777,6 +785,27 @@ func parseNodeNum(raw string) (uint32, error) {
 	return uint32(v), nil
 }
 
+func parseDeviceMessageID(raw string) (uint32, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	id, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid reply device message id: %q", raw)
+	}
+
+	return uint32(id), nil
+}
+
+func formatPacketID(v uint32) string {
+	if v == 0 {
+		return ""
+	}
+
+	return strconv.FormatUint(uint64(v), 10)
+}
+
 func chatKeyForPacket(packet *generated.MeshPacket, direction domain.MessageDirection) string {
 	if packet.GetTo() == broadcastNodeNum {
 		return domain.ChatKeyForChannel(int(packet.GetChannel()))
@@ -842,6 +871,14 @@ func packetMetaJSON(port generated.PortNum, packet *generated.MeshPacket) string
 	}
 	if packet.GetViaMqtt() {
 		meta["via_mqtt"] = true
+	}
+	if decoded := packet.GetDecoded(); decoded != nil {
+		if replyID := decoded.GetReplyId(); replyID != 0 {
+			meta["reply_id"] = replyID
+		}
+		if emoji := decoded.GetEmoji(); emoji != 0 {
+			meta["emoji"] = emoji
+		}
 	}
 	raw, err := json.Marshal(meta)
 	if err != nil {

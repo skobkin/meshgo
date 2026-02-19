@@ -45,13 +45,17 @@ type Chat struct {
 type ChatMessage struct {
 	LocalID         int64
 	DeviceMessageID string
-	ChatKey         string
-	Direction       MessageDirection
-	Body            string
-	Status          MessageStatus
-	StatusReason    string
-	At              time.Time
-	MetaJSON        string
+	// ReplyToDeviceMessageID links this message to the original message packet id.
+	ReplyToDeviceMessageID string
+	// Emoji is non-zero for reaction-style text packets in Meshtastic protocol.
+	Emoji        uint32
+	ChatKey      string
+	Direction    MessageDirection
+	Body         string
+	Status       MessageStatus
+	StatusReason string
+	At           time.Time
+	MetaJSON     string
 }
 
 // MessageStatusUpdate updates delivery status by device message id.

@@ -15,10 +15,10 @@ import (
 	"github.com/skobkin/meshgo/internal/radio"
 )
 
-type sendTextFunc func(chatKey string, text string) <-chan radio.SendResult
+type sendTextFunc func(chatKey string, text string, opts radio.TextSendOptions) <-chan radio.SendResult
 
-func (f sendTextFunc) SendText(chatKey string, text string) <-chan radio.SendResult {
-	return f(chatKey, text)
+func (f sendTextFunc) SendText(chatKey string, text string, opts radio.TextSendOptions) <-chan radio.SendResult {
+	return f(chatKey, text, opts)
 }
 
 func TestChatUnreadMarker(t *testing.T) {
@@ -82,6 +82,122 @@ func TestChatPreviewLine_TruncatesLong(t *testing.T) {
 	}
 	if !strings.HasSuffix(preview, "...") {
 		t.Fatalf("expected truncated suffix, got %q", preview)
+	}
+}
+
+func TestChatPreviewLine_IgnoresReactionMessages(t *testing.T) {
+	preview := chatPreviewLine(
+		[]domain.ChatMessage{
+			{
+				DeviceMessageID:        "100",
+				Direction:              domain.MessageDirectionIn,
+				Body:                   "hello",
+				MetaJSON:               `{"from":"!1234abcd"}`,
+				ReplyToDeviceMessageID: "",
+				Emoji:                  0,
+			},
+			{
+				DeviceMessageID:        "101",
+				Direction:              domain.MessageDirectionIn,
+				Body:                   "👍",
+				ReplyToDeviceMessageID: "100",
+				Emoji:                  1,
+				MetaJSON:               `{"from":"!1234abcd"}`,
+			},
+		},
+		func(_ string) string { return "Alice" },
+	)
+	if preview != "Alice: hello" {
+		t.Fatalf("unexpected preview: %q", preview)
+	}
+}
+
+func TestBuildChatMessageView_GroupsReactionsByTargetAndEmoji(t *testing.T) {
+	view := buildChatMessageView(
+		[]domain.ChatMessage{
+			{
+				DeviceMessageID: "200",
+				Direction:       domain.MessageDirectionIn,
+				Body:            "base",
+				MetaJSON:        `{"from":"!aaaa0001"}`,
+			},
+			{
+				DeviceMessageID:        "201",
+				Direction:              domain.MessageDirectionIn,
+				Body:                   "👍",
+				ReplyToDeviceMessageID: "200",
+				Emoji:                  1,
+				MetaJSON:               `{"from":"!bbbb0002"}`,
+			},
+			{
+				DeviceMessageID:        "202",
+				Direction:              domain.MessageDirectionIn,
+				Body:                   "👍",
+				ReplyToDeviceMessageID: "200",
+				Emoji:                  1,
+				MetaJSON:               `{"from":"!bbbb0002"}`,
+			},
+			{
+				DeviceMessageID:        "203",
+				Direction:              domain.MessageDirectionIn,
+				Body:                   "🔥",
+				ReplyToDeviceMessageID: "200",
+				Emoji:                  1,
+				MetaJSON:               `{"from":"!cccc0003"}`,
+			},
+		},
+		func(nodeID string) string {
+			switch nodeID {
+			case "!bbbb0002":
+				return "Bob"
+			case "!cccc0003":
+				return "Carol"
+			default:
+				return nodeID
+			}
+		},
+		nil,
+	)
+
+	if len(view.Timeline) != 1 {
+		t.Fatalf("expected one timeline message, got %d", len(view.Timeline))
+	}
+	reactions := view.ReactionsByTargetDeviceID["200"]
+	if len(reactions) != 2 {
+		t.Fatalf("expected two reaction chips, got %d", len(reactions))
+	}
+	if reactions[0].Emoji != "👍" || len(reactions[0].Senders) != 1 || reactions[0].Senders[0] != "Bob" {
+		t.Fatalf("unexpected first reaction chip: %+v", reactions[0])
+	}
+	if reactions[1].Emoji != "🔥" || len(reactions[1].Senders) != 1 || reactions[1].Senders[0] != "Carol" {
+		t.Fatalf("unexpected second reaction chip: %+v", reactions[1])
+	}
+}
+
+func TestReactionChipSegments_EmojiUsesHeadingSizeAndCount(t *testing.T) {
+	segments := reactionChipSegments(reactionChip{
+		Emoji:   "👍",
+		Senders: []string{"Alice", "Bob"},
+	})
+	if len(segments) != 3 {
+		t.Fatalf("expected 3 segments, got %d", len(segments))
+	}
+	emoji, ok := segments[0].(*widget.TextSegment)
+	if !ok {
+		t.Fatalf("expected text segment for emoji, got %T", segments[0])
+	}
+	if emoji.Text != "👍" {
+		t.Fatalf("unexpected emoji segment text: %q", emoji.Text)
+	}
+	if emoji.Style.SizeName != theme.SizeNameHeadingText {
+		t.Fatalf("expected heading text size for emoji, got %q", emoji.Style.SizeName)
+	}
+	count, ok := segments[2].(*widget.TextSegment)
+	if !ok {
+		t.Fatalf("expected text segment for count, got %T", segments[2])
+	}
+	if count.Text != "2" {
+		t.Fatalf("unexpected reaction count: %q", count.Text)
 	}
 }
 
@@ -678,7 +794,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 
 	tab := newChatsTab(
 		store,
-		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			result := make(chan radio.SendResult, 1)
 			result <- radio.SendResult{Err: errors.New("send failed")}
 			close(result)
@@ -729,7 +845,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 	sendAttempt := 0
 	tab := newChatsTab(
 		store,
-		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			sendAttempt++
 			result := make(chan radio.SendResult, 1)
 			if sendAttempt == 1 {
@@ -798,7 +914,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 
 	tab := newChatsTab(
 		store,
-		sendTextFunc(func(_ string, _ string) <-chan radio.SendResult {
+		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			result := make(chan radio.SendResult, 1)
 			result <- radio.SendResult{}
 			close(result)

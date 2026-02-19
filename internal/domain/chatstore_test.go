@@ -29,6 +29,38 @@ func TestChatStore_AppendMessage_DedupesByDeviceMessageID(t *testing.T) {
 	}
 }
 
+func TestChatStore_AppendMessage_DedupeMergesReplyAndEmoji(t *testing.T) {
+	store := NewChatStore()
+
+	store.AppendMessage(ChatMessage{
+		ChatKey:         "dm:!1234abcd",
+		DeviceMessageID: "100",
+		Direction:       MessageDirectionIn,
+		Body:            "👍",
+		Status:          MessageStatusSent,
+	})
+	store.AppendMessage(ChatMessage{
+		ChatKey:                "dm:!1234abcd",
+		DeviceMessageID:        "100",
+		ReplyToDeviceMessageID: "99",
+		Emoji:                  1,
+		Direction:              MessageDirectionIn,
+		Body:                   "👍",
+		Status:                 MessageStatusSent,
+	})
+
+	msgs := store.Messages("dm:!1234abcd")
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message after dedupe, got %d", len(msgs))
+	}
+	if msgs[0].ReplyToDeviceMessageID != "99" {
+		t.Fatalf("expected reply id to be merged, got %q", msgs[0].ReplyToDeviceMessageID)
+	}
+	if msgs[0].Emoji != 1 {
+		t.Fatalf("expected emoji to be merged, got %d", msgs[0].Emoji)
+	}
+}
+
 func TestChatStore_UpdateMessageStatusByDeviceID_SetsFailedReason(t *testing.T) {
 	store := NewChatStore()
 	store.AppendMessage(ChatMessage{

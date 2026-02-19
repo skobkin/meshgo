@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 func migrate(ctx context.Context, db *sql.DB) error {
 	var version int
@@ -70,6 +70,8 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				local_id INTEGER PRIMARY KEY AUTOINCREMENT,
 				chat_key TEXT NOT NULL,
 				device_message_id TEXT NULL,
+				reply_to_device_message_id TEXT NULL,
+				emoji INTEGER NOT NULL DEFAULT 0,
 				direction INTEGER NOT NULL,
 				body TEXT NOT NULL,
 				status INTEGER NOT NULL,
@@ -206,6 +208,20 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 7
+		}
+		if version < 8 {
+			slog.Info("applying db migration", "from", version, "to", 8)
+			stmts := []string{
+				`ALTER TABLE messages ADD COLUMN reply_to_device_message_id TEXT NULL;`,
+				`ALTER TABLE messages ADD COLUMN emoji INTEGER NOT NULL DEFAULT 0;`,
+				`PRAGMA user_version = 8;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 8
 		}
 	}
 

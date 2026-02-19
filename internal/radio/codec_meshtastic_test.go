@@ -23,7 +23,7 @@ func mustNewMeshtasticCodec(t *testing.T) *MeshtasticCodec {
 
 func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
-	encoded, err := codec.EncodeText("dm:!1234abcd", "hello")
+	encoded, err := codec.EncodeText("dm:!1234abcd", "hello", TextSendOptions{})
 	if err != nil {
 		t.Fatalf("encode text: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestMeshtasticCodec_EncodeTextIncludesDeviceMessageID(t *testing.T) {
 
 func TestMeshtasticCodec_EncodeTextBroadcastRequestsAck(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
-	encoded, err := codec.EncodeText("channel:1", "hello channel")
+	encoded, err := codec.EncodeText("channel:1", "hello channel", TextSendOptions{})
 	if err != nil {
 		t.Fatalf("encode broadcast text: %v", err)
 	}
@@ -49,6 +49,40 @@ func TestMeshtasticCodec_EncodeTextBroadcastRequestsAck(t *testing.T) {
 	}
 	if encoded.TargetNodeNum != broadcastNodeNum {
 		t.Fatalf("unexpected target node: %d", encoded.TargetNodeNum)
+	}
+}
+
+func TestMeshtasticCodec_EncodeTextIncludesReplyAndEmoji(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+	encoded, err := codec.EncodeText(
+		"channel:1",
+		"👍",
+		TextSendOptions{
+			ReplyToDeviceMessageID: "123",
+			Emoji:                  1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("encode text: %v", err)
+	}
+
+	var wire generated.ToRadio
+	if err := proto.Unmarshal(encoded.Payload, &wire); err != nil {
+		t.Fatalf("unmarshal toRadio: %v", err)
+	}
+	packet := wire.GetPacket()
+	if packet == nil {
+		t.Fatalf("expected packet payload")
+	}
+	decoded := packet.GetDecoded()
+	if decoded == nil {
+		t.Fatalf("expected decoded payload")
+	}
+	if decoded.GetReplyId() != 123 {
+		t.Fatalf("expected reply_id 123, got %d", decoded.GetReplyId())
+	}
+	if decoded.GetEmoji() != 1 {
+		t.Fatalf("expected emoji=1, got %d", decoded.GetEmoji())
 	}
 }
 
@@ -150,6 +184,44 @@ func TestMeshtasticCodec_DecodeFromRadioTraceroutePacket(t *testing.T) {
 	}
 	if frame.Traceroute.RouteBack[0] != 0x11111111 || frame.Traceroute.RouteBack[2] != 0x22222222 {
 		t.Fatalf("unexpected return route endpoints: %x", frame.Traceroute.RouteBack)
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioTextIncludesReplyAndEmoji(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From: 0x1234abcd,
+				To:   broadcastNodeNum,
+				Id:   456,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_TEXT_MESSAGE_APP,
+						Payload: []byte("🔥"),
+						ReplyId: 321,
+						Emoji:   1,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode fromradio: %v", err)
+	}
+	if frame.TextMessage == nil {
+		t.Fatalf("expected text message")
+	}
+	if frame.TextMessage.ReplyToDeviceMessageID != "321" {
+		t.Fatalf("expected reply id 321, got %q", frame.TextMessage.ReplyToDeviceMessageID)
+	}
+	if frame.TextMessage.Emoji != 1 {
+		t.Fatalf("expected emoji 1, got %d", frame.TextMessage.Emoji)
 	}
 }
 

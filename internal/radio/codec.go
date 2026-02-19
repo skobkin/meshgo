@@ -20,6 +20,12 @@ type DecodedFrame struct {
 	WantConfigReady  bool
 }
 
+// TextSendOptions provides optional fields for outgoing text frames.
+type TextSendOptions struct {
+	ReplyToDeviceMessageID string
+	Emoji                  uint32
+}
+
 // EncodedText contains an outbound text frame and its tracking metadata.
 type EncodedText struct {
 	Payload         []byte
@@ -44,7 +50,7 @@ type EncodedTraceroute struct {
 type Codec interface {
 	EncodeWantConfig() ([]byte, error)
 	EncodeHeartbeat() ([]byte, error)
-	EncodeText(chatKey, text string) (EncodedText, error)
+	EncodeText(chatKey, text string, opts TextSendOptions) (EncodedText, error)
 	EncodeAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (EncodedAdmin, error)
 	EncodeTraceroute(to uint32, channel uint32) (EncodedTraceroute, error)
 	DecodeFromRadio(payload []byte) (DecodedFrame, error)

@@ -64,7 +64,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	}
 }
 
-func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV8(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -95,6 +95,16 @@ func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 			updated_at INTEGER NOT NULL
 		);`,
 		`CREATE INDEX nodes_last_heard_at_idx ON nodes(last_heard_at DESC);`,
+		`CREATE TABLE messages (
+			local_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat_key TEXT NOT NULL,
+			device_message_id TEXT NULL,
+			direction INTEGER NOT NULL,
+			body TEXT NOT NULL,
+			status INTEGER NOT NULL,
+			at INTEGER NOT NULL,
+			meta_json TEXT NULL
+		);`,
 		`PRAGMA user_version = 4;`,
 	}
 	for _, stmt := range stmts {
@@ -115,8 +125,8 @@ func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("expected schema version 7, got %d", version)
+	if version != 8 {
+		t.Fatalf("expected schema version 8, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -154,6 +164,36 @@ func TestOpen_MigratesV4DatabaseToV7(t *testing.T) {
 	}
 	if !columns["altitude"] {
 		t.Fatalf("expected altitude column after migration")
+	}
+	messageColumns := make(map[string]bool)
+	messageRows, err := migrated.QueryContext(ctx, `PRAGMA table_info(messages);`)
+	if err != nil {
+		t.Fatalf("read messages table info: %v", err)
+	}
+	defer func() { _ = messageRows.Close() }()
+
+	for messageRows.Next() {
+		var (
+			cid       int
+			name      string
+			typ       string
+			notNull   int
+			defaultV  sql.NullString
+			primaryID int
+		)
+		if err := messageRows.Scan(&cid, &name, &typ, &notNull, &defaultV, &primaryID); err != nil {
+			t.Fatalf("scan messages table info: %v", err)
+		}
+		messageColumns[name] = true
+	}
+	if err := messageRows.Err(); err != nil {
+		t.Fatalf("iterate messages table info: %v", err)
+	}
+	if !messageColumns["reply_to_device_message_id"] {
+		t.Fatalf("expected reply_to_device_message_id column after migration")
+	}
+	if !messageColumns["emoji"] {
+		t.Fatalf("expected emoji column after migration")
 	}
 
 	var traceroutesTable string
