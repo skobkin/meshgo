@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/skobkin/meshgo/internal/domain"
-	"github.com/skobkin/meshgo/internal/traceroute"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 func TestTracerouteRepoUpsert_PersistsAndUpdatesRecord(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTracerouteRepoUpsert_PersistsAndUpdatesRecord(t *testing.T) {
 		TargetNodeID: "!00000042",
 		StartedAt:    startedAt,
 		UpdatedAt:    updatedAt,
-		Status:       traceroute.StatusProgress,
+		Status:       busmsg.TracerouteStatusProgress,
 		ForwardRoute: []string{"!00000042", "!00000010"},
 		ForwardSNR:   []int32{35},
 	}
@@ -42,7 +42,7 @@ func TestTracerouteRepoUpsert_PersistsAndUpdatesRecord(t *testing.T) {
 	completed := initial
 	completed.UpdatedAt = completedAt
 	completed.CompletedAt = completedAt
-	completed.Status = traceroute.StatusCompleted
+	completed.Status = busmsg.TracerouteStatusCompleted
 	completed.ReturnRoute = []string{"!00000010", "!00000042"}
 	completed.ReturnSNR = []int32{29}
 	completed.DurationMS = completedAt.Sub(startedAt).Milliseconds()
@@ -67,7 +67,7 @@ func TestTracerouteRepoUpsert_PersistsAndUpdatesRecord(t *testing.T) {
 		t.Fatalf("query traceroute row: %v", err)
 	}
 
-	if status != string(traceroute.StatusCompleted) {
+	if status != string(busmsg.TracerouteStatusCompleted) {
 		t.Fatalf("unexpected status: %q", status)
 	}
 	if targetNodeID != completed.TargetNodeID {

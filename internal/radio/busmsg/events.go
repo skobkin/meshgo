@@ -4,7 +4,17 @@ import (
 	"time"
 
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
-	"github.com/skobkin/meshgo/internal/traceroute"
+)
+
+// TracerouteStatus describes the lifecycle state of a traceroute request.
+type TracerouteStatus string
+
+const (
+	TracerouteStatusStarted   TracerouteStatus = "started"
+	TracerouteStatusProgress  TracerouteStatus = "progress"
+	TracerouteStatusCompleted TracerouteStatus = "completed"
+	TracerouteStatusFailed    TracerouteStatus = "failed"
+	TracerouteStatusTimedOut  TracerouteStatus = "timed_out"
 )
 
 // ConnectionState describes the transport lifecycle state shown in UI.
@@ -58,7 +68,7 @@ type TracerouteUpdate struct {
 	StartedAt    time.Time
 	UpdatedAt    time.Time
 	CompletedAt  time.Time
-	Status       traceroute.Status
+	Status       TracerouteStatus
 	ForwardRoute []string
 	ForwardSNR   []int32
 	ReturnRoute  []string

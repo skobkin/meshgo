@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/skobkin/meshgo/internal/traceroute"
+	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
 // ChatType classifies chat destination kind.
@@ -157,7 +157,7 @@ type TracerouteRecord struct {
 	StartedAt    time.Time
 	UpdatedAt    time.Time
 	CompletedAt  time.Time
-	Status       traceroute.Status
+	Status       busmsg.TracerouteStatus
 	ForwardRoute []string
 	ForwardSNR   []int32
 	ReturnRoute  []string
