@@ -12,7 +12,6 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/domain"
-	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
@@ -158,7 +157,7 @@ func (s *NodeSettingsService) waitAdminResponse(
 	statusSub bus.Subscription,
 	connSub bus.Subscription,
 	requestID uint32,
-) (*radio.AdminMessageEvent, error) {
+) (*busmsg.AdminMessageEvent, error) {
 	requestDeviceMessageID := strconv.FormatUint(uint64(requestID), 10)
 
 	for {
@@ -187,7 +186,7 @@ func (s *NodeSettingsService) waitAdminResponse(
 			if !ok {
 				return nil, fmt.Errorf("admin response subscription closed")
 			}
-			event, ok := raw.(radio.AdminMessageEvent)
+			event, ok := raw.(busmsg.AdminMessageEvent)
 			if !ok {
 				continue
 			}
@@ -334,7 +333,7 @@ func cloneBytesList(values [][]byte) [][]byte {
 	return out
 }
 
-func matchesAdminResponse(event radio.AdminMessageEvent, requestID uint32) bool {
+func matchesAdminResponse(event busmsg.AdminMessageEvent, requestID uint32) bool {
 	if event.ReplyID != 0 {
 		return event.ReplyID == requestID
 	}

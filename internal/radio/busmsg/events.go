@@ -3,6 +3,7 @@ package busmsg
 import (
 	"time"
 
+	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"github.com/skobkin/meshgo/internal/traceroute"
 )
 
@@ -64,4 +65,14 @@ type TracerouteUpdate struct {
 	ReturnSNR    []int32
 	Error        string
 	DurationMS   int64
+}
+
+// AdminMessageEvent is a decoded admin payload received from the mesh.
+type AdminMessageEvent struct {
+	From      uint32
+	To        uint32
+	PacketID  uint32
+	RequestID uint32
+	ReplyID   uint32
+	Message   *generated.AdminMessage
 }

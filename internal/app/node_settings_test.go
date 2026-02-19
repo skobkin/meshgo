@@ -11,7 +11,6 @@ import (
 
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/domain"
-	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
@@ -40,7 +39,7 @@ func TestNodeSettingsServiceLoadUserSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get owner request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   42,
@@ -184,7 +183,7 @@ func TestNodeSettingsServiceLoadSecuritySettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get security config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   64,
@@ -385,7 +384,7 @@ func TestNodeSettingsServiceLoadDeviceSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get device config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   96,
@@ -595,7 +594,7 @@ func TestNodeSettingsServiceLoadPositionSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get position config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   128,
@@ -916,7 +915,7 @@ func TestNodeSettingsServiceLoadPowerSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get power config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   160,
@@ -1117,7 +1116,7 @@ func TestNodeSettingsServiceLoadDisplaySettings_MatchesReplyID(t *testing.T) {
 				t.Fatalf("expected wantResponse=true for get display config request")
 			}
 			//goland:noinspection GoDeprecation
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   170,
@@ -1335,7 +1334,7 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get LoRa config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   175,
@@ -1607,7 +1606,7 @@ func TestNodeSettingsServiceLoadMQTTSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get MQTT module config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   181,
@@ -1845,7 +1844,7 @@ func TestNodeSettingsServiceLoadRangeTestSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get range test module config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   182,
@@ -2005,7 +2004,7 @@ func TestNodeSettingsServiceLoadBluetoothSettings_MatchesReplyID(t *testing.T) {
 			if !wantResponse {
 				t.Fatalf("expected wantResponse=true for get bluetooth config request")
 			}
-			messageBus.Publish(bus.TopicAdminMessage, radio.AdminMessageEvent{
+			messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 				From:      to,
 				RequestID: 777,
 				ReplyID:   180,

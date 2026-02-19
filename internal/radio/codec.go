@@ -14,7 +14,7 @@ type DecodedFrame struct {
 	TextMessage      *domain.ChatMessage
 	MessageStatus    *domain.MessageStatusUpdate
 	ConfigSnapshot   *busmsg.ConfigSnapshot
-	AdminMessage     *AdminMessageEvent
+	AdminMessage     *busmsg.AdminMessageEvent
 	Traceroute       *busmsg.TracerouteEvent
 	ConfigCompleteID uint32
 	WantConfigReady  bool
@@ -38,16 +38,6 @@ type EncodedAdmin struct {
 type EncodedTraceroute struct {
 	Payload         []byte
 	DeviceMessageID string
-}
-
-// AdminMessageEvent is a decoded admin payload received from the mesh.
-type AdminMessageEvent struct {
-	From      uint32
-	To        uint32
-	PacketID  uint32
-	RequestID uint32
-	ReplyID   uint32
-	Message   *generated.AdminMessage
 }
 
 // Codec translates between transport frames and domain events.

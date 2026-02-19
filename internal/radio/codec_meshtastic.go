@@ -264,7 +264,7 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		if err := proto.Unmarshal(decoded.GetPayload(), &admin); err != nil {
 			return
 		}
-		out.AdminMessage = &AdminMessageEvent{
+		out.AdminMessage = &busmsg.AdminMessageEvent{
 			From:      packet.GetFrom(),
 			To:        packet.GetTo(),
 			PacketID:  packet.GetId(),
