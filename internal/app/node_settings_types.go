@@ -152,3 +152,21 @@ type NodeRangeTestSettings struct {
 	Sender        uint32
 	Save          bool
 }
+
+// NodeChannelSettings contains editable settings for one channel row.
+type NodeChannelSettings struct {
+	Name              string
+	PSK               []byte
+	ID                uint32
+	UplinkEnabled     bool
+	DownlinkEnabled   bool
+	PositionPrecision uint32
+	Muted             bool
+}
+
+// NodeChannelSettingsList contains editable channel list settings.
+type NodeChannelSettingsList struct {
+	NodeID   string
+	MaxSlots int
+	Channels []NodeChannelSettings
+}

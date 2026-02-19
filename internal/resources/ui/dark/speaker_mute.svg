@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <g stroke="#D32F2F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" shape-rendering="geometricPrecision">
+    <!-- speaker body -->
+    <path d="M10 20 H18 L28 12 V36 L18 28 H10 Z" fill="none" />
+    <!-- mute slash -->
+    <path d="M12 36 L38 10" />
+  </g>
+</svg>

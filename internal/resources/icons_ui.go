@@ -18,6 +18,13 @@ const (
 	UIIconDisconnected    UIIcon = "disconnected"
 	UIIconMapNodeMarker   UIIcon = "map_node_marker"
 	UIIconUpdateAvailable UIIcon = "update_available"
+	UIIconCloudUpload     UIIcon = "cloud_upload"
+	UIIconCloudDownload   UIIcon = "cloud_download"
+	UIIconLockGreen       UIIcon = "lock_green"
+	UIIconLockYellow      UIIcon = "lock_yellow"
+	UIIconLockRed         UIIcon = "lock_red"
+	UIIconLockRedWarning  UIIcon = "lock_red_warning"
+	UIIconSpeakerMute     UIIcon = "speaker_mute"
 )
 
 var uiDarkIconResources = map[UIIcon]fyne.Resource{
@@ -30,6 +37,13 @@ var uiDarkIconResources = map[UIIcon]fyne.Resource{
 	UIIconDisconnected:    fyne.NewStaticResource("resources/ui/dark/disconnected.svg", uiDarkDisconnected),
 	UIIconMapNodeMarker:   fyne.NewStaticResource("resources/ui/dark/map_node_marker.svg", uiDarkMapNodeMarker),
 	UIIconUpdateAvailable: fyne.NewStaticResource("resources/ui/dark/update_available.svg", uiDarkUpdateAvailable),
+	UIIconCloudUpload:     fyne.NewStaticResource("resources/ui/dark/cloud_upload.svg", uiDarkCloudUpload),
+	UIIconCloudDownload:   fyne.NewStaticResource("resources/ui/dark/cloud_download.svg", uiDarkCloudDownload),
+	UIIconLockGreen:       fyne.NewStaticResource("resources/ui/dark/lock_green.svg", uiDarkLockGreen),
+	UIIconLockYellow:      fyne.NewStaticResource("resources/ui/dark/lock_yellow.svg", uiDarkLockYellow),
+	UIIconLockRed:         fyne.NewStaticResource("resources/ui/dark/lock_red.svg", uiDarkLockRed),
+	UIIconLockRedWarning:  fyne.NewStaticResource("resources/ui/dark/lock_red_warning.svg", uiDarkLockRedWarning),
+	UIIconSpeakerMute:     fyne.NewStaticResource("resources/ui/dark/speaker_mute.svg", uiDarkSpeakerMute),
 }
 
 var uiLightIconResources = map[UIIcon]fyne.Resource{
@@ -42,6 +56,13 @@ var uiLightIconResources = map[UIIcon]fyne.Resource{
 	UIIconDisconnected:    fyne.NewStaticResource("resources/ui/light/disconnected.svg", uiLightDisconnected),
 	UIIconMapNodeMarker:   fyne.NewStaticResource("resources/ui/light/map_node_marker.svg", uiLightMapNodeMarker),
 	UIIconUpdateAvailable: fyne.NewStaticResource("resources/ui/light/update_available.svg", uiLightUpdateAvailable),
+	UIIconCloudUpload:     fyne.NewStaticResource("resources/ui/light/cloud_upload.svg", uiLightCloudUpload),
+	UIIconCloudDownload:   fyne.NewStaticResource("resources/ui/light/cloud_download.svg", uiLightCloudDownload),
+	UIIconLockGreen:       fyne.NewStaticResource("resources/ui/light/lock_green.svg", uiLightLockGreen),
+	UIIconLockYellow:      fyne.NewStaticResource("resources/ui/light/lock_yellow.svg", uiLightLockYellow),
+	UIIconLockRed:         fyne.NewStaticResource("resources/ui/light/lock_red.svg", uiLightLockRed),
+	UIIconLockRedWarning:  fyne.NewStaticResource("resources/ui/light/lock_red_warning.svg", uiLightLockRedWarning),
+	UIIconSpeakerMute:     fyne.NewStaticResource("resources/ui/light/speaker_mute.svg", uiLightSpeakerMute),
 }
 
 func UIIconResource(icon UIIcon, variant fyne.ThemeVariant) fyne.Resource {

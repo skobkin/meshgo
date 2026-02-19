@@ -45,6 +45,8 @@ type NodeSettingsAction interface {
 	SaveMQTTSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeMQTTSettings) error
 	LoadRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeRangeTestSettings, error)
 	SaveRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeRangeTestSettings) error
+	LoadChannelSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeChannelSettingsList, error)
+	SaveChannelSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeChannelSettingsList) error
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

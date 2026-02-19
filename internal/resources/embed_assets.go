@@ -32,6 +32,27 @@ var uiDarkMapNodeMarker []byte
 //go:embed ui/dark/update_available.svg
 var uiDarkUpdateAvailable []byte
 
+//go:embed ui/dark/cloud_upload.svg
+var uiDarkCloudUpload []byte
+
+//go:embed ui/dark/cloud_download.svg
+var uiDarkCloudDownload []byte
+
+//go:embed ui/dark/lock_green.svg
+var uiDarkLockGreen []byte
+
+//go:embed ui/dark/lock_yellow.svg
+var uiDarkLockYellow []byte
+
+//go:embed ui/dark/lock_red.svg
+var uiDarkLockRed []byte
+
+//go:embed ui/dark/lock_red_warning.svg
+var uiDarkLockRedWarning []byte
+
+//go:embed ui/dark/speaker_mute.svg
+var uiDarkSpeakerMute []byte
+
 //go:embed ui/light/chats.svg
 var uiLightChats []byte
 
@@ -58,6 +79,27 @@ var uiLightMapNodeMarker []byte
 
 //go:embed ui/light/update_available.svg
 var uiLightUpdateAvailable []byte
+
+//go:embed ui/light/cloud_upload.svg
+var uiLightCloudUpload []byte
+
+//go:embed ui/light/cloud_download.svg
+var uiLightCloudDownload []byte
+
+//go:embed ui/light/lock_green.svg
+var uiLightLockGreen []byte
+
+//go:embed ui/light/lock_yellow.svg
+var uiLightLockYellow []byte
+
+//go:embed ui/light/lock_red.svg
+var uiLightLockRed []byte
+
+//go:embed ui/light/lock_red_warning.svg
+var uiLightLockRedWarning []byte
+
+//go:embed ui/light/speaker_mute.svg
+var uiLightSpeakerMute []byte
 
 //go:embed ui/dark/icon_32.png
 var uiDarkIcon32 []byte

@@ -17,6 +17,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	saveGate := &nodeSettingsSaveGate{}
 	loraPage, onLoRaTabOpened := newNodeLoRaSettingsPage(dep, saveGate)
 	loraTab := container.NewTabItem("LoRa", loraPage)
+	channelsPage, onChannelsTabOpened := newNodeChannelsSettingsPage(dep, saveGate)
+	channelsTab := container.NewTabItem("Channels", channelsPage)
 	securityPage, onSecurityTabOpened := newNodeSecuritySettingsPage(dep, saveGate)
 	securityTab := container.NewTabItem("Security", securityPage)
 	devicePage, onDeviceTabOpened := newNodeDeviceSettingsPage(dep, saveGate)
@@ -36,17 +38,19 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 
 	radioTabs := container.NewAppTabs(
 		loraTab,
-		container.NewTabItem("Channels", newSettingsPlaceholderPage("Channels editor is planned.")),
+		channelsTab,
 		securityTab,
 	)
 	radioTabs.SetTabLocation(container.TabLocationTop)
-	// Keep unimplemented tabs visibly unavailable, matching top-level disabled sections.
-	radioTabs.DisableIndex(1)
 	openSelectedRadioTab := func() {
 		switch radioTabs.Selected() {
 		case loraTab:
 			if onLoRaTabOpened != nil {
 				onLoRaTabOpened()
+			}
+		case channelsTab:
+			if onChannelsTabOpened != nil {
+				onChannelsTabOpened()
 			}
 		case securityTab:
 			if onSecurityTabOpened != nil {

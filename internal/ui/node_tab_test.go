@@ -18,6 +18,7 @@ import (
 type nodeSettingsActionSpy struct {
 	loadSecurityCalls  atomic.Int32
 	loadLoRaCalls      atomic.Int32
+	loadChannelsCalls  atomic.Int32
 	loadPositionCalls  atomic.Int32
 	loadPowerCalls     atomic.Int32
 	loadDisplayCalls   atomic.Int32
@@ -51,6 +52,16 @@ func (s *nodeSettingsActionSpy) LoadLoRaSettings(_ context.Context, target app.N
 }
 
 func (s *nodeSettingsActionSpy) SaveLoRaSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeLoRaSettings) error {
+	return nil
+}
+
+func (s *nodeSettingsActionSpy) LoadChannelSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeChannelSettingsList, error) {
+	s.loadChannelsCalls.Add(1)
+
+	return app.NodeChannelSettingsList{NodeID: target.NodeID, MaxSlots: app.NodeChannelMaxSlots}, nil
+}
+
+func (s *nodeSettingsActionSpy) SaveChannelSettings(_ context.Context, _ app.NodeSettingsTarget, _ app.NodeChannelSettingsList) error {
 	return nil
 }
 
@@ -132,6 +143,10 @@ func (s *nodeSettingsActionSpy) LoRaLoadCalls() int {
 
 func (s *nodeSettingsActionSpy) PositionLoadCalls() int {
 	return int(s.loadPositionCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) ChannelsLoadCalls() int {
+	return int(s.loadChannelsCalls.Load())
 }
 
 func (s *nodeSettingsActionSpy) PowerLoadCalls() int {
@@ -310,6 +325,45 @@ func TestNodeTabLoRaSettingsLoadStartsOnNodeTabShow(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.LoRaLoadCalls(); got != 1 {
 		t.Fatalf("expected one lazy initial LoRa load after Node tab open, got %d", got)
+	}
+}
+
+func TestNodeTabChannelsSettingsLoadIsLazy(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.ChannelsLoadCalls(); got != 0 {
+		t.Fatalf("expected no eager channels load before selecting Channels tab, got %d", got)
+	}
+
+	mustSelectAppTabByText(t, tab, "Channels")
+	waitForCondition(t, func() bool {
+		return spy.ChannelsLoadCalls() == 1
+	})
+
+	mustSelectAppTabByText(t, tab, "Security")
+	mustSelectAppTabByText(t, tab, "Channels")
+	time.Sleep(100 * time.Millisecond)
+	if got := spy.ChannelsLoadCalls(); got != 1 {
+		t.Fatalf("expected one lazy initial channels load, got %d", got)
 	}
 }
 
