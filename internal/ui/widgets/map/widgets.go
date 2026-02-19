@@ -13,12 +13,17 @@ import (
 )
 
 const (
-	MapMarkerBaseSize         float32 = 20
-	MapMarkerHoverSize        float32 = 23
-	MapMarkerBaseTranslucent  float64 = 0.08
+	// MapMarkerBaseSize is the base size of a map marker in pixels.
+	MapMarkerBaseSize float32 = 20
+	// MapMarkerHoverSize is the enlarged size of a map marker when hovered.
+	MapMarkerHoverSize float32 = 23
+	// MapMarkerBaseTranslucent is the base translucency level of a map marker (0-1).
+	MapMarkerBaseTranslucent float64 = 0.08
+	// MapMarkerHoverTranslucent is the translucency level when a map marker is hovered.
 	MapMarkerHoverTranslucent float64 = 0.0
 )
 
+// MapMarkerWidget is an interactive map marker with hover effects and tooltip support.
 type MapMarkerWidget struct {
 	widget.BaseWidget
 
@@ -31,6 +36,7 @@ type MapMarkerWidget struct {
 var _ desktop.Hoverable = (*MapMarkerWidget)(nil)
 var _ fyne.Tappable = (*MapMarkerWidget)(nil)
 
+// NewMapMarkerWidget creates a new map marker widget with the specified icon, tooltip, and tooltip manager.
 func NewMapMarkerWidget(res fyne.Resource, tooltip string, manager *widgets.HoverTooltipManager) *MapMarkerWidget {
 	icon := canvas.NewImageFromResource(res)
 	icon.FillMode = canvas.ImageFillContain
@@ -113,6 +119,7 @@ func (m *MapMarkerWidget) SetHovered(hovered bool) {
 	m.Icon.Refresh()
 }
 
+// MapInteractionLayer is a transparent widget layer that handles scroll and drag events for map interaction.
 type MapInteractionLayer struct {
 	widget.BaseWidget
 
@@ -124,6 +131,7 @@ type MapInteractionLayer struct {
 var _ fyne.Scrollable = (*MapInteractionLayer)(nil)
 var _ fyne.Draggable = (*MapInteractionLayer)(nil)
 
+// NewMapInteractionLayer creates a new interaction layer with the specified scroll and drag handlers.
 func NewMapInteractionLayer(onScroll func(*fyne.ScrollEvent), onDrag func(fyne.Position, fyne.Delta)) *MapInteractionLayer {
 	bg := canvas.NewRectangle(color.Transparent)
 	layer := &MapInteractionLayer{
@@ -162,13 +170,17 @@ func (l *MapInteractionLayer) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(l.bg)
 }
 
+// MapProgressPlacement defines where to place a progress indicator on the map.
 type MapProgressPlacement int
 
 const (
+	// MapProgressPlacementCenter places the progress indicator at the center.
 	MapProgressPlacementCenter MapProgressPlacement = iota
+	// MapProgressPlacementTop places the progress indicator at the top.
 	MapProgressPlacementTop
 )
 
+// MapProgressIndicator displays loading progress with a label, progress bar, and optional action button.
 type MapProgressIndicator struct {
 	Layer  *fyne.Container
 	Label  *widget.Label
@@ -176,6 +188,7 @@ type MapProgressIndicator struct {
 	Action *widget.Button
 }
 
+// NewMapProgressIndicator creates a progress indicator widget with the specified placement and dimensions.
 func NewMapProgressIndicator(placement MapProgressPlacement, labelText, actionText string, width, height float32) *MapProgressIndicator {
 	bar := widget.NewProgressBar()
 	bar.Min = 0

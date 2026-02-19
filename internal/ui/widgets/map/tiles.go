@@ -16,14 +16,19 @@ import (
 )
 
 const (
+	// DefaultMapTileCacheSizeBytes is the default maximum cache size for map tiles (200MB).
 	DefaultMapTileCacheSizeBytes = int64(200 * 1024 * 1024)
-	DefaultMapTileTimeout        = 15 * time.Second
-	MapTileFetchModeHeader       = "X-Meshgo-Tile-Fetch-Mode"
-	MapTileFetchModeSync         = "sync"
+	// DefaultMapTileTimeout is the default timeout for map tile HTTP requests.
+	DefaultMapTileTimeout = 15 * time.Second
+	// MapTileFetchModeHeader is the HTTP header used to indicate tile fetch mode.
+	MapTileFetchModeHeader = "X-Meshgo-Tile-Fetch-Mode"
+	// MapTileFetchModeSync is the value for synchronous tile fetching.
+	MapTileFetchModeSync = "sync"
 )
 
 var mapTileCacheLogger = slog.With("component", "ui.map_tile_cache")
 
+// MapTileCacheTransport is an HTTP transport that caches map tiles to disk.
 type MapTileCacheTransport struct {
 	Base      http.RoundTripper
 	CacheDir  string
@@ -35,6 +40,7 @@ type MapTileCacheTransport struct {
 	onAsyncTileCached func()
 }
 
+// NewMapTileHTTPClient creates an HTTP client with tile caching support.
 func NewMapTileHTTPClient(cacheDir string, maxBytes int64) *http.Client {
 	base := http.DefaultTransport
 	if maxBytes <= 0 {
@@ -381,6 +387,7 @@ func (t *MapTileCacheTransport) evictIfNeededLocked() {
 	mapTileCacheLogger.Debug("map tile cache eviction completed", "remaining_bytes", totalSize, "max_bytes", t.MaxBytes)
 }
 
+// SetMapTileClientAsyncCachedCallback sets a callback for when async tile caching completes.
 func SetMapTileClientAsyncCachedCallback(client *http.Client, callback func()) {
 	if client == nil {
 		return
@@ -392,6 +399,7 @@ func SetMapTileClientAsyncCachedCallback(client *http.Client, callback func()) {
 	transport.SetOnAsyncTileCached(callback)
 }
 
+// MapTileClientCachedProgress returns the number of cached tiles vs total tiles for the given URLs.
 func MapTileClientCachedProgress(client *http.Client, urls []string) (cached int, total int, ok bool) {
 	progress, ok := MapTileClientLoadProgress(client, urls)
 	if !ok {
@@ -401,12 +409,14 @@ func MapTileClientCachedProgress(client *http.Client, urls []string) (cached int
 	return progress.Cached, progress.Total, true
 }
 
+// MapTileLoadProgress tracks the loading progress of map tiles.
 type MapTileLoadProgress struct {
 	Cached   int
 	InFlight int
 	Total    int
 }
 
+// MapTileClientLoadProgress returns the loading progress for the given tile URLs.
 func MapTileClientLoadProgress(client *http.Client, urls []string) (MapTileLoadProgress, bool) {
 	if client == nil || len(urls) == 0 {
 		return MapTileLoadProgress{

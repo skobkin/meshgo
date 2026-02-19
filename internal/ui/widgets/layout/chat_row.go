@@ -4,10 +4,12 @@ import "fyne.io/fyne/v2"
 
 const chatRowWidthRatio float32 = 0.8
 
+// ChatRowLayout is a custom layout for aligning chat message rows.
 type ChatRowLayout struct {
 	alignRight bool
 }
 
+// NewChatRowLayout creates a new ChatRowLayout with the specified alignment.
 func NewChatRowLayout(alignRight bool) *ChatRowLayout {
 	return &ChatRowLayout{alignRight: alignRight}
 }

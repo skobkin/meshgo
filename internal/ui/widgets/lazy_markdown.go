@@ -24,20 +24,36 @@ import (
 )
 
 const (
-	MarkdownImageLoadTimeout       = 12 * time.Second
-	MaxMarkdownImageBytes          = 1 << 20
-	MaxMarkdownImageWidth          = 560
-	MaxMarkdownImageHeight         = 320
-	MarkdownPlaceholderHeight      = 72
+	// MarkdownImageLoadTimeout is the maximum time allowed for loading a markdown image.
+	MarkdownImageLoadTimeout = 12 * time.Second
+	// MaxMarkdownImageBytes is the maximum allowed size for markdown images (1MB).
+	MaxMarkdownImageBytes = 1 << 20
+	// MaxMarkdownImageWidth is the maximum display width for markdown images.
+	MaxMarkdownImageWidth = 560
+	// MaxMarkdownImageHeight is the maximum display height for markdown images.
+	MaxMarkdownImageHeight = 320
+	// MarkdownPlaceholderHeight is the height of the image loading placeholder.
+	MarkdownPlaceholderHeight = 72
+	// MarkdownPlaceholderBorderWidth is the border width of the image loading placeholder.
 	MarkdownPlaceholderBorderWidth = 1
 )
 
+// MarkdownImageHTTPClient is the HTTP client used for downloading markdown images.
 var MarkdownImageHTTPClient = &http.Client{Timeout: MarkdownImageLoadTimeout}
+
+// LazyMarkdownLogger is the structured logger for lazy markdown operations.
 var LazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
+
+// ErrMarkdownImageTooLarge is returned when a markdown image exceeds size limits.
 var ErrMarkdownImageTooLarge = bytes.ErrTooLarge
+
+// MarkdownListLeadingCommitHashPattern matches commit hashes at the start of list items.
 var MarkdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
+
+// MarkdownImagePattern matches markdown image syntax to extract alt text and URLs.
 var MarkdownImagePattern = regexp.MustCompile(`!\[([^]]*)]\(([^)]+)\)`)
 
+// NewLazyMarkdownRichText creates a RichText widget from markdown with lazy image loading.
 func NewLazyMarkdownRichText(markdown string) *widget.RichText {
 	text := widget.NewRichTextFromMarkdown(markdown)
 	imageCount := CountMarkdownImageSegments(text.Segments)
@@ -57,6 +73,7 @@ func NewLazyMarkdownRichText(markdown string) *widget.RichText {
 	return text
 }
 
+// ExtractMarkdownImageAltTexts extracts alt text for each image URL from markdown content.
 func ExtractMarkdownImageAltTexts(markdown string) map[string]string {
 	altTexts := make(map[string]string)
 	for _, match := range MarkdownImagePattern.FindAllStringSubmatch(markdown, -1) {
@@ -72,6 +89,7 @@ func ExtractMarkdownImageAltTexts(markdown string) map[string]string {
 	return altTexts
 }
 
+// CountMarkdownImageSegments counts the number of image segments in rich text segments.
 func CountMarkdownImageSegments(segments []widget.RichTextSegment) int {
 	count := 0
 	for _, segment := range segments {
@@ -88,6 +106,7 @@ func CountMarkdownImageSegments(segments []widget.RichTextSegment) int {
 	return count
 }
 
+// RewriteMarkdownImageSegments replaces ImageSegment with LazyMarkdownImageSegment for lazy loading.
 func RewriteMarkdownImageSegments(segments []widget.RichTextSegment, altTexts map[string]string) []widget.RichTextSegment {
 	rewritten := make([]widget.RichTextSegment, 0, len(segments))
 	for _, segment := range segments {
@@ -118,6 +137,7 @@ func RewriteMarkdownImageSegments(segments []widget.RichTextSegment, altTexts ma
 	return rewritten
 }
 
+// LazyMarkdownImageSegment is a rich text segment that loads images asynchronously.
 type LazyMarkdownImageSegment struct {
 	Source    fyne.URI
 	Title     string
@@ -200,6 +220,7 @@ func (s *LazyMarkdownImageSegment) loadImageAsync(root *fyne.Container, contentI
 	}()
 }
 
+// AlignObject aligns an object according to the specified text alignment and returns the container and content index.
 func AlignObject(alignment fyne.TextAlign, object fyne.CanvasObject) (*fyne.Container, int) {
 	switch alignment {
 	case fyne.TextAlignLeading:
@@ -211,6 +232,7 @@ func AlignObject(alignment fyne.TextAlign, object fyne.CanvasObject) (*fyne.Cont
 	}
 }
 
+// LoadMarkdownImageObject loads an image from the source URI and returns it as a canvas object.
 func LoadMarkdownImageObject(source fyne.URI) (fyne.CanvasObject, error) {
 	resource, content, err := LoadMarkdownImageResource(source)
 	if err != nil {
@@ -224,6 +246,7 @@ func LoadMarkdownImageObject(source fyne.URI) (fyne.CanvasObject, error) {
 	return container.NewGridWrap(displaySize, image), nil
 }
 
+// LoadMarkdownImageResource loads image bytes from the source URI and returns them as a fyne resource.
 func LoadMarkdownImageResource(source fyne.URI) (fyne.Resource, []byte, error) {
 	if source == nil {
 		return nil, nil, bytes.ErrTooLarge
@@ -242,6 +265,7 @@ func LoadMarkdownImageResource(source fyne.URI) (fyne.Resource, []byte, error) {
 	return fyne.NewStaticResource(name, content), content, nil
 }
 
+// ReadMarkdownImageBytes reads image bytes from the source URI, supporting both local and remote sources.
 func ReadMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 	if source == nil {
 		return nil, bytes.ErrTooLarge
@@ -318,6 +342,7 @@ func ReadMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 	return content, nil
 }
 
+// ReadLimitedBytes reads from a reader up to MaxMarkdownImageBytes to prevent excessive memory usage.
 func ReadLimitedBytes(reader io.Reader, source fyne.URI) ([]byte, error) {
 	limited := io.LimitReader(reader, MaxMarkdownImageBytes+1)
 	content, err := io.ReadAll(limited)
@@ -337,6 +362,7 @@ func ReadLimitedBytes(reader io.Reader, source fyne.URI) ([]byte, error) {
 	return content, nil
 }
 
+// RemoteMarkdownImageTooLarge checks if a remote image exceeds size limits via HTTP HEAD request.
 func RemoteMarkdownImageTooLarge(rawURL string) (bool, error) {
 	request, err := http.NewRequest(http.MethodHead, rawURL, nil)
 	if err != nil {
@@ -357,6 +383,7 @@ func RemoteMarkdownImageTooLarge(rawURL string) (bool, error) {
 	return response.ContentLength > MaxMarkdownImageBytes, nil
 }
 
+// NewMarkdownImagePlaceholder creates a placeholder widget shown while markdown images are loading.
 func NewMarkdownImagePlaceholder(title, status string) fyne.CanvasObject {
 	titleLabel := widget.NewLabel(strings.TrimSpace(title))
 	titleLabel.Alignment = fyne.TextAlignCenter
@@ -414,9 +441,11 @@ func markdownPlaceholderBackgroundColor() color.Color {
 
 func toNRGBA(c color.Color) color.NRGBA {
 	r, g, b, a := c.RGBA()
+	//nolint:gosec // RGBA() returns 16-bit values [0,65535]; shifting right by 8 safely converts to 8-bit [0,255].
 	return color.NRGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
 }
 
+// MarkdownImageDisplaySize calculates the display size for a markdown image based on its content.
 func MarkdownImageDisplaySize(content []byte) fyne.Size {
 	defaultSize := fyne.NewSize(MaxMarkdownImageWidth, MaxMarkdownImageHeight)
 	if len(content) == 0 {
@@ -444,6 +473,7 @@ func MarkdownImageDisplaySize(content []byte) fyne.Size {
 	return fyne.NewSize(width, height)
 }
 
+// MarkdownImageSource returns the string representation of the image source URI.
 func MarkdownImageSource(source fyne.URI) string {
 	if source == nil {
 		return ""

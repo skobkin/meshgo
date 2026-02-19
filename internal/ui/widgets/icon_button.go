@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// IconNavButton is a navigation button with an icon and optional text label.
 type IconNavButton struct {
 	widget.DisableableWidget
 

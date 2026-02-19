@@ -1,13 +1,10 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -22,21 +19,8 @@ import (
 	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
-const (
-	markdownImageLoadTimeout       = 12 * time.Second
-	maxMarkdownImageBytes          = 1 << 20
-	maxMarkdownImageWidth          = 560
-	maxMarkdownImageHeight         = 320
-	markdownPlaceholderHeight      = 72
-	markdownPlaceholderBorderWidth = 1
-)
-
-var markdownImageHTTPClient = &http.Client{Timeout: markdownImageLoadTimeout}
-var lazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 var updateDialogLogger = slog.With("component", "ui.update_dialog")
-var errMarkdownImageTooLarge = errors.New("image too large")
 var markdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
-var markdownImagePattern = regexp.MustCompile(`!\[([^]]*)]\(([^)]+)\)`)
 
 func showUpdateDialog(
 	window fyne.Window,

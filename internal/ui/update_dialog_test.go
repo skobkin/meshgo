@@ -27,7 +27,7 @@ func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromHead(t *testing.T
 		switch r.Method {
 		case http.MethodHead:
 			headHits.Add(1)
-			w.Header().Set("Content-Length", strconv.Itoa(maxMarkdownImageBytes+1))
+			w.Header().Set("Content-Length", strconv.Itoa(widgets.MaxMarkdownImageBytes+1))
 			w.WriteHeader(http.StatusOK)
 		case http.MethodGet:
 			getHits.Add(1)
@@ -67,7 +67,7 @@ func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromGetHeadersWhenHea
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		case http.MethodGet:
 			getHits.Add(1)
-			w.Header().Set("Content-Length", strconv.Itoa(maxMarkdownImageBytes+1))
+			w.Header().Set("Content-Length", strconv.Itoa(widgets.MaxMarkdownImageBytes+1))
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)

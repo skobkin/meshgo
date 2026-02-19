@@ -14,8 +14,10 @@ import (
 
 var _ desktop.Hoverable = (*TooltipWidget)(nil)
 
+// TooltipHideDelay is the delay before hiding a tooltip after the mouse leaves the widget.
 const TooltipHideDelay = 200 * time.Millisecond
 
+// TooltipWidget is a widget that displays a tooltip on hover.
 type TooltipWidget struct {
 	widget.BaseWidget
 
@@ -32,6 +34,7 @@ type TooltipWidget struct {
 	hide    *time.Timer
 }
 
+// NewTooltipLabel creates a new TooltipWidget with a label and tooltip text.
 func NewTooltipLabel(text, tooltip string, manager *HoverTooltipManager) *TooltipWidget {
 	w := &TooltipWidget{
 		label:       widget.NewLabel(text),
@@ -44,6 +47,7 @@ func NewTooltipLabel(text, tooltip string, manager *HoverTooltipManager) *Toolti
 	return w
 }
 
+// NewTooltipRichText creates a new TooltipWidget with rich text content and tooltip segments.
 func NewTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.RichTextSegment, manager *HoverTooltipManager) *TooltipWidget {
 	w := &TooltipWidget{
 		rich:            widget.NewRichText(CloneRichTextSegments(segments)...),
@@ -160,6 +164,7 @@ func (w *TooltipWidget) cancelHide() {
 	w.hide = nil
 }
 
+// RichTextSegmentsPlainText extracts plain text from rich text segments.
 func RichTextSegmentsPlainText(segs []widget.RichTextSegment) string {
 	var b strings.Builder
 	for _, seg := range segs {
@@ -173,6 +178,7 @@ func RichTextSegmentsPlainText(segs []widget.RichTextSegment) string {
 	return b.String()
 }
 
+// CloneRichTextSegments creates a deep copy of rich text segments.
 func CloneRichTextSegments(segs []widget.RichTextSegment) []widget.RichTextSegment {
 	cloned := make([]widget.RichTextSegment, 0, len(segs))
 	for _, seg := range segs {
@@ -182,6 +188,7 @@ func CloneRichTextSegments(segs []widget.RichTextSegment) []widget.RichTextSegme
 	return cloned
 }
 
+// CloneRichTextSegment creates a deep copy of a single rich text segment.
 func CloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 	switch s := seg.(type) {
 	case *widget.TextSegment:
@@ -237,6 +244,7 @@ func CloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 	}
 }
 
+// HideTooltipWidgets hides all tooltip widgets within the given canvas objects.
 func HideTooltipWidgets(objects []fyne.CanvasObject) {
 	for _, obj := range objects {
 		switch v := obj.(type) {
@@ -250,11 +258,13 @@ func HideTooltipWidgets(objects []fyne.CanvasObject) {
 	}
 }
 
+// HoverTooltipManager manages the display and positioning of hover tooltips.
 type HoverTooltipManager struct {
 	layer *fyne.Container
 	owner fyne.CanvasObject
 }
 
+// NewHoverTooltipManager creates a new HoverTooltipManager with the specified overlay layer.
 func NewHoverTooltipManager(layer *fyne.Container) *HoverTooltipManager {
 	if layer == nil {
 		return nil
@@ -316,6 +326,7 @@ func (m *HoverTooltipManager) Hide(owner fyne.CanvasObject) {
 	m.layer.Refresh()
 }
 
+// NewTooltipBubble creates a tooltip bubble container with styled background for the given content.
 func NewTooltipBubble(content fyne.CanvasObject) *fyne.Container {
 	bgColor := theme.DefaultTheme().Color(theme.ColorNameOverlayBackground, theme.VariantDark)
 	if app := fyne.CurrentApp(); app != nil {
