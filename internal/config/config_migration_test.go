@@ -22,7 +22,7 @@ func TestLoadMigratesDeprecatedConnectorField(t *testing.T) {
     "serial_baud": 115200
   }
 }`
-	if err := os.WriteFile(configPath, []byte(oldConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(oldConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
@@ -57,7 +57,7 @@ func TestLoadTransportTakesPrecedenceOverDeprecatedConnector(t *testing.T) {
     "host": "192.168.1.100"
   }
 }`
-	if err := os.WriteFile(configPath, []byte(mixedConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(mixedConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestSaveDoesNotWriteDeprecatedConnectorField(t *testing.T) {
     "serial_baud": 115200
   }
 }`
-	if err := os.WriteFile(configPath, []byte(oldConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(oldConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
@@ -105,6 +105,7 @@ func TestSaveDoesNotWriteDeprecatedConnectorField(t *testing.T) {
 	}
 
 	// Read the saved config and verify "connector" is gone
+	//nolint:gosec // configPath is a temp file in test directory, not user-controlled
 	savedData, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("failed to read saved config: %v", err)
@@ -134,7 +135,7 @@ func TestLoadWithInvalidConnectorValue(t *testing.T) {
     "host": "192.168.1.1"
   }
 }`
-	if err := os.WriteFile(configPath, []byte(invalidConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(invalidConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
@@ -165,5 +166,6 @@ func containsSubstringHelper(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }

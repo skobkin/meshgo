@@ -52,6 +52,10 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+      - path: internal/config/config_migration_test\.go
+        linters:
+          - gocritic
+        text: "deprecatedComment"
 
 formatters:
   enable:

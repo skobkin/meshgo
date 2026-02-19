@@ -365,7 +365,7 @@ func TestLoadPreservesTransportField(t *testing.T) {
     "bluetooth_address": "AA:BB:CC:DD:EE:FF"
   }
 }`
-	if err := os.WriteFile(configPath, []byte(newConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(newConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
@@ -385,7 +385,7 @@ func TestLoadWithEmptyConnectionSection(t *testing.T) {
 
 	// Create config with minimal content, no connection section
 	minimalConfig := `{}`
-	if err := os.WriteFile(configPath, []byte(minimalConfig), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(minimalConfig), 0o600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
