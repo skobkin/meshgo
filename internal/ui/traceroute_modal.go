@@ -89,11 +89,11 @@ func showTracerouteModal(
 
 	var copyText string
 	copyButton := widget.NewButton("Copy", func() {
-		app := fyne.CurrentApp()
-		if app == nil || app.Clipboard() == nil {
+		currentApp := fyne.CurrentApp()
+		if currentApp == nil || currentApp.Clipboard() == nil {
 			return
 		}
-		app.Clipboard().SetContent(copyText)
+		currentApp.Clipboard().SetContent(copyText)
 	})
 	copyButton.Disable()
 
