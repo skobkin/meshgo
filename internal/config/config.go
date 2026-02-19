@@ -33,7 +33,7 @@ type LoggingConfig struct {
 
 // ConnectionConfig contains transport-specific connection parameters.
 type ConnectionConfig struct {
-	Transport        TransportType `json:"connector"`
+	Transport        TransportType `json:"transport"`
 	Host             string        `json:"host"`
 	SerialPort       string        `json:"serial_port"`
 	SerialBaud       int           `json:"serial_baud"`
@@ -135,9 +135,13 @@ func Load(path string) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("read config: %w", err)
 	}
 
+	// First unmarshal into the regular struct to get defaults for missing fields
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return AppConfig{}, fmt.Errorf("decode config json: %w", err)
 	}
+
+	// Check for deprecated "connector" field and migrate if needed
+	cfg = migrateDeprecatedConnector(raw, cfg)
 
 	cfg.FillMissingDefaults()
 

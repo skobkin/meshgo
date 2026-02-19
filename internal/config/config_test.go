@@ -53,7 +53,7 @@ func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	raw := `{
   "connection": {
-    "connector": "ip",
+    "transport": "ip",
     "host": "192.168.0.1"
   },
   "logging": {
@@ -97,7 +97,7 @@ func TestLoadPreservesExplicitNotificationFalseValues(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	raw := `{
   "connection": {
-    "connector": "ip",
+    "transport": "ip",
     "host": "192.168.0.1"
   },
   "logging": {
@@ -145,7 +145,7 @@ func TestLoadLegacyFlatNotificationFieldsAreIgnored(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	raw := `{
   "connection": {
-    "connector": "ip",
+    "transport": "ip",
     "host": "192.168.0.1"
   },
   "ui": {
@@ -351,5 +351,51 @@ func TestAppConfigValidate(t *testing.T) {
 		if !tc.wantErr && err != nil {
 			t.Fatalf("%s: expected no error, got %v", tc.name, err)
 		}
+	}
+}
+
+func TestLoadPreservesTransportField(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+
+	// Create config with new "transport" field
+	newConfig := `{
+  "connection": {
+    "transport": "bluetooth",
+    "bluetooth_address": "AA:BB:CC:DD:EE:FF"
+  }
+}`
+	if err := os.WriteFile(configPath, []byte(newConfig), 0o644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	if cfg.Connection.Transport != TransportBluetooth {
+		t.Fatalf("expected transport %q, got %q", TransportBluetooth, cfg.Connection.Transport)
+	}
+}
+
+func TestLoadWithEmptyConnectionSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+
+	// Create config with minimal content, no connection section
+	minimalConfig := `{}`
+	if err := os.WriteFile(configPath, []byte(minimalConfig), 0o644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	// Should use defaults
+	if cfg.Connection.Transport != TransportIP {
+		t.Fatalf("expected default transport %q, got %q", TransportIP, cfg.Connection.Transport)
 	}
 }
