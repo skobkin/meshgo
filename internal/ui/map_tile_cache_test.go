@@ -101,6 +101,7 @@ func TestMapTileCacheTransport_EvictsOldestFilesWhenSizeCapExceeded(t *testing.T
 }
 
 func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(t *testing.T) {
+	cacheDir := t.TempDir()
 	tile := mustPNGBytes(t)
 	cached := make(chan struct{}, 1)
 	var hits int
@@ -114,6 +115,8 @@ func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(
 
 	transport := &mapwidgets.MapTileCacheTransport{
 		Base:      http.DefaultTransport,
+		CacheDir:  cacheDir,
+		MaxBytes:  1024 * 1024,
 		AsyncMiss: true,
 	}
 	transport.SetOnAsyncTileCached(func() {
@@ -165,7 +168,8 @@ func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(
 }
 
 func TestMapTileClientCachedProgress(t *testing.T) {
-	transport := &mapwidgets.MapTileCacheTransport{}
+	cacheDir := t.TempDir()
+	transport := &mapwidgets.MapTileCacheTransport{CacheDir: cacheDir, MaxBytes: 1024 * 1024}
 	client := &http.Client{Transport: transport}
 	urlA := "https://tile.example/1/2/3.png"
 	urlB := "https://tile.example/1/2/4.png"
@@ -185,7 +189,8 @@ func TestMapTileClientCachedProgress(t *testing.T) {
 }
 
 func TestMapTileClientLoadProgress(t *testing.T) {
-	transport := &mapwidgets.MapTileCacheTransport{}
+	cacheDir := t.TempDir()
+	transport := &mapwidgets.MapTileCacheTransport{CacheDir: cacheDir, MaxBytes: 1024 * 1024}
 	client := &http.Client{Transport: transport}
 	urlA := "https://tile.example/1/2/3.png"
 	urlB := "https://tile.example/1/2/4.png"
@@ -206,6 +211,7 @@ func TestMapTileClientLoadProgress(t *testing.T) {
 }
 
 func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
+	cacheDir := t.TempDir()
 	done := make(chan struct{}, 1)
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +222,8 @@ func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
 
 	transport := &mapwidgets.MapTileCacheTransport{
 		Base:      http.DefaultTransport,
+		CacheDir:  cacheDir,
+		MaxBytes:  1024 * 1024,
 		AsyncMiss: true,
 	}
 	transport.SetOnAsyncTileCached(func() {

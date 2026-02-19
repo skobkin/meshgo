@@ -238,7 +238,8 @@ func TestMapTabWidget_RefreshViewLoadingProgressHidesWhenNothingIsInFlight(t *te
 	tab.tileSource = mapTileSourceOSM
 	tab.loadingLayer.Hide()
 
-	transport := &mapwidgets.MapTileCacheTransport{}
+	cacheDir := t.TempDir()
+	transport := &mapwidgets.MapTileCacheTransport{CacheDir: cacheDir, MaxBytes: 1024 * 1024}
 	tab.mapClient = &http.Client{Transport: transport}
 
 	state, size, tileSize := tab.warmupSnapshot()
@@ -270,7 +271,8 @@ func TestMapTabWidget_RefreshViewLoadingProgressShowsWhenTilesAreInFlight(t *tes
 	tab.tileSource = mapTileSourceOSM
 	tab.loadingLayer.Hide()
 
-	transport := &mapwidgets.MapTileCacheTransport{}
+	cacheDir := t.TempDir()
+	transport := &mapwidgets.MapTileCacheTransport{CacheDir: cacheDir, MaxBytes: 1024 * 1024}
 	tab.mapClient = &http.Client{Transport: transport}
 
 	state, size, tileSize := tab.warmupSnapshot()
