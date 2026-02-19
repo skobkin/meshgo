@@ -47,9 +47,6 @@ var LazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
 // ErrMarkdownImageTooLarge is returned when a markdown image exceeds size limits.
 var ErrMarkdownImageTooLarge = bytes.ErrTooLarge
 
-// MarkdownListLeadingCommitHashPattern matches commit hashes at the start of list items.
-var MarkdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
-
 // MarkdownImagePattern matches markdown image syntax to extract alt text and URLs.
 var MarkdownImagePattern = regexp.MustCompile(`!\[([^]]*)]\(([^)]+)\)`)
 
@@ -238,12 +235,12 @@ func LoadMarkdownImageObject(source fyne.URI) (fyne.CanvasObject, error) {
 	if err != nil {
 		return nil, err
 	}
-	image := canvas.NewImageFromResource(resource)
-	image.FillMode = canvas.ImageFillContain
+	img := canvas.NewImageFromResource(resource)
+	img.FillMode = canvas.ImageFillContain
 	displaySize := MarkdownImageDisplaySize(content)
-	image.SetMinSize(displaySize)
+	img.SetMinSize(displaySize)
 
-	return container.NewGridWrap(displaySize, image), nil
+	return container.NewGridWrap(displaySize, img), nil
 }
 
 // LoadMarkdownImageResource loads image bytes from the source URI and returns them as a fyne resource.

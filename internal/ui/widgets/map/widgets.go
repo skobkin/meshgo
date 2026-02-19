@@ -5,7 +5,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
@@ -168,73 +167,4 @@ func (l *MapInteractionLayer) MinSize() fyne.Size {
 
 func (l *MapInteractionLayer) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(l.bg)
-}
-
-// MapProgressPlacement defines where to place a progress indicator on the map.
-type MapProgressPlacement int
-
-const (
-	// MapProgressPlacementCenter places the progress indicator at the center.
-	MapProgressPlacementCenter MapProgressPlacement = iota
-	// MapProgressPlacementTop places the progress indicator at the top.
-	MapProgressPlacementTop
-)
-
-// MapProgressIndicator displays loading progress with a label, progress bar, and optional action button.
-type MapProgressIndicator struct {
-	Layer  *fyne.Container
-	Label  *widget.Label
-	Bar    *widget.ProgressBar
-	Action *widget.Button
-}
-
-// NewMapProgressIndicator creates a progress indicator widget with the specified placement and dimensions.
-func NewMapProgressIndicator(placement MapProgressPlacement, labelText, actionText string, width, height float32) *MapProgressIndicator {
-	bar := widget.NewProgressBar()
-	bar.Min = 0
-	bar.Max = 1
-	barWrap := container.NewGridWrap(
-		fyne.NewSize(width, height),
-		bar,
-	)
-
-	parts := make([]fyne.CanvasObject, 0, 3)
-	var label *widget.Label
-	if labelText != "" {
-		label = widget.NewLabel(labelText)
-		label.Alignment = fyne.TextAlignCenter
-		label.Wrapping = fyne.TextWrapWord
-		parts = append(parts, label)
-	}
-	parts = append(parts, barWrap)
-
-	var action *widget.Button
-	if actionText != "" {
-		action = widget.NewButton(actionText, nil)
-		action.Hide()
-		parts = append(parts, action)
-	}
-
-	content := container.NewVBox(parts...)
-	var layer *fyne.Container
-	switch placement {
-	case MapProgressPlacementTop:
-		layer = container.NewBorder(
-			container.NewPadded(container.NewCenter(content)),
-			nil,
-			nil,
-			nil,
-			nil,
-		)
-	default:
-		layer = container.NewCenter(container.NewPadded(content))
-	}
-	layer.Hide()
-
-	return &MapProgressIndicator{
-		Layer:  layer,
-		Label:  label,
-		Bar:    bar,
-		Action: action,
-	}
 }
