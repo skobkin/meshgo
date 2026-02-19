@@ -1,0 +1,453 @@
+package widgets
+
+import (
+	"bytes"
+	"image"
+	"image/color"
+	_ "image/gif"  // register GIF decoder for image metadata probing
+	_ "image/jpeg" // register JPEG decoder for image metadata probing
+	_ "image/png"  // register PNG decoder for image metadata probing
+	"io"
+	"log/slog"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+)
+
+const (
+	MarkdownImageLoadTimeout       = 12 * time.Second
+	MaxMarkdownImageBytes          = 1 << 20
+	MaxMarkdownImageWidth          = 560
+	MaxMarkdownImageHeight         = 320
+	MarkdownPlaceholderHeight      = 72
+	MarkdownPlaceholderBorderWidth = 1
+)
+
+var MarkdownImageHTTPClient = &http.Client{Timeout: MarkdownImageLoadTimeout}
+var LazyMarkdownLogger = slog.With("component", "ui.lazy_markdown")
+var ErrMarkdownImageTooLarge = bytes.ErrTooLarge
+var MarkdownListLeadingCommitHashPattern = regexp.MustCompile(`^(\s*(?:[*+-]|\d+\.)\s+)[0-9a-f]{40}(\s+.*)$`)
+var MarkdownImagePattern = regexp.MustCompile(`!\[([^]]*)]\(([^)]+)\)`)
+
+func NewLazyMarkdownRichText(markdown string) *widget.RichText {
+	text := widget.NewRichTextFromMarkdown(markdown)
+	imageCount := CountMarkdownImageSegments(text.Segments)
+	LazyMarkdownLogger.Info(
+		"prepared lazy markdown",
+		"chars", len(markdown),
+		"image_segments", imageCount,
+	)
+	LazyMarkdownLogger.Debug(
+		"rewriting markdown image segments",
+		"segment_count", len(text.Segments),
+		"image_segments", imageCount,
+	)
+	altTexts := ExtractMarkdownImageAltTexts(markdown)
+	text.Segments = RewriteMarkdownImageSegments(text.Segments, altTexts)
+
+	return text
+}
+
+func ExtractMarkdownImageAltTexts(markdown string) map[string]string {
+	altTexts := make(map[string]string)
+	for _, match := range MarkdownImagePattern.FindAllStringSubmatch(markdown, -1) {
+		if len(match) >= 3 {
+			altText := strings.TrimSpace(match[1])
+			url := strings.TrimSpace(match[2])
+			if url != "" && altText != "" {
+				altTexts[url] = altText
+			}
+		}
+	}
+
+	return altTexts
+}
+
+func CountMarkdownImageSegments(segments []widget.RichTextSegment) int {
+	count := 0
+	for _, segment := range segments {
+		switch current := segment.(type) {
+		case *widget.ImageSegment:
+			count++
+		case *widget.ListSegment:
+			count += CountMarkdownImageSegments(current.Items)
+		case *widget.ParagraphSegment:
+			count += CountMarkdownImageSegments(current.Texts)
+		}
+	}
+
+	return count
+}
+
+func RewriteMarkdownImageSegments(segments []widget.RichTextSegment, altTexts map[string]string) []widget.RichTextSegment {
+	rewritten := make([]widget.RichTextSegment, 0, len(segments))
+	for _, segment := range segments {
+		switch current := segment.(type) {
+		case *widget.ImageSegment:
+			title := current.Title
+			if title == "" && current.Source != nil {
+				title = altTexts[current.Source.String()]
+			}
+			rewritten = append(rewritten, &LazyMarkdownImageSegment{
+				Source:    current.Source,
+				Title:     title,
+				Alignment: current.Alignment,
+			})
+		case *widget.ListSegment:
+			clone := *current
+			clone.Items = RewriteMarkdownImageSegments(current.Items, altTexts)
+			rewritten = append(rewritten, &clone)
+		case *widget.ParagraphSegment:
+			clone := *current
+			clone.Texts = RewriteMarkdownImageSegments(current.Texts, altTexts)
+			rewritten = append(rewritten, &clone)
+		default:
+			rewritten = append(rewritten, segment)
+		}
+	}
+
+	return rewritten
+}
+
+type LazyMarkdownImageSegment struct {
+	Source    fyne.URI
+	Title     string
+	Alignment fyne.TextAlign
+}
+
+func (s *LazyMarkdownImageSegment) Inline() bool {
+	return false
+}
+
+func (s *LazyMarkdownImageSegment) Textual() string {
+	return "Image " + strings.TrimSpace(s.Title)
+}
+
+func (s *LazyMarkdownImageSegment) Update(fyne.CanvasObject) {}
+
+func (s *LazyMarkdownImageSegment) Visual() fyne.CanvasObject {
+	title := strings.TrimSpace(s.Title)
+	LazyMarkdownLogger.Debug(
+		"creating lazy markdown image placeholder",
+		"source", MarkdownImageSource(s.Source),
+		"title", title,
+	)
+	loading := NewMarkdownImagePlaceholder(title, "Loading image...")
+	root, contentIndex := AlignObject(s.Alignment, loading)
+	s.loadImageAsync(root, contentIndex)
+
+	return root
+}
+
+func (s *LazyMarkdownImageSegment) Select(_, _ fyne.Position) {}
+
+func (s *LazyMarkdownImageSegment) SelectedText() string {
+	return ""
+}
+
+func (s *LazyMarkdownImageSegment) Unselect() {}
+
+func (s *LazyMarkdownImageSegment) loadImageAsync(root *fyne.Container, contentIndex int) {
+	source := s.Source
+	title := strings.TrimSpace(s.Title)
+	LazyMarkdownLogger.Debug(
+		"starting async markdown image load",
+		"source", MarkdownImageSource(source),
+		"title", title,
+	)
+	go func() {
+		object, err := LoadMarkdownImageObject(source)
+		fyne.Do(func() {
+			if contentIndex >= len(root.Objects) {
+				LazyMarkdownLogger.Debug(
+					"skipping markdown image update: stale content index",
+					"source", MarkdownImageSource(source),
+					"content_index", contentIndex,
+					"object_count", len(root.Objects),
+				)
+
+				return
+			}
+			if err != nil {
+				LazyMarkdownLogger.Info(
+					"markdown image load failed",
+					"source", MarkdownImageSource(source),
+					"title", title,
+					"error", err,
+				)
+				root.Objects[contentIndex] = NewMarkdownImagePlaceholder(title, "Image unavailable")
+				root.Refresh()
+
+				return
+			}
+			LazyMarkdownLogger.Info(
+				"markdown image loaded",
+				"source", MarkdownImageSource(source),
+				"title", title,
+			)
+			root.Objects[contentIndex] = object
+			root.Refresh()
+		})
+	}()
+}
+
+func AlignObject(alignment fyne.TextAlign, object fyne.CanvasObject) (*fyne.Container, int) {
+	switch alignment {
+	case fyne.TextAlignLeading:
+		return container.NewHBox(object, layout.NewSpacer()), 0
+	case fyne.TextAlignTrailing:
+		return container.NewHBox(layout.NewSpacer(), object), 1
+	default:
+		return container.NewHBox(layout.NewSpacer(), object, layout.NewSpacer()), 1
+	}
+}
+
+func LoadMarkdownImageObject(source fyne.URI) (fyne.CanvasObject, error) {
+	resource, content, err := LoadMarkdownImageResource(source)
+	if err != nil {
+		return nil, err
+	}
+	image := canvas.NewImageFromResource(resource)
+	image.FillMode = canvas.ImageFillContain
+	displaySize := MarkdownImageDisplaySize(content)
+	image.SetMinSize(displaySize)
+
+	return container.NewGridWrap(displaySize, image), nil
+}
+
+func LoadMarkdownImageResource(source fyne.URI) (fyne.Resource, []byte, error) {
+	if source == nil {
+		return nil, nil, bytes.ErrTooLarge
+	}
+
+	content, err := ReadMarkdownImageBytes(source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	name := source.Name()
+	if strings.TrimSpace(name) == "" {
+		name = "release-image"
+	}
+
+	return fyne.NewStaticResource(name, content), content, nil
+}
+
+func ReadMarkdownImageBytes(source fyne.URI) ([]byte, error) {
+	if source == nil {
+		return nil, bytes.ErrTooLarge
+	}
+	scheme := strings.ToLower(strings.TrimSpace(source.Scheme()))
+	if scheme == "http" || scheme == "https" {
+		rawURL := source.String()
+		LazyMarkdownLogger.Debug("loading remote markdown image", "source", MarkdownImageSource(source))
+		if tooLarge, err := RemoteMarkdownImageTooLarge(rawURL); err != nil {
+			LazyMarkdownLogger.Debug(
+				"markdown image size preflight failed; continuing with guarded download",
+				"source", MarkdownImageSource(source),
+				"error", err,
+			)
+		} else if tooLarge {
+			LazyMarkdownLogger.Warn(
+				"skipping markdown image: exceeds size limit from HEAD preflight",
+				"source", MarkdownImageSource(source),
+				"max_bytes", MaxMarkdownImageBytes,
+			)
+
+			return nil, ErrMarkdownImageTooLarge
+		}
+
+		request, err := http.NewRequest(http.MethodGet, rawURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		response, err := MarkdownImageHTTPClient.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			_ = response.Body.Close()
+		}()
+		if response.StatusCode != http.StatusOK {
+			return nil, bytes.ErrTooLarge
+		}
+		if response.ContentLength > MaxMarkdownImageBytes {
+			LazyMarkdownLogger.Warn(
+				"skipping markdown image: exceeds size limit from GET headers",
+				"source", MarkdownImageSource(source),
+				"content_length", response.ContentLength,
+				"max_bytes", MaxMarkdownImageBytes,
+			)
+
+			return nil, ErrMarkdownImageTooLarge
+		}
+
+		content, err := ReadLimitedBytes(response.Body, source)
+		if err != nil {
+			return nil, err
+		}
+		LazyMarkdownLogger.Debug("downloaded remote markdown image", "source", MarkdownImageSource(source), "bytes", len(content))
+
+		return content, nil
+	}
+
+	LazyMarkdownLogger.Debug("loading local markdown image", "source", MarkdownImageSource(source))
+	reader, err := storage.Reader(source)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = reader.Close()
+	}()
+
+	content, err := ReadLimitedBytes(reader, source)
+	if err != nil {
+		return nil, err
+	}
+	LazyMarkdownLogger.Debug("loaded local markdown image", "source", MarkdownImageSource(source), "bytes", len(content))
+
+	return content, nil
+}
+
+func ReadLimitedBytes(reader io.Reader, source fyne.URI) ([]byte, error) {
+	limited := io.LimitReader(reader, MaxMarkdownImageBytes+1)
+	content, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if len(content) > MaxMarkdownImageBytes {
+		LazyMarkdownLogger.Warn(
+			"skipping markdown image: exceeds size limit while reading body",
+			"source", MarkdownImageSource(source),
+			"max_bytes", MaxMarkdownImageBytes,
+		)
+
+		return nil, ErrMarkdownImageTooLarge
+	}
+
+	return content, nil
+}
+
+func RemoteMarkdownImageTooLarge(rawURL string) (bool, error) {
+	request, err := http.NewRequest(http.MethodHead, rawURL, nil)
+	if err != nil {
+		return false, err
+	}
+	response, err := MarkdownImageHTTPClient.Do(request)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return false, nil
+	}
+
+	return response.ContentLength > MaxMarkdownImageBytes, nil
+}
+
+func NewMarkdownImagePlaceholder(title, status string) fyne.CanvasObject {
+	titleLabel := widget.NewLabel(strings.TrimSpace(title))
+	titleLabel.Alignment = fyne.TextAlignCenter
+	titleLabel.Importance = widget.MediumImportance
+
+	statusLabel := widget.NewLabel(strings.TrimSpace(status))
+	statusLabel.Alignment = fyne.TextAlignCenter
+	statusLabel.Importance = widget.LowImportance
+
+	background := canvas.NewRectangle(markdownPlaceholderBackgroundColor())
+	border := canvas.NewRectangle(color.Transparent)
+	border.StrokeColor = markdownPlaceholderBorderColor()
+	border.StrokeWidth = MarkdownPlaceholderBorderWidth
+
+	return container.NewGridWrap(
+		fyne.NewSize(MaxMarkdownImageWidth, MarkdownPlaceholderHeight),
+		container.NewStack(
+			background,
+			border,
+			container.NewPadded(container.NewVBox(
+				container.NewCenter(titleLabel),
+				container.NewCenter(statusLabel),
+			)),
+		),
+	)
+}
+
+func markdownPlaceholderBorderColor() color.Color {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return color.NRGBA{R: 120, G: 120, B: 120, A: 90}
+	}
+
+	palette := app.Settings().Theme()
+	variant := app.Settings().ThemeVariant()
+	border := toNRGBA(palette.Color(theme.ColorNameForeground, variant))
+	border.A = 80
+
+	return border
+}
+
+func markdownPlaceholderBackgroundColor() color.Color {
+	app := fyne.CurrentApp()
+	if app == nil {
+		return color.NRGBA{R: 0, G: 0, B: 0, A: 10}
+	}
+
+	palette := app.Settings().Theme()
+	variant := app.Settings().ThemeVariant()
+	bg := toNRGBA(palette.Color(theme.ColorNameInputBackground, variant))
+	bg.A = 55
+
+	return bg
+}
+
+func toNRGBA(c color.Color) color.NRGBA {
+	r, g, b, a := c.RGBA()
+	return color.NRGBA{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8), A: uint8(a >> 8)}
+}
+
+func MarkdownImageDisplaySize(content []byte) fyne.Size {
+	defaultSize := fyne.NewSize(MaxMarkdownImageWidth, MaxMarkdownImageHeight)
+	if len(content) == 0 {
+		return defaultSize
+	}
+
+	meta, _, err := image.DecodeConfig(bytes.NewReader(content))
+	if err != nil || meta.Width <= 0 || meta.Height <= 0 {
+		return defaultSize
+	}
+
+	width := float32(meta.Width)
+	height := float32(meta.Height)
+	widthScale := MaxMarkdownImageWidth / width
+	heightScale := MaxMarkdownImageHeight / height
+	scaleFactor := widthScale
+	if heightScale < scaleFactor {
+		scaleFactor = heightScale
+	}
+	if scaleFactor < 1 {
+		width *= scaleFactor
+		height *= scaleFactor
+	}
+
+	return fyne.NewSize(width, height)
+}
+
+func MarkdownImageSource(source fyne.URI) string {
+	if source == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(source.String())
+}

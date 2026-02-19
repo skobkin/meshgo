@@ -8,10 +8,11 @@ import (
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/resources"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
 type updateIndicator struct {
-	button     *iconNavButton
+	button     *widgets.IconNavButton
 	mu         sync.RWMutex
 	snapshot   meshapp.UpdateSnapshot
 	known      bool
@@ -28,7 +29,7 @@ func newUpdateIndicator(
 		known:      initialKnown,
 		onOpenInfo: onOpenInfo,
 	}
-	indicator.button = newIconNavButton(
+	indicator.button = widgets.NewIconNavButton(
 		resources.UIIconResource(resources.UIIconUpdateAvailable, initialVariant),
 		indicator.onTap,
 	)
@@ -37,7 +38,7 @@ func newUpdateIndicator(
 	return indicator
 }
 
-func (u *updateIndicator) Button() *iconNavButton {
+func (u *updateIndicator) Button() *widgets.IconNavButton {
 	return u.button
 }
 

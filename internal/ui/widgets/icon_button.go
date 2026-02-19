@@ -1,4 +1,4 @@
-package ui
+package widgets
 
 import (
 	"image/color"
@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-type iconNavButton struct {
+type IconNavButton struct {
 	widget.DisableableWidget
 
 	icon     fyne.Resource
@@ -23,8 +23,8 @@ type iconNavButton struct {
 
 const defaultIconNavButtonSize float32 = 48
 
-func newIconNavButton(icon fyne.Resource, onTap func()) *iconNavButton {
-	b := &iconNavButton{
+func NewIconNavButton(icon fyne.Resource, onTap func()) *IconNavButton {
+	b := &IconNavButton{
 		icon:     icon,
 		iconSize: defaultIconNavButtonSize,
 		onTap:    onTap,
@@ -34,12 +34,16 @@ func newIconNavButton(icon fyne.Resource, onTap func()) *iconNavButton {
 	return b
 }
 
-func (b *iconNavButton) SetIcon(icon fyne.Resource) {
+func (b *IconNavButton) SetIcon(icon fyne.Resource) {
 	b.icon = icon
 	b.Refresh()
 }
 
-func (b *iconNavButton) SetText(text string) {
+func (b *IconNavButton) Text() string {
+	return b.text
+}
+
+func (b *IconNavButton) SetText(text string) {
 	if b.text == text {
 		return
 	}
@@ -47,7 +51,11 @@ func (b *iconNavButton) SetText(text string) {
 	b.Refresh()
 }
 
-func (b *iconNavButton) SetSelected(selected bool) {
+func (b *IconNavButton) Icon() fyne.Resource {
+	return b.icon
+}
+
+func (b *IconNavButton) SetSelected(selected bool) {
 	if b.selected == selected {
 		return
 	}
@@ -55,7 +63,7 @@ func (b *iconNavButton) SetSelected(selected bool) {
 	b.Refresh()
 }
 
-func (b *iconNavButton) MinSize() fyne.Size {
+func (b *IconNavButton) MinSize() fyne.Size {
 	th := b.Theme()
 	pad := th.Size(theme.SizeNamePadding) * 2
 	side := b.iconSize + pad
@@ -77,7 +85,7 @@ func (b *iconNavButton) MinSize() fyne.Size {
 	return fyne.NewSize(width, height)
 }
 
-func (b *iconNavButton) Tapped(_ *fyne.PointEvent) {
+func (b *IconNavButton) Tapped(_ *fyne.PointEvent) {
 	if b.Disabled() {
 		return
 	}
@@ -86,21 +94,21 @@ func (b *iconNavButton) Tapped(_ *fyne.PointEvent) {
 	}
 }
 
-func (b *iconNavButton) TappedSecondary(_ *fyne.PointEvent) {}
+func (b *IconNavButton) TappedSecondary(_ *fyne.PointEvent) {}
 
-func (b *iconNavButton) MouseIn(_ *desktop.MouseEvent) {
+func (b *IconNavButton) MouseIn(_ *desktop.MouseEvent) {
 	b.hovered = true
 	b.Refresh()
 }
 
-func (b *iconNavButton) MouseMoved(_ *desktop.MouseEvent) {}
+func (b *IconNavButton) MouseMoved(_ *desktop.MouseEvent) {}
 
-func (b *iconNavButton) MouseOut() {
+func (b *IconNavButton) MouseOut() {
 	b.hovered = false
 	b.Refresh()
 }
 
-func (b *iconNavButton) CreateRenderer() fyne.WidgetRenderer {
+func (b *IconNavButton) CreateRenderer() fyne.WidgetRenderer {
 	bg := canvas.NewRectangle(color.Transparent)
 	bg.CornerRadius = b.Theme().Size(theme.SizeNameInputRadius)
 
@@ -119,7 +127,7 @@ func (b *iconNavButton) CreateRenderer() fyne.WidgetRenderer {
 }
 
 type iconNavButtonRenderer struct {
-	button     *iconNavButton
+	button     *IconNavButton
 	background *canvas.Rectangle
 	icon       *canvas.Image
 	label      *canvas.Text

@@ -17,6 +17,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
+	chatlayout "github.com/skobkin/meshgo/internal/ui/widgets/layout"
 )
 
 var chatsLogger = slog.With("component", "ui.chats")
@@ -57,7 +59,7 @@ func newChatsTab(
 	var messageList *widget.List
 	var chatTitle *widget.Label
 	var entry *widget.Entry
-	var tooltipManager *hoverTooltipManager
+	var tooltipManager *widgets.HoverTooltipManager
 	pendingScrollChatKey := ""
 	pendingScrollMinCount := 0
 	messageItemHeightByID := make(map[widget.ListItemID]float32)
@@ -132,12 +134,12 @@ func newChatsTab(
 	}
 	statusTooltips := newMessageStatusTooltipCache()
 	tooltipLayer := container.NewWithoutLayout()
-	tooltipManager = newHoverTooltipManager(tooltipLayer)
+	tooltipManager = widgets.NewHoverTooltipManager(tooltipLayer)
 
 	messageList = widget.NewList(
 		func() int { return len(messages) },
 		func() fyne.CanvasObject {
-			transportBadge := newTooltipLabel("", "", tooltipManager)
+			transportBadge := widgets.NewTooltipLabel("", "", tooltipManager)
 			messageText := widget.NewRichTextWithText("message")
 			messageText.Wrapping = fyne.TextWrapWord
 			messageLine := container.NewBorder(
@@ -148,7 +150,7 @@ func newChatsTab(
 				messageText,
 			)
 			metaParts := container.NewHBox(widget.NewRichTextWithText("meta"))
-			statusBadge := newTooltipLabel("", "", tooltipManager)
+			statusBadge := widgets.NewTooltipLabel("", "", tooltipManager)
 			timeLabel := widget.NewLabel("time")
 			row := container.NewVBox(
 				messageLine,
@@ -162,7 +164,7 @@ func newChatsTab(
 			bubbleBg.CornerRadius = 10
 			bubble := container.NewStack(bubbleBg, container.NewPadded(row))
 
-			return container.New(newChatRowLayout(false), bubble)
+			return container.New(chatlayout.NewChatRowLayout(false), bubble)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(messages) {
@@ -171,7 +173,7 @@ func newChatsTab(
 			msg := messages[id]
 			meta, hasMeta := parseMessageMeta(msg.MetaJSON)
 			rowContainer := obj.(*fyne.Container)
-			rowLayout, ok := rowContainer.Layout.(*chatRowLayout)
+			rowLayout, ok := rowContainer.Layout.(*chatlayout.ChatRowLayout)
 			if ok {
 				rowLayout.SetAlignRight(msg.Direction == domain.MessageDirectionOut)
 			}
@@ -183,18 +185,18 @@ func newChatsTab(
 			messageLine := box.Objects[0].(*fyne.Container)
 			messageText := messageLine.Objects[0].(*widget.RichText)
 			transportSlot := messageLine.Objects[1].(*fyne.Container)
-			transportBadge := transportSlot.Objects[1].(*tooltipWidget)
+			transportBadge := transportSlot.Objects[1].(*widgets.TooltipWidget)
 			messageText.Segments = messageTextSegments(msg, meta, hasMeta, nodeNameByID, localNodeID)
 			messageText.Wrapping = fyne.TextWrapWord
 			messageText.Refresh()
 			transportBadge.SetBadge(messageTransportBadge(msg, meta, hasMeta))
 			metaRow := box.Objects[1].(*fyne.Container)
 			metaParts := metaRow.Objects[0].(*fyne.Container)
-			hideTooltipWidgets(metaParts.Objects)
+			widgets.HideTooltipWidgets(metaParts.Objects)
 			metaParts.Objects = messageMetaWidgets(msg, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte, tooltipManager)
 			metaParts.Refresh()
 			metaRight := metaRow.Objects[2].(*fyne.Container)
-			statusBadge := metaRight.Objects[0].(*tooltipWidget)
+			statusBadge := metaRight.Objects[0].(*widgets.TooltipWidget)
 			statusText, statusTooltip := messageStatusBadge(msg)
 			if statusTooltipContent := messageStatusTooltipContent(msg, statusTooltips); statusTooltipContent != nil {
 				statusBadge.SetBadgeWithContent(statusText, statusTooltipContent)
@@ -630,20 +632,20 @@ func messageMetaWidgets(
 	hasMeta bool,
 	nodeNameByID func(string) string,
 	relayNodeNameByLastByte func(uint32) string,
-	tooltipManager *hoverTooltipManager,
+	tooltipManager *widgets.HoverTooltipManager,
 ) []fyne.CanvasObject {
 	chunks := messageMetaChunksWithContext(m, meta, hasMeta, nodeNameByID, relayNodeNameByLastByte)
-	widgets := make([]fyne.CanvasObject, 0, len(chunks))
+	widgetsList := make([]fyne.CanvasObject, 0, len(chunks))
 	for _, chunk := range chunks {
 		if len(chunk.Tooltip) > 0 {
-			widgets = append(widgets, newTooltipRichText(chunk.Segments, chunk.Tooltip, tooltipManager))
+			widgetsList = append(widgetsList, widgets.NewTooltipRichText(chunk.Segments, chunk.Tooltip, tooltipManager))
 
 			continue
 		}
-		widgets = append(widgets, widget.NewRichText(chunk.Segments...))
+		widgetsList = append(widgetsList, widget.NewRichText(chunk.Segments...))
 	}
 
-	return widgets
+	return widgetsList
 }
 
 var hopBadges = [...]string{

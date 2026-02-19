@@ -1,22 +1,22 @@
-package ui
+package layout
 
 import "fyne.io/fyne/v2"
 
 const chatRowWidthRatio float32 = 0.8
 
-type chatRowLayout struct {
+type ChatRowLayout struct {
 	alignRight bool
 }
 
-func newChatRowLayout(alignRight bool) *chatRowLayout {
-	return &chatRowLayout{alignRight: alignRight}
+func NewChatRowLayout(alignRight bool) *ChatRowLayout {
+	return &ChatRowLayout{alignRight: alignRight}
 }
 
-func (l *chatRowLayout) SetAlignRight(v bool) {
+func (l *ChatRowLayout) SetAlignRight(v bool) {
 	l.alignRight = v
 }
 
-func (l *chatRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+func (l *ChatRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) == 0 {
 		return
 	}
@@ -32,7 +32,7 @@ func (l *chatRowLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	row.Resize(rowSize)
 }
 
-func (l *chatRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+func (l *ChatRowLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	if len(objects) == 0 {
 		return fyne.Size{}
 	}

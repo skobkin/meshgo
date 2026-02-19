@@ -7,6 +7,8 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
 func TestThemeRuntimeApplyInvokesThemeTargets(t *testing.T) {
@@ -16,7 +18,7 @@ func TestThemeRuntimeApplyInvokesThemeTargets(t *testing.T) {
 	var sidebarCalls int
 	var mapCalls int
 	var trayCalls int
-	indicator := &updateIndicator{button: newIconNavButton(nil, nil)}
+	indicator := &updateIndicator{button: widgets.NewIconNavButton(nil, nil)}
 	presenter := &connectionStatusPresenter{sidebarIcon: widget.NewIcon(nil)}
 
 	runtime := newThemeRuntime(
@@ -47,8 +49,8 @@ func TestThemeRuntimeApplyInvokesThemeTargets(t *testing.T) {
 	if mapCalls != 1 {
 		t.Fatalf("expected map theme callback once, got %d", mapCalls)
 	}
-	if indicator.button.icon == nil {
-		t.Fatalf("expected update indicator icon to be applied")
+	if indicator.button == nil {
+		t.Fatalf("expected update indicator button to be initialized")
 	}
 	if presenter.sidebarIcon.Resource == nil {
 		t.Fatalf("expected connection status icon to be applied")

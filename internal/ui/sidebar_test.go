@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/resources"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
 type onShowCanvasObject struct {
@@ -26,7 +27,7 @@ func TestBuildSidebarLayoutSwitchesTabsAndCallsOnShow(t *testing.T) {
 
 	chatsTab := widget.NewLabel("Chats")
 	nodesTab := &onShowCanvasObject{CanvasObject: widget.NewLabel("Nodes")}
-	updateButton := newIconNavButton(nil, nil)
+	updateButton := widgets.NewIconNavButton(nil, nil)
 	connIcon := widget.NewIcon(nil)
 
 	tabContent := map[string]fyne.CanvasObject{
@@ -59,11 +60,11 @@ func TestBuildSidebarLayoutSwitchesTabsAndCallsOnShow(t *testing.T) {
 		t.Fatalf("expected inactive tab to be hidden")
 	}
 
-	nodesButton, ok := layout.left.Objects[1].(*iconNavButton)
+	nodesButton, ok := layout.left.Objects[1].(*widgets.IconNavButton)
 	if !ok {
 		t.Fatalf("expected second sidebar object to be icon button")
 	}
-	nodesButton.onTap()
+	nodesButton.Tapped(nil)
 
 	if chatsTab.Visible() {
 		t.Fatalf("expected previous tab to be hidden after switch")

@@ -1,4 +1,4 @@
-package ui
+package mapwidgets
 
 import (
 	"bytes"
@@ -16,63 +16,63 @@ import (
 )
 
 const (
-	defaultMapTileCacheSizeBytes = int64(200 * 1024 * 1024)
-	defaultMapTileTimeout        = 15 * time.Second
-	mapTileFetchModeHeader       = "X-Meshgo-Tile-Fetch-Mode"
-	mapTileFetchModeSync         = "sync"
+	DefaultMapTileCacheSizeBytes = int64(200 * 1024 * 1024)
+	DefaultMapTileTimeout        = 15 * time.Second
+	MapTileFetchModeHeader       = "X-Meshgo-Tile-Fetch-Mode"
+	MapTileFetchModeSync         = "sync"
 )
 
 var mapTileCacheLogger = slog.With("component", "ui.map_tile_cache")
 
-type mapTileCacheTransport struct {
-	base      http.RoundTripper
-	cacheDir  string
-	maxBytes  int64
-	asyncMiss bool
+type MapTileCacheTransport struct {
+	Base      http.RoundTripper
+	CacheDir  string
+	MaxBytes  int64
+	AsyncMiss bool
 
 	mu                sync.Mutex
 	inFlightByPath    map[string]struct{}
 	onAsyncTileCached func()
 }
 
-func newMapTileHTTPClient(cacheDir string, maxBytes int64) *http.Client {
+func NewMapTileHTTPClient(cacheDir string, maxBytes int64) *http.Client {
 	base := http.DefaultTransport
 	if maxBytes <= 0 {
-		maxBytes = defaultMapTileCacheSizeBytes
+		maxBytes = DefaultMapTileCacheSizeBytes
 	}
 	mapTileCacheLogger.Info(
 		"initializing map tile HTTP client",
 		"cache_enabled", cacheDir != "",
 		"cache_dir", cacheDir,
 		"max_bytes", maxBytes,
-		"timeout", defaultMapTileTimeout,
+		"timeout", DefaultMapTileTimeout,
 	)
 	if cacheDir == "" {
 		return &http.Client{
-			Timeout: defaultMapTileTimeout,
+			Timeout: DefaultMapTileTimeout,
 		}
 	}
 
 	return &http.Client{
-		Transport: &mapTileCacheTransport{
-			base:           base,
-			cacheDir:       cacheDir,
-			maxBytes:       maxBytes,
-			asyncMiss:      true,
+		Transport: &MapTileCacheTransport{
+			Base:           base,
+			CacheDir:       cacheDir,
+			MaxBytes:       maxBytes,
+			AsyncMiss:      true,
 			inFlightByPath: make(map[string]struct{}),
 		},
-		Timeout: defaultMapTileTimeout,
+		Timeout: DefaultMapTileTimeout,
 	}
 }
 
-func (t *mapTileCacheTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *MapTileCacheTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req == nil || req.Method != http.MethodGet || req.URL == nil || req.URL.String() == "" {
 		return t.baseRoundTripper().RoundTrip(req)
 	}
 	startedAt := time.Now()
-	syncFetch := req.Header.Get(mapTileFetchModeHeader) == mapTileFetchModeSync
+	syncFetch := req.Header.Get(MapTileFetchModeHeader) == MapTileFetchModeSync
 
-	cachePath := t.cachePathForURL(req.URL.String())
+	cachePath := t.CachePathForURL(req.URL.String())
 	if data, ok := t.readCachedTile(cachePath); ok {
 		mapTileCacheLogger.Debug(
 			"served map tile from cache",
@@ -91,7 +91,7 @@ func (t *mapTileCacheTransport) RoundTrip(req *http.Request) (*http.Response, er
 		}, nil
 	}
 
-	if t.asyncMiss && !syncFetch {
+	if t.AsyncMiss && !syncFetch {
 		started := t.startAsyncFetch(cachePath, req.URL.String())
 		mapTileCacheLogger.Debug(
 			"deferred uncached map tile to async fetch",
@@ -149,13 +149,13 @@ func (t *mapTileCacheTransport) RoundTrip(req *http.Request) (*http.Response, er
 			"status_code", resp.StatusCode,
 			"duration", time.Since(startedAt),
 		)
-		t.writeCachedTile(cachePath, body)
+		t.WriteCachedTile(cachePath, body)
 	}
 
 	return resp, nil
 }
 
-func (t *mapTileCacheTransport) startAsyncFetch(cachePath, rawURL string) bool {
+func (t *MapTileCacheTransport) startAsyncFetch(cachePath, rawURL string) bool {
 	t.mu.Lock()
 	if t.inFlightByPath == nil {
 		t.inFlightByPath = make(map[string]struct{})
@@ -173,7 +173,7 @@ func (t *mapTileCacheTransport) startAsyncFetch(cachePath, rawURL string) bool {
 	return true
 }
 
-func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
+func (t *MapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 	startedAt := time.Now()
 	defer func() {
 		t.mu.Lock()
@@ -184,7 +184,7 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultMapTileTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultMapTileTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
@@ -194,7 +194,7 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 		return
 	}
 	req.Header.Set("User-Agent", "meshgo map tile async fetch")
-	req.Header.Set(mapTileFetchModeHeader, mapTileFetchModeSync)
+	req.Header.Set(MapTileFetchModeHeader, MapTileFetchModeSync)
 
 	resp, err := t.baseRoundTripper().RoundTrip(req)
 	if err != nil {
@@ -234,7 +234,7 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 		return
 	}
 
-	t.writeCachedTile(cachePath, body)
+	t.WriteCachedTile(cachePath, body)
 	mapTileCacheLogger.Debug(
 		"async map tile fetch cached successfully",
 		"url", rawURL,
@@ -244,36 +244,36 @@ func (t *mapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 	)
 }
 
-func (t *mapTileCacheTransport) baseRoundTripper() http.RoundTripper {
-	if t != nil && t.base != nil {
-		return t.base
+func (t *MapTileCacheTransport) baseRoundTripper() http.RoundTripper {
+	if t != nil && t.Base != nil {
+		return t.Base
 	}
 
 	return http.DefaultTransport
 }
 
-func (t *mapTileCacheTransport) setOnAsyncTileCached(callback func()) {
+func (t *MapTileCacheTransport) SetOnAsyncTileCached(callback func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.onAsyncTileCached = callback
 }
 
-func (t *mapTileCacheTransport) asyncCallback() func() {
+func (t *MapTileCacheTransport) asyncCallback() func() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	return t.onAsyncTileCached
 }
 
-func (t *mapTileCacheTransport) cachePathForURL(rawURL string) string {
+func (t *MapTileCacheTransport) CachePathForURL(rawURL string) string {
 	sum := sha256.Sum256([]byte(rawURL))
 	hash := hex.EncodeToString(sum[:])
 	prefix := filepath.Join(hash[:2], hash[2:4])
 
-	return filepath.Join(t.cacheDir, prefix, hash+".tile")
+	return filepath.Join(t.CacheDir, prefix, hash+".tile")
 }
 
-func (t *mapTileCacheTransport) readCachedTile(path string) ([]byte, bool) {
+func (t *MapTileCacheTransport) readCachedTile(path string) ([]byte, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -291,7 +291,7 @@ func (t *mapTileCacheTransport) readCachedTile(path string) ([]byte, bool) {
 	return data, true
 }
 
-func (t *mapTileCacheTransport) writeCachedTile(path string, data []byte) {
+func (t *MapTileCacheTransport) WriteCachedTile(path string, data []byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -320,7 +320,7 @@ func (t *mapTileCacheTransport) writeCachedTile(path string, data []byte) {
 	t.evictIfNeededLocked()
 }
 
-func (t *mapTileCacheTransport) evictIfNeededLocked() {
+func (t *MapTileCacheTransport) evictIfNeededLocked() {
 	type cacheFile struct {
 		path    string
 		size    int64
@@ -332,9 +332,9 @@ func (t *mapTileCacheTransport) evictIfNeededLocked() {
 		totalSize int64
 	)
 
-	_ = filepath.WalkDir(t.cacheDir, func(path string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(t.CacheDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			mapTileCacheLogger.Debug("walking map tile cache failed", "cache_dir", t.cacheDir, "error", err)
+			mapTileCacheLogger.Debug("walking map tile cache failed", "cache_dir", t.CacheDir, "error", err)
 
 			return err
 		}
@@ -358,17 +358,17 @@ func (t *mapTileCacheTransport) evictIfNeededLocked() {
 		return nil
 	})
 
-	if totalSize <= t.maxBytes {
+	if totalSize <= t.MaxBytes {
 		return
 	}
-	mapTileCacheLogger.Debug("evicting map tile cache entries", "current_bytes", totalSize, "max_bytes", t.maxBytes, "file_count", len(files))
+	mapTileCacheLogger.Debug("evicting map tile cache entries", "current_bytes", totalSize, "max_bytes", t.MaxBytes, "file_count", len(files))
 
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].modTime.Before(files[j].modTime)
 	})
 
 	for _, file := range files {
-		if totalSize <= t.maxBytes {
+		if totalSize <= t.MaxBytes {
 			break
 		}
 		if err := os.Remove(file.path); err != nil {
@@ -378,62 +378,62 @@ func (t *mapTileCacheTransport) evictIfNeededLocked() {
 		}
 		totalSize -= file.size
 	}
-	mapTileCacheLogger.Debug("map tile cache eviction completed", "remaining_bytes", totalSize, "max_bytes", t.maxBytes)
+	mapTileCacheLogger.Debug("map tile cache eviction completed", "remaining_bytes", totalSize, "max_bytes", t.MaxBytes)
 }
 
-func setMapTileClientAsyncCachedCallback(client *http.Client, callback func()) {
+func SetMapTileClientAsyncCachedCallback(client *http.Client, callback func()) {
 	if client == nil {
 		return
 	}
-	transport, ok := client.Transport.(*mapTileCacheTransport)
+	transport, ok := client.Transport.(*MapTileCacheTransport)
 	if !ok || transport == nil {
 		return
 	}
-	transport.setOnAsyncTileCached(callback)
+	transport.SetOnAsyncTileCached(callback)
 }
 
-func mapTileClientCachedProgress(client *http.Client, urls []string) (cached int, total int, ok bool) {
-	progress, ok := mapTileClientLoadProgress(client, urls)
+func MapTileClientCachedProgress(client *http.Client, urls []string) (cached int, total int, ok bool) {
+	progress, ok := MapTileClientLoadProgress(client, urls)
 	if !ok {
 		return 0, len(urls), false
 	}
 
-	return progress.cached, progress.total, true
+	return progress.Cached, progress.Total, true
 }
 
-type mapTileLoadProgress struct {
-	cached   int
-	inFlight int
-	total    int
+type MapTileLoadProgress struct {
+	Cached   int
+	InFlight int
+	Total    int
 }
 
-func mapTileClientLoadProgress(client *http.Client, urls []string) (mapTileLoadProgress, bool) {
+func MapTileClientLoadProgress(client *http.Client, urls []string) (MapTileLoadProgress, bool) {
 	if client == nil || len(urls) == 0 {
-		return mapTileLoadProgress{
-			total: len(urls),
+		return MapTileLoadProgress{
+			Total: len(urls),
 		}, false
 	}
-	transport, ok := client.Transport.(*mapTileCacheTransport)
+	transport, ok := client.Transport.(*MapTileCacheTransport)
 	if !ok || transport == nil {
-		return mapTileLoadProgress{
-			total: len(urls),
+		return MapTileLoadProgress{
+			Total: len(urls),
 		}, false
 	}
 
-	return mapTileLoadProgress{
-		cached:   transport.cachedCountForURLs(urls),
-		inFlight: transport.inFlightCountForURLs(urls),
-		total:    len(urls),
+	return MapTileLoadProgress{
+		Cached:   transport.cachedCountForURLs(urls),
+		InFlight: transport.inFlightCountForURLs(urls),
+		Total:    len(urls),
 	}, true
 }
 
-func (t *mapTileCacheTransport) cachedCountForURLs(urls []string) int {
+func (t *MapTileCacheTransport) cachedCountForURLs(urls []string) int {
 	if t == nil || len(urls) == 0 {
 		return 0
 	}
 	count := 0
 	for _, rawURL := range urls {
-		path := t.cachePathForURL(rawURL)
+		path := t.CachePathForURL(rawURL)
 		if t.hasCachedTile(path) {
 			count++
 		}
@@ -442,7 +442,7 @@ func (t *mapTileCacheTransport) cachedCountForURLs(urls []string) int {
 	return count
 }
 
-func (t *mapTileCacheTransport) hasCachedTile(path string) bool {
+func (t *MapTileCacheTransport) hasCachedTile(path string) bool {
 	if path == "" {
 		return false
 	}
@@ -451,7 +451,7 @@ func (t *mapTileCacheTransport) hasCachedTile(path string) bool {
 	return err == nil
 }
 
-func (t *mapTileCacheTransport) inFlightCountForURLs(urls []string) int {
+func (t *MapTileCacheTransport) inFlightCountForURLs(urls []string) int {
 	if t == nil || len(urls) == 0 {
 		return 0
 	}
@@ -460,7 +460,7 @@ func (t *mapTileCacheTransport) inFlightCountForURLs(urls []string) int {
 
 	count := 0
 	for _, rawURL := range urls {
-		path := t.cachePathForURL(rawURL)
+		path := t.CachePathForURL(rawURL)
 		if _, ok := t.inFlightByPath[path]; ok {
 			count++
 		}

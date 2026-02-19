@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image/color"
 	"io"
 	"log/slog"
 	"math"
@@ -16,9 +15,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -28,15 +25,13 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
+	mapwidgets "github.com/skobkin/meshgo/internal/ui/widgets/map"
 )
 
 const (
 	mapDefaultZoom             = 11
 	mapMarkerOutsidePad        = float32(20)
-	mapMarkerBaseSize          = float32(20)
-	mapMarkerHoverSize         = float32(23)
-	mapMarkerBaseTranslucent   = 0.08
-	mapMarkerHoverTranslucent  = 0.0
 	mapScrollZoomStep          = float32(15)
 	mapZoomFocusDeadZoneRatio  = float32(0.18)
 	mapZoomFocusBoostRatio     = float32(0.65)
@@ -70,7 +65,7 @@ func newMapTab(
 		return container.NewCenter(placeholder)
 	}
 
-	mapClient := newMapTileHTTPClient(paths.MapTilesDir, defaultMapTileCacheSizeBytes)
+	mapClient := mapwidgets.NewMapTileHTTPClient(paths.MapTilesDir, mapwidgets.DefaultMapTileCacheSizeBytes)
 	baseMap := xwidget.NewMapWithOptions(
 		xwidget.WithOsmTiles(),
 		xwidget.WithZoomButtons(false),
@@ -80,7 +75,7 @@ func newMapTab(
 
 	tab := newMapTabWidget(baseMap, localNodeID)
 	tab.enableDeferredTileWarmup(mapClient, mapTileSourceOSM, paths.MapTilesDir)
-	setMapTileClientAsyncCachedCallback(mapClient, tab.scheduleAsyncMapRefresh)
+	mapwidgets.SetMapTileClientAsyncCachedCallback(mapClient, tab.scheduleAsyncMapRefresh)
 	mapLogger.Info(
 		"initializing map tab",
 		"tile_cache_dir", paths.MapTilesDir,
@@ -129,7 +124,7 @@ type mapTabWidget struct {
 	localNodeID    func() string
 	autoCentered   bool
 	lastCanvasSize fyne.Size
-	tooltipManager *hoverTooltipManager
+	tooltipManager *widgets.HoverTooltipManager
 
 	scrollAccumulator float32
 	dragAccumulatorX  float32
@@ -138,7 +133,7 @@ type mapTabWidget struct {
 	onViewportChanged  func(zoom, x, y int)
 	viewportPersistSeq uint64
 
-	interactionLayer *mapInteractionLayer
+	interactionLayer *mapwidgets.MapInteractionLayer
 	markerLayer      *fyne.Container
 	tooltipLayer     *fyne.Container
 	emptyLabel       *widget.Label
@@ -244,7 +239,7 @@ func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabW
 	tab := &mapTabWidget{
 		mapWidget:        mapWidget,
 		localNodeID:      localNodeID,
-		tooltipManager:   newHoverTooltipManager(tooltipLayer),
+		tooltipManager:   widgets.NewHoverTooltipManager(tooltipLayer),
 		markerLayer:      markerLayer,
 		tooltipLayer:     tooltipLayer,
 		emptyLabel:       emptyLabel,
@@ -261,7 +256,7 @@ func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabW
 	if tab.retryButton != nil {
 		tab.retryButton.OnTapped = tab.OnShow
 	}
-	tab.interactionLayer = newMapInteractionLayer(tab.handleMapScroll, tab.handleMapDrag)
+	tab.interactionLayer = mapwidgets.NewMapInteractionLayer(tab.handleMapScroll, tab.handleMapDrag)
 	tab.controlPanel = tab.newControlPanel()
 	tab.ExtendBaseWidget(tab)
 
@@ -627,13 +622,13 @@ func (t *mapTabWidget) refreshViewLoadingProgress() {
 
 	state, size, tileSize := t.warmupSnapshot()
 	urls := visibleMapTileURLs(t.tileSource, state, size, tileSize)
-	progress, ok := mapTileClientLoadProgress(t.mapClient, urls)
-	if !ok || progress.total <= 0 || progress.cached >= progress.total || progress.inFlight <= 0 {
+	progress, ok := mapwidgets.MapTileClientLoadProgress(t.mapClient, urls)
+	if !ok || progress.Total <= 0 || progress.Cached >= progress.Total || progress.InFlight <= 0 {
 		t.viewLoadingLayer.Hide()
 
 		return
 	}
-	value := float64(progress.cached) / float64(progress.total)
+	value := float64(progress.Cached) / float64(progress.Total)
 	if value < 0 {
 		value = 0
 	}
@@ -771,7 +766,7 @@ func (t *mapTabWidget) renderMarkers() {
 		}
 		visibleMarkers++
 
-		marker := newMapMarkerWidget(mapMarkerResource(t.markerVariant), mapMarkerTooltip(node), t.tooltipManager)
+		marker := mapwidgets.NewMapMarkerWidget(mapMarkerResource(t.markerVariant), mapMarkerTooltip(node), t.tooltipManager)
 		markerSize := marker.MinSize()
 		marker.Resize(markerSize)
 		marker.Move(fyne.NewPos(
@@ -915,149 +910,6 @@ func (r *mapTabRenderer) Destroy() {}
 
 func (r *mapTabRenderer) Objects() []fyne.CanvasObject {
 	return r.objects
-}
-
-type mapMarkerWidget struct {
-	widget.BaseWidget
-
-	icon    *canvas.Image
-	tooltip string
-	manager *hoverTooltipManager
-	hovered bool
-}
-
-var _ desktop.Hoverable = (*mapMarkerWidget)(nil)
-var _ fyne.Tappable = (*mapMarkerWidget)(nil)
-
-func newMapMarkerWidget(res fyne.Resource, tooltip string, manager *hoverTooltipManager) *mapMarkerWidget {
-	icon := canvas.NewImageFromResource(res)
-	icon.FillMode = canvas.ImageFillContain
-	icon.Translucency = mapMarkerBaseTranslucent
-
-	m := &mapMarkerWidget{
-		icon:    icon,
-		tooltip: tooltip,
-		manager: manager,
-	}
-	m.ExtendBaseWidget(m)
-
-	return m
-}
-
-func (m *mapMarkerWidget) MinSize() fyne.Size {
-	return fyne.NewSize(mapMarkerBaseSize, mapMarkerBaseSize)
-}
-
-func (m *mapMarkerWidget) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(m.icon)
-}
-
-func (m *mapMarkerWidget) MouseIn(*desktop.MouseEvent) {
-	m.setHovered(true)
-	m.showTooltip()
-}
-
-func (m *mapMarkerWidget) MouseMoved(*desktop.MouseEvent) {}
-
-func (m *mapMarkerWidget) MouseOut() {
-	m.setHovered(false)
-	if m.manager != nil {
-		m.manager.Hide(m)
-	}
-}
-
-func (m *mapMarkerWidget) Tapped(*fyne.PointEvent) {
-	m.showTooltip()
-}
-
-func (m *mapMarkerWidget) TappedSecondary(*fyne.PointEvent) {
-	m.showTooltip()
-}
-
-func (m *mapMarkerWidget) showTooltip() {
-	if m.manager == nil || m.tooltip == "" {
-		return
-	}
-
-	m.manager.Show(m, widget.NewLabel(m.tooltip))
-}
-
-func (m *mapMarkerWidget) setHovered(hovered bool) {
-	if m == nil || m.hovered == hovered {
-		return
-	}
-	m.hovered = hovered
-
-	oldSize := m.Size()
-	if oldSize.Width <= 0 || oldSize.Height <= 0 {
-		oldSize = m.MinSize()
-	}
-	oldPos := m.Position()
-	tipX := oldPos.X + oldSize.Width/2
-	tipY := oldPos.Y + oldSize.Height
-
-	newSize := fyne.NewSize(mapMarkerBaseSize, mapMarkerBaseSize)
-	if hovered {
-		newSize = fyne.NewSize(mapMarkerHoverSize, mapMarkerHoverSize)
-		m.icon.Translucency = mapMarkerHoverTranslucent
-	} else {
-		m.icon.Translucency = mapMarkerBaseTranslucent
-	}
-	m.Resize(newSize)
-	m.Move(fyne.NewPos(
-		tipX-newSize.Width/2,
-		tipY-newSize.Height,
-	))
-	m.icon.Refresh()
-}
-
-type mapInteractionLayer struct {
-	widget.BaseWidget
-
-	onScroll func(*fyne.ScrollEvent)
-	onDrag   func(fyne.Position, fyne.Delta)
-	bg       *canvas.Rectangle
-}
-
-var _ fyne.Scrollable = (*mapInteractionLayer)(nil)
-var _ fyne.Draggable = (*mapInteractionLayer)(nil)
-
-func newMapInteractionLayer(onScroll func(*fyne.ScrollEvent), onDrag func(fyne.Position, fyne.Delta)) *mapInteractionLayer {
-	bg := canvas.NewRectangle(color.Transparent)
-	layer := &mapInteractionLayer{
-		onScroll: onScroll,
-		onDrag:   onDrag,
-		bg:       bg,
-	}
-	layer.ExtendBaseWidget(layer)
-
-	return layer
-}
-
-func (l *mapInteractionLayer) Scrolled(event *fyne.ScrollEvent) {
-	if l == nil || l.onScroll == nil || event == nil {
-		return
-	}
-
-	l.onScroll(event)
-}
-
-func (l *mapInteractionLayer) Dragged(event *fyne.DragEvent) {
-	if l == nil || l.onDrag == nil || event == nil {
-		return
-	}
-
-	l.onDrag(event.Position, event.Dragged)
-}
-
-func (l *mapInteractionLayer) DragEnd() {}
-
-func (l *mapInteractionLayer) MinSize() fyne.Size {
-	return fyne.NewSize(1, 1)
-}
-
-func (l *mapInteractionLayer) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(l.bg)
 }
 
 func (t *mapTabWidget) handleMapScroll(event *fyne.ScrollEvent) {
@@ -1295,7 +1147,7 @@ func prefetchMapTileURL(parent context.Context, client *http.Client, rawURL stri
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("User-Agent", "meshgo map warmup")
-	req.Header.Set(mapTileFetchModeHeader, mapTileFetchModeSync)
+	req.Header.Set(mapwidgets.MapTileFetchModeHeader, mapwidgets.MapTileFetchModeSync)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request tile: %w", err)

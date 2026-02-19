@@ -22,8 +22,8 @@ func TestUpdateIndicatorApplySnapshotAndTap(t *testing.T) {
 	if indicator.Button().Visible() {
 		t.Fatalf("expected hidden update button for unknown snapshot")
 	}
-	if indicator.Button().text != "" {
-		t.Fatalf("expected empty update button text, got %q", indicator.Button().text)
+	if indicator.Button().Text() != "" {
+		t.Fatalf("expected empty update button text, got %q", indicator.Button().Text())
 	}
 
 	indicator.onTap()
@@ -43,8 +43,8 @@ func TestUpdateIndicatorApplySnapshotAndTap(t *testing.T) {
 	if !indicator.Button().Visible() {
 		t.Fatalf("expected visible update button when update is available")
 	}
-	if indicator.Button().text != "0.7.0" {
-		t.Fatalf("expected latest version on button, got %q", indicator.Button().text)
+	if indicator.Button().Text() != "0.7.0" {
+		t.Fatalf("expected latest version on button, got %q", indicator.Button().Text())
 	}
 
 	indicator.onTap()
@@ -62,7 +62,7 @@ func TestUpdateIndicatorApplyThemeAndHideWhenNoUpdate(t *testing.T) {
 
 	indicator := newUpdateIndicator(theme.VariantLight, true, nil)
 	indicator.ApplyTheme(theme.VariantDark)
-	if indicator.Button().icon == nil {
+	if indicator.Button().Icon() == nil {
 		t.Fatalf("expected themed update icon")
 	}
 
@@ -73,7 +73,7 @@ func TestUpdateIndicatorApplyThemeAndHideWhenNoUpdate(t *testing.T) {
 	if indicator.Button().Visible() {
 		t.Fatalf("expected hidden update button when update is unavailable")
 	}
-	if indicator.Button().text != "" {
-		t.Fatalf("expected empty text when update is unavailable, got %q", indicator.Button().text)
+	if indicator.Button().Text() != "" {
+		t.Fatalf("expected empty text when update is unavailable, got %q", indicator.Button().Text())
 	}
 }

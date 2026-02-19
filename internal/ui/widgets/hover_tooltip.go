@@ -1,4 +1,4 @@
-package ui
+package widgets
 
 import (
 	"strings"
@@ -12,11 +12,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var _ desktop.Hoverable = (*tooltipWidget)(nil)
+var _ desktop.Hoverable = (*TooltipWidget)(nil)
 
-const tooltipHideDelay = 200 * time.Millisecond
+const TooltipHideDelay = 200 * time.Millisecond
 
-type tooltipWidget struct {
+type TooltipWidget struct {
 	widget.BaseWidget
 
 	content fyne.CanvasObject
@@ -27,13 +27,13 @@ type tooltipWidget struct {
 	tooltipContent  fyne.CanvasObject
 	tooltipSegments []widget.RichTextSegment
 
-	manager *hoverTooltipManager
+	manager *HoverTooltipManager
 	hovered bool
 	hide    *time.Timer
 }
 
-func newTooltipLabel(text, tooltip string, manager *hoverTooltipManager) *tooltipWidget {
-	w := &tooltipWidget{
+func NewTooltipLabel(text, tooltip string, manager *HoverTooltipManager) *TooltipWidget {
+	w := &TooltipWidget{
 		label:       widget.NewLabel(text),
 		tooltipText: strings.TrimSpace(tooltip),
 		manager:     manager,
@@ -44,10 +44,10 @@ func newTooltipLabel(text, tooltip string, manager *hoverTooltipManager) *toolti
 	return w
 }
 
-func newTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.RichTextSegment, manager *hoverTooltipManager) *tooltipWidget {
-	w := &tooltipWidget{
-		rich:            widget.NewRichText(cloneRichTextSegments(segments)...),
-		tooltipSegments: cloneRichTextSegments(tooltip),
+func NewTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.RichTextSegment, manager *HoverTooltipManager) *TooltipWidget {
+	w := &TooltipWidget{
+		rich:            widget.NewRichText(CloneRichTextSegments(segments)...),
+		tooltipSegments: CloneRichTextSegments(tooltip),
 		manager:         manager,
 	}
 	w.content = w.rich
@@ -56,15 +56,15 @@ func newTooltipRichText(segments []widget.RichTextSegment, tooltip []widget.Rich
 	return w
 }
 
-func (w *tooltipWidget) SetBadge(text, tooltip string) {
+func (w *TooltipWidget) SetBadge(text, tooltip string) {
 	w.setLabelBadge(text, strings.TrimSpace(tooltip), nil)
 }
 
-func (w *tooltipWidget) SetBadgeWithContent(text string, tooltip fyne.CanvasObject) {
+func (w *TooltipWidget) SetBadgeWithContent(text string, tooltip fyne.CanvasObject) {
 	w.setLabelBadge(text, "", tooltip)
 }
 
-func (w *tooltipWidget) setLabelBadge(text, tooltip string, tooltipContent fyne.CanvasObject) {
+func (w *TooltipWidget) setLabelBadge(text, tooltip string, tooltipContent fyne.CanvasObject) {
 	if w.label == nil {
 		return
 	}
@@ -75,7 +75,7 @@ func (w *tooltipWidget) setLabelBadge(text, tooltip string, tooltipContent fyne.
 	w.label.SetText(text)
 }
 
-func (w *tooltipWidget) MouseIn(*desktop.MouseEvent) {
+func (w *TooltipWidget) MouseIn(*desktop.MouseEvent) {
 	if w.manager == nil {
 		return
 	}
@@ -90,19 +90,19 @@ func (w *tooltipWidget) MouseIn(*desktop.MouseEvent) {
 	w.manager.Show(w, tooltip)
 }
 
-func (w *tooltipWidget) MouseMoved(*desktop.MouseEvent) {
+func (w *TooltipWidget) MouseMoved(*desktop.MouseEvent) {
 }
 
-func (w *tooltipWidget) MouseOut() {
+func (w *TooltipWidget) MouseOut() {
 	w.hovered = false
 	w.scheduleHide()
 }
 
-func (w *tooltipWidget) CreateRenderer() fyne.WidgetRenderer {
+func (w *TooltipWidget) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(w.content)
 }
 
-func (w *tooltipWidget) buildTooltip() fyne.CanvasObject {
+func (w *TooltipWidget) buildTooltip() fyne.CanvasObject {
 	if w.label != nil {
 		if strings.TrimSpace(w.label.Text) == "" {
 			return nil
@@ -120,17 +120,17 @@ func (w *tooltipWidget) buildTooltip() fyne.CanvasObject {
 		if len(w.tooltipSegments) == 0 {
 			return nil
 		}
-		if strings.TrimSpace(richTextSegmentsPlainText(w.rich.Segments)) == "" {
+		if strings.TrimSpace(RichTextSegmentsPlainText(w.rich.Segments)) == "" {
 			return nil
 		}
 
-		return widget.NewRichText(cloneRichTextSegments(w.tooltipSegments)...)
+		return widget.NewRichText(CloneRichTextSegments(w.tooltipSegments)...)
 	}
 
 	return nil
 }
 
-func (w *tooltipWidget) hideTooltip() {
+func (w *TooltipWidget) hideTooltip() {
 	w.cancelHide()
 	if w.manager == nil {
 		return
@@ -139,9 +139,9 @@ func (w *tooltipWidget) hideTooltip() {
 	w.manager.Hide(w)
 }
 
-func (w *tooltipWidget) scheduleHide() {
+func (w *TooltipWidget) scheduleHide() {
 	w.cancelHide()
-	w.hide = time.AfterFunc(tooltipHideDelay, func() {
+	w.hide = time.AfterFunc(TooltipHideDelay, func() {
 		fyne.Do(func() {
 			if w.hovered {
 				return
@@ -151,7 +151,7 @@ func (w *tooltipWidget) scheduleHide() {
 	})
 }
 
-func (w *tooltipWidget) cancelHide() {
+func (w *TooltipWidget) cancelHide() {
 	if w.hide == nil {
 		return
 	}
@@ -160,7 +160,7 @@ func (w *tooltipWidget) cancelHide() {
 	w.hide = nil
 }
 
-func richTextSegmentsPlainText(segs []widget.RichTextSegment) string {
+func RichTextSegmentsPlainText(segs []widget.RichTextSegment) string {
 	var b strings.Builder
 	for _, seg := range segs {
 		text, ok := seg.(*widget.TextSegment)
@@ -173,16 +173,16 @@ func richTextSegmentsPlainText(segs []widget.RichTextSegment) string {
 	return b.String()
 }
 
-func cloneRichTextSegments(segs []widget.RichTextSegment) []widget.RichTextSegment {
+func CloneRichTextSegments(segs []widget.RichTextSegment) []widget.RichTextSegment {
 	cloned := make([]widget.RichTextSegment, 0, len(segs))
 	for _, seg := range segs {
-		cloned = append(cloned, cloneRichTextSegment(seg))
+		cloned = append(cloned, CloneRichTextSegment(seg))
 	}
 
 	return cloned
 }
 
-func cloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
+func CloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 	switch s := seg.(type) {
 	case *widget.TextSegment:
 		if s == nil {
@@ -214,7 +214,7 @@ func cloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 			return nil
 		}
 		c := *s
-		c.Texts = cloneRichTextSegments(s.Texts)
+		c.Texts = CloneRichTextSegments(s.Texts)
 
 		return &c
 	case *widget.ListSegment:
@@ -222,7 +222,7 @@ func cloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 			return nil
 		}
 		c := *s
-		c.Items = cloneRichTextSegments(s.Items)
+		c.Items = CloneRichTextSegments(s.Items)
 		c.SetStartNumber(s.StartNumber())
 
 		return &c
@@ -237,33 +237,33 @@ func cloneRichTextSegment(seg widget.RichTextSegment) widget.RichTextSegment {
 	}
 }
 
-func hideTooltipWidgets(objects []fyne.CanvasObject) {
+func HideTooltipWidgets(objects []fyne.CanvasObject) {
 	for _, obj := range objects {
 		switch v := obj.(type) {
 		case nil:
 			continue
-		case *tooltipWidget:
+		case *TooltipWidget:
 			v.hideTooltip()
 		case *fyne.Container:
-			hideTooltipWidgets(v.Objects)
+			HideTooltipWidgets(v.Objects)
 		}
 	}
 }
 
-type hoverTooltipManager struct {
+type HoverTooltipManager struct {
 	layer *fyne.Container
 	owner fyne.CanvasObject
 }
 
-func newHoverTooltipManager(layer *fyne.Container) *hoverTooltipManager {
+func NewHoverTooltipManager(layer *fyne.Container) *HoverTooltipManager {
 	if layer == nil {
 		return nil
 	}
 
-	return &hoverTooltipManager{layer: layer}
+	return &HoverTooltipManager{layer: layer}
 }
 
-func (m *hoverTooltipManager) Show(owner fyne.CanvasObject, content fyne.CanvasObject) {
+func (m *HoverTooltipManager) Show(owner fyne.CanvasObject, content fyne.CanvasObject) {
 	if m == nil || m.layer == nil || owner == nil || content == nil {
 		return
 	}
@@ -289,7 +289,7 @@ func (m *hoverTooltipManager) Show(owner fyne.CanvasObject, content fyne.CanvasO
 		layerSize = cnv.Size()
 	}
 
-	bubble := newTooltipBubble(content)
+	bubble := NewTooltipBubble(content)
 	bubble.Resize(bubble.MinSize())
 	bubble.Move(tooltipPopupPosition(
 		ownerPos,
@@ -303,7 +303,7 @@ func (m *hoverTooltipManager) Show(owner fyne.CanvasObject, content fyne.CanvasO
 	m.layer.Refresh()
 }
 
-func (m *hoverTooltipManager) Hide(owner fyne.CanvasObject) {
+func (m *HoverTooltipManager) Hide(owner fyne.CanvasObject) {
 	if m == nil || m.layer == nil || m.owner == nil {
 		return
 	}
@@ -316,7 +316,7 @@ func (m *hoverTooltipManager) Hide(owner fyne.CanvasObject) {
 	m.layer.Refresh()
 }
 
-func newTooltipBubble(content fyne.CanvasObject) *fyne.Container {
+func NewTooltipBubble(content fyne.CanvasObject) *fyne.Container {
 	bgColor := theme.DefaultTheme().Color(theme.ColorNameOverlayBackground, theme.VariantDark)
 	if app := fyne.CurrentApp(); app != nil {
 		bgColor = app.Settings().Theme().Color(theme.ColorNameOverlayBackground, app.Settings().ThemeVariant())

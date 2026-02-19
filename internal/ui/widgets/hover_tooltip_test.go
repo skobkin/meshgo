@@ -1,4 +1,4 @@
-package ui
+package widgets
 
 import (
 	"net/url"
@@ -75,7 +75,7 @@ func TestTooltipPopupPosition(t *testing.T) {
 }
 
 func TestTooltipWidgetBuildTooltip_Label(t *testing.T) {
-	w := newTooltipLabel("✓", "Sent", nil)
+	w := NewTooltipLabel("✓", "Sent", nil)
 
 	got := w.buildTooltip()
 	label, ok := got.(*widget.Label)
@@ -93,7 +93,7 @@ func TestTooltipWidgetBuildTooltip_Label(t *testing.T) {
 }
 
 func TestTooltipWidgetBuildTooltip_LabelPrebuiltContent(t *testing.T) {
-	w := newTooltipLabel("✓", "Sent", nil)
+	w := NewTooltipLabel("✓", "Sent", nil)
 	prebuilt := widget.NewLabel("Sent by radio")
 	w.SetBadgeWithContent("✓", prebuilt)
 
@@ -103,7 +103,7 @@ func TestTooltipWidgetBuildTooltip_LabelPrebuiltContent(t *testing.T) {
 }
 
 func TestTooltipWidgetBuildTooltip_RichText(t *testing.T) {
-	w := newTooltipRichText(
+	w := NewTooltipRichText(
 		[]widget.RichTextSegment{
 			&widget.TextSegment{Text: "▆", Style: widget.RichTextStyleInline},
 		},
@@ -136,9 +136,9 @@ func TestHoverTooltipManagerHideOwnerSemantics(t *testing.T) {
 	t.Cleanup(app.Quit)
 
 	layer := container.NewWithoutLayout()
-	manager := newHoverTooltipManager(layer)
-	owner := newTooltipLabel("✓", "Sent", manager)
-	other := newTooltipLabel("☁", "via MQTT", manager)
+	manager := NewHoverTooltipManager(layer)
+	owner := NewTooltipLabel("✓", "Sent", manager)
+	other := NewTooltipLabel("☁", "via MQTT", manager)
 	root := container.New(layout.NewStackLayout(), container.NewHBox(owner, other), layer)
 
 	win := app.NewWindow("tooltip")
@@ -167,8 +167,8 @@ func TestHideTooltipWidgets_RecursivelyHidesOwnedTooltip(t *testing.T) {
 	t.Cleanup(app.Quit)
 
 	layer := container.NewWithoutLayout()
-	manager := newHoverTooltipManager(layer)
-	owner := newTooltipLabel("✓", "Sent", manager)
+	manager := NewHoverTooltipManager(layer)
+	owner := NewTooltipLabel("✓", "Sent", manager)
 	root := container.New(layout.NewStackLayout(), container.NewVBox(owner), layer)
 
 	win := app.NewWindow("tooltip")
@@ -181,7 +181,7 @@ func TestHideTooltipWidgets_RecursivelyHidesOwnedTooltip(t *testing.T) {
 		t.Fatalf("expected tooltip to be visible, got %d objects", len(layer.Objects))
 	}
 
-	hideTooltipWidgets([]fyne.CanvasObject{container.NewHBox(owner)})
+	HideTooltipWidgets([]fyne.CanvasObject{container.NewHBox(owner)})
 	if len(layer.Objects) != 0 {
 		t.Fatalf("expected tooltip to be hidden by recursive cleanup, got %d objects", len(layer.Objects))
 	}
@@ -192,8 +192,8 @@ func TestHoverTooltipManagerShow_KeepsTooltipInsideLayerNearTopRight(t *testing.
 	t.Cleanup(app.Quit)
 
 	layer := container.NewWithoutLayout()
-	manager := newHoverTooltipManager(layer)
-	owner := newTooltipLabel("✓", "Sent", manager)
+	manager := NewHoverTooltipManager(layer)
+	owner := NewTooltipLabel("✓", "Sent", manager)
 
 	content := container.NewWithoutLayout(owner)
 	root := container.New(layout.NewStackLayout(), content, layer)
@@ -244,7 +244,7 @@ func TestCloneRichTextSegments_DeepCopy(t *testing.T) {
 	list := &widget.ListSegment{Items: []widget.RichTextSegment{listInner}, Ordered: true}
 	list.SetStartNumber(3)
 
-	clone := cloneRichTextSegments([]widget.RichTextSegment{top, para, link, list})
+	clone := CloneRichTextSegments([]widget.RichTextSegment{top, para, link, list})
 
 	top.Text = "mut-top"
 	paraInner.Text = "mut-inner"

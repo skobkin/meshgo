@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	mapwidgets "github.com/skobkin/meshgo/internal/ui/widgets/map"
 )
 
 func TestMapTileCacheTransport_CachesTilesOnDisk(t *testing.T) {
@@ -26,10 +28,10 @@ func TestMapTileCacheTransport_CachesTilesOnDisk(t *testing.T) {
 	defer server.Close()
 
 	client := &http.Client{
-		Transport: &mapTileCacheTransport{
-			base:     http.DefaultTransport,
-			cacheDir: cacheDir,
-			maxBytes: 1024 * 1024,
+		Transport: &mapwidgets.MapTileCacheTransport{
+			Base:     http.DefaultTransport,
+			CacheDir: cacheDir,
+			MaxBytes: 1024 * 1024,
 		},
 	}
 
@@ -55,18 +57,17 @@ func TestMapTileCacheTransport_CachesTilesOnDisk(t *testing.T) {
 
 func TestMapTileCacheTransport_EvictsOldestFilesWhenSizeCapExceeded(t *testing.T) {
 	cacheDir := t.TempDir()
-	transport := &mapTileCacheTransport{
-		base:     http.DefaultTransport,
-		cacheDir: cacheDir,
-		maxBytes: 20,
+	transport := &mapwidgets.MapTileCacheTransport{
+		CacheDir: cacheDir,
+		MaxBytes: 20,
 	}
 
-	pathA := transport.cachePathForURL("https://tile.example/1")
-	pathB := transport.cachePathForURL("https://tile.example/2")
+	pathA := transport.CachePathForURL("https://tile.example/1")
+	pathB := transport.CachePathForURL("https://tile.example/2")
 
-	transport.writeCachedTile(pathA, []byte("123456789012"))
+	transport.WriteCachedTile(pathA, []byte("123456789012"))
 	time.Sleep(10 * time.Millisecond)
-	transport.writeCachedTile(pathB, []byte("abcdefghijk"))
+	transport.WriteCachedTile(pathB, []byte("abcdefghijk"))
 
 	var tileFiles []string
 	_ = filepath.WalkDir(cacheDir, func(path string, d os.DirEntry, err error) error {
@@ -88,8 +89,8 @@ func TestMapTileCacheTransport_EvictsOldestFilesWhenSizeCapExceeded(t *testing.T
 		}
 		totalSize += info.Size()
 	}
-	if totalSize > transport.maxBytes {
-		t.Fatalf("expected cache size <= %d, got %d", transport.maxBytes, totalSize)
+	if totalSize > 20 {
+		t.Fatalf("expected cache size <= %d, got %d", 20, totalSize)
 	}
 	if _, err := os.Stat(pathA); err == nil {
 		t.Fatalf("expected oldest tile to be evicted")
@@ -100,7 +101,6 @@ func TestMapTileCacheTransport_EvictsOldestFilesWhenSizeCapExceeded(t *testing.T
 }
 
 func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(t *testing.T) {
-	cacheDir := t.TempDir()
 	tile := mustPNGBytes(t)
 	cached := make(chan struct{}, 1)
 	var hits int
@@ -112,14 +112,11 @@ func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(
 	}))
 	defer server.Close()
 
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
+	transport := &mapwidgets.MapTileCacheTransport{
+		Base:      http.DefaultTransport,
+		AsyncMiss: true,
 	}
-	transport.setOnAsyncTileCached(func() {
+	transport.SetOnAsyncTileCached(func() {
 		select {
 		case cached <- struct{}{}:
 		default:
@@ -168,21 +165,14 @@ func TestMapTileCacheTransport_AsyncMissReturnsPlaceholderAndCachesInBackground(
 }
 
 func TestMapTileClientCachedProgress(t *testing.T) {
-	cacheDir := t.TempDir()
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
-	}
+	transport := &mapwidgets.MapTileCacheTransport{}
 	client := &http.Client{Transport: transport}
 	urlA := "https://tile.example/1/2/3.png"
 	urlB := "https://tile.example/1/2/4.png"
 	urls := []string{urlA, urlB}
 
-	transport.writeCachedTile(transport.cachePathForURL(urlA), []byte("a"))
-	cached, total, ok := mapTileClientCachedProgress(client, urls)
+	transport.WriteCachedTile(transport.CachePathForURL(urlA), []byte("a"))
+	cached, total, ok := mapwidgets.MapTileClientCachedProgress(client, urls)
 	if !ok {
 		t.Fatalf("expected progress check to be supported")
 	}
@@ -195,39 +185,27 @@ func TestMapTileClientCachedProgress(t *testing.T) {
 }
 
 func TestMapTileClientLoadProgress(t *testing.T) {
-	cacheDir := t.TempDir()
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
-	}
+	transport := &mapwidgets.MapTileCacheTransport{}
 	client := &http.Client{Transport: transport}
 	urlA := "https://tile.example/1/2/3.png"
 	urlB := "https://tile.example/1/2/4.png"
 	urls := []string{urlA, urlB}
 
-	transport.writeCachedTile(transport.cachePathForURL(urlA), []byte("a"))
-	transport.inFlightByPath[transport.cachePathForURL(urlB)] = struct{}{}
+	transport.WriteCachedTile(transport.CachePathForURL(urlA), []byte("a"))
 
-	progress, ok := mapTileClientLoadProgress(client, urls)
+	progress, ok := mapwidgets.MapTileClientLoadProgress(client, urls)
 	if !ok {
 		t.Fatalf("expected load progress check to be supported")
 	}
-	if progress.total != 2 {
-		t.Fatalf("unexpected total: %d", progress.total)
+	if progress.Total != 2 {
+		t.Fatalf("unexpected total: %d", progress.Total)
 	}
-	if progress.cached != 1 {
-		t.Fatalf("unexpected cached count: %d", progress.cached)
-	}
-	if progress.inFlight != 1 {
-		t.Fatalf("unexpected in-flight count: %d", progress.inFlight)
+	if progress.Cached != 1 {
+		t.Fatalf("unexpected cached count: %d", progress.Cached)
 	}
 }
 
 func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
-	cacheDir := t.TempDir()
 	done := make(chan struct{}, 1)
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -236,14 +214,11 @@ func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
+	transport := &mapwidgets.MapTileCacheTransport{
+		Base:      http.DefaultTransport,
+		AsyncMiss: true,
 	}
-	transport.setOnAsyncTileCached(func() {
+	transport.SetOnAsyncTileCached(func() {
 		select {
 		case done <- struct{}{}:
 		default:
@@ -267,15 +242,15 @@ func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
 		t.Fatalf("timed out waiting for async completion callback on failure")
 	}
 
-	progress, ok := mapTileClientLoadProgress(client, []string{url})
+	progress, ok := mapwidgets.MapTileClientLoadProgress(client, []string{url})
 	if !ok {
 		t.Fatalf("expected load progress check to be supported")
 	}
-	if progress.cached != 0 {
-		t.Fatalf("expected no cached tiles, got %d", progress.cached)
+	if progress.Cached != 0 {
+		t.Fatalf("expected no cached tiles, got %d", progress.Cached)
 	}
-	if progress.inFlight != 0 {
-		t.Fatalf("expected no in-flight tiles after completion, got %d", progress.inFlight)
+	if progress.InFlight != 0 {
+		t.Fatalf("expected no in-flight tiles after completion, got %d", progress.InFlight)
 	}
 	if hits != 1 {
 		t.Fatalf("expected one network hit, got %d", hits)

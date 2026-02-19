@@ -1,4 +1,4 @@
-package ui
+package widgets
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ func TestIconNavButtonMinSizeWithText(t *testing.T) {
 	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 
-	button := newIconNavButton(nil, nil)
+	button := NewIconNavButton(nil, nil)
 	base := button.MinSize()
 
 	button.SetText("0.7.0")

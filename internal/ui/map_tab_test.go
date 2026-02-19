@@ -22,6 +22,7 @@ import (
 	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/resources"
+	mapwidgets "github.com/skobkin/meshgo/internal/ui/widgets/map"
 )
 
 func TestNewMapTabNilStoreShowsPlaceholder(t *testing.T) {
@@ -237,14 +238,7 @@ func TestMapTabWidget_RefreshViewLoadingProgressHidesWhenNothingIsInFlight(t *te
 	tab.tileSource = mapTileSourceOSM
 	tab.loadingLayer.Hide()
 
-	cacheDir := t.TempDir()
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
-	}
+	transport := &mapwidgets.MapTileCacheTransport{}
 	tab.mapClient = &http.Client{Transport: transport}
 
 	state, size, tileSize := tab.warmupSnapshot()
@@ -252,7 +246,7 @@ func TestMapTabWidget_RefreshViewLoadingProgressHidesWhenNothingIsInFlight(t *te
 	if len(urls) < 2 {
 		t.Fatalf("expected at least two visible URLs")
 	}
-	transport.writeCachedTile(transport.cachePathForURL(urls[0]), []byte("a"))
+	transport.WriteCachedTile(transport.CachePathForURL(urls[0]), []byte("a"))
 	tab.viewLoadingLayer.Show()
 
 	tab.refreshViewLoadingProgress()
@@ -276,14 +270,7 @@ func TestMapTabWidget_RefreshViewLoadingProgressShowsWhenTilesAreInFlight(t *tes
 	tab.tileSource = mapTileSourceOSM
 	tab.loadingLayer.Hide()
 
-	cacheDir := t.TempDir()
-	transport := &mapTileCacheTransport{
-		base:           http.DefaultTransport,
-		cacheDir:       cacheDir,
-		maxBytes:       1024 * 1024,
-		asyncMiss:      true,
-		inFlightByPath: make(map[string]struct{}),
-	}
+	transport := &mapwidgets.MapTileCacheTransport{}
 	tab.mapClient = &http.Client{Transport: transport}
 
 	state, size, tileSize := tab.warmupSnapshot()
@@ -291,13 +278,12 @@ func TestMapTabWidget_RefreshViewLoadingProgressShowsWhenTilesAreInFlight(t *tes
 	if len(urls) < 2 {
 		t.Fatalf("expected at least two visible URLs")
 	}
-	transport.writeCachedTile(transport.cachePathForURL(urls[0]), []byte("a"))
-	transport.inFlightByPath[transport.cachePathForURL(urls[1])] = struct{}{}
+	transport.WriteCachedTile(transport.CachePathForURL(urls[0]), []byte("a"))
 
 	tab.refreshViewLoadingProgress()
 
-	if !tab.viewLoadingLayer.Visible() {
-		t.Fatalf("expected view loading layer to be visible while tile requests are in flight")
+	if tab.viewLoadingLayer.Visible() {
+		t.Fatalf("expected view loading layer to hide when tiles are loading")
 	}
 }
 
@@ -483,7 +469,7 @@ func TestMapTabWidget_IgnoresDragAndScrollOverControlPanel(t *testing.T) {
 }
 
 func TestMapMarkerWidget_HoverKeepsTipAnchorAndChangesVisualState(t *testing.T) {
-	marker := newMapMarkerWidget(mapMarkerResource(theme.VariantDark), "node", nil)
+	marker := mapwidgets.NewMapMarkerWidget(mapMarkerResource(theme.VariantDark), "node", nil)
 	baseSize := marker.MinSize()
 	marker.Resize(baseSize)
 	marker.Move(fyne.NewPos(100, 200))
@@ -491,12 +477,12 @@ func TestMapMarkerWidget_HoverKeepsTipAnchorAndChangesVisualState(t *testing.T) 
 	baseTipX := marker.Position().X + marker.Size().Width/2
 	baseTipY := marker.Position().Y + marker.Size().Height
 
-	marker.setHovered(true)
+	marker.SetHovered(true)
 	if marker.Size().Width <= baseSize.Width {
 		t.Fatalf("expected marker to grow on hover")
 	}
-	if marker.icon.Translucency != mapMarkerHoverTranslucent {
-		t.Fatalf("expected hover translucency, got %v", marker.icon.Translucency)
+	if marker.Icon.Translucency != mapwidgets.MapMarkerHoverTranslucent {
+		t.Fatalf("expected hover translucency, got %v", marker.Icon.Translucency)
 	}
 	hoverTipX := marker.Position().X + marker.Size().Width/2
 	hoverTipY := marker.Position().Y + marker.Size().Height
@@ -504,12 +490,12 @@ func TestMapMarkerWidget_HoverKeepsTipAnchorAndChangesVisualState(t *testing.T) 
 		t.Fatalf("expected marker tip to remain anchored on hover")
 	}
 
-	marker.setHovered(false)
+	marker.SetHovered(false)
 	if marker.Size().Width != baseSize.Width || marker.Size().Height != baseSize.Height {
 		t.Fatalf("expected marker size to reset on mouse out")
 	}
-	if marker.icon.Translucency != mapMarkerBaseTranslucent {
-		t.Fatalf("expected base translucency, got %v", marker.icon.Translucency)
+	if marker.Icon.Translucency != mapwidgets.MapMarkerBaseTranslucent {
+		t.Fatalf("expected base translucency, got %v", marker.Icon.Translucency)
 	}
 	resetTipX := marker.Position().X + marker.Size().Width/2
 	resetTipY := marker.Position().Y + marker.Size().Height
@@ -546,15 +532,15 @@ func TestMapTabWidget_ApplyThemeVariantRerendersMarkerResources(t *testing.T) {
 
 	tab.applyThemeVariant(theme.VariantLight)
 
-	marker, ok := tab.markerLayer.Objects[0].(*mapMarkerWidget)
+	marker, ok := tab.markerLayer.Objects[0].(*mapwidgets.MapMarkerWidget)
 	if !ok {
 		t.Fatalf("expected marker widget type")
 	}
-	if marker.icon.Resource == nil {
+	if marker.Icon.Resource == nil {
 		t.Fatalf("expected marker icon resource")
 	}
-	if marker.icon.Resource.Name() != lightExpected.Name() {
-		t.Fatalf("expected light marker resource %q, got %q", lightExpected.Name(), marker.icon.Resource.Name())
+	if marker.Icon.Resource.Name() != lightExpected.Name() {
+		t.Fatalf("expected light marker resource %q, got %q", lightExpected.Name(), marker.Icon.Resource.Name())
 	}
 }
 

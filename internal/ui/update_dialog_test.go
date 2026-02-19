@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	meshapp "github.com/skobkin/meshgo/internal/app"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
 func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromHead(t *testing.T) {
@@ -43,8 +44,8 @@ func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromHead(t *testing.T
 		t.Fatalf("parse URI: %v", err)
 	}
 
-	_, err = readMarkdownImageBytes(source)
-	if !errors.Is(err, errMarkdownImageTooLarge) {
+	_, err = widgets.ReadMarkdownImageBytes(source)
+	if !errors.Is(err, widgets.ErrMarkdownImageTooLarge) {
 		t.Fatalf("expected oversized image error, got %v", err)
 	}
 	if headHits.Load() != 1 {
@@ -79,8 +80,8 @@ func TestReadMarkdownImageBytes_RemoteRejectsOversizedImageFromGetHeadersWhenHea
 		t.Fatalf("parse URI: %v", err)
 	}
 
-	_, err = readMarkdownImageBytes(source)
-	if !errors.Is(err, errMarkdownImageTooLarge) {
+	_, err = widgets.ReadMarkdownImageBytes(source)
+	if !errors.Is(err, widgets.ErrMarkdownImageTooLarge) {
 		t.Fatalf("expected oversized image error, got %v", err)
 	}
 	if headHits.Load() != 1 {
@@ -117,7 +118,7 @@ func TestReadMarkdownImageBytes_RemoteLoadsImageWhenWithinLimit(t *testing.T) {
 		t.Fatalf("parse URI: %v", err)
 	}
 
-	got, err := readMarkdownImageBytes(source)
+	got, err := widgets.ReadMarkdownImageBytes(source)
 	if err != nil {
 		t.Fatalf("read markdown image bytes: %v", err)
 	}
@@ -133,21 +134,21 @@ func TestReadMarkdownImageBytes_RemoteLoadsImageWhenWithinLimit(t *testing.T) {
 }
 
 func TestNewMarkdownImagePlaceholder_UsesCompactHeight(t *testing.T) {
-	placeholder := newMarkdownImagePlaceholder("Screenshot", "Loading image...")
+	placeholder := widgets.NewMarkdownImagePlaceholder("Screenshot", "Loading image...")
 	size := placeholder.MinSize()
-	if size.Width != float32(maxMarkdownImageWidth) {
-		t.Fatalf("expected placeholder width %f, got %f", float32(maxMarkdownImageWidth), size.Width)
+	if size.Width != float32(widgets.MaxMarkdownImageWidth) {
+		t.Fatalf("expected placeholder width %f, got %f", float32(widgets.MaxMarkdownImageWidth), size.Width)
 	}
-	if size.Height != float32(markdownPlaceholderHeight) {
-		t.Fatalf("expected placeholder height %f, got %f", float32(markdownPlaceholderHeight), size.Height)
+	if size.Height != float32(widgets.MarkdownPlaceholderHeight) {
+		t.Fatalf("expected placeholder height %f, got %f", float32(widgets.MarkdownPlaceholderHeight), size.Height)
 	}
-	if size.Height >= maxMarkdownImageHeight {
+	if size.Height >= widgets.MaxMarkdownImageHeight {
 		t.Fatalf("expected placeholder to be shorter than loaded image max height, got %f", size.Height)
 	}
 }
 
 func TestNewMarkdownImagePlaceholder_HasVisibleBorder(t *testing.T) {
-	placeholder := newMarkdownImagePlaceholder("Error screenshot", "Image unavailable")
+	placeholder := widgets.NewMarkdownImagePlaceholder("Error screenshot", "Image unavailable")
 	if !hasVisiblePlaceholderBorder(placeholder) {
 		t.Fatalf("expected placeholder border with visible stroke")
 	}
@@ -211,7 +212,7 @@ func TestExtractMarkdownImageAltTexts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractMarkdownImageAltTexts(tt.markdown)
+			got := widgets.ExtractMarkdownImageAltTexts(tt.markdown)
 			if len(got) != len(tt.want) {
 				t.Fatalf("expected %d alt texts, got %d", len(tt.want), len(got))
 			}

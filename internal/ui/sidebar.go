@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/resources"
+	"github.com/skobkin/meshgo/internal/ui/widgets"
 )
 
 const sidebarConnIconSize float32 = 32
@@ -23,7 +24,7 @@ func buildSidebarLayout(
 	tabOnShow map[string]func(),
 	order []string,
 	tabIcons map[string]resources.UIIcon,
-	updateButton *iconNavButton,
+	updateButton *widgets.IconNavButton,
 	sidebarConnIcon *widget.Icon,
 ) sidebarLayout {
 	rightStack := container.NewStack()
@@ -47,7 +48,7 @@ func buildSidebarLayout(
 		break
 	}
 
-	navButtons := make(map[string]*iconNavButton, len(order))
+	navButtons := make(map[string]*widgets.IconNavButton, len(order))
 	updateNavSelection := func() {
 		for name, button := range navButtons {
 			button.SetSelected(name == active && !button.Disabled())
@@ -88,7 +89,7 @@ func buildSidebarLayout(
 	left := container.NewVBox()
 	for _, name := range order {
 		nameCopy := name
-		button := newIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), func() {
+		button := widgets.NewIconNavButton(resources.UIIconResource(tabIcons[name], initialVariant), func() {
 			switchTab(nameCopy)
 		})
 		navButtons[name] = button
