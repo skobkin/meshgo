@@ -34,6 +34,7 @@
 - Proactively suggest refactoring when code shows weak technical depth, poor readability, or unclear structure; call out concrete improvement options.
 
 ## Testing Guidelines
+- If you need to build binaries for interactive testing, build them in `dist` which is ignored by Git.
 - Place tests next to code using `*_test.go` (example: `internal/ui/chats_tab_test.go`).
 - Prefer table-driven tests for codec/domain logic.
 - Run focused tests during iteration, then `go test ./...` before opening a PR.
