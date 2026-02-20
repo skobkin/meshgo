@@ -195,6 +195,11 @@ func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) 
 		nodeUpdate := decodeNodeInfo(nodeInfo, now)
 		out.NodeUpdate = &nodeUpdate
 	}
+	if metadata := wire.GetMetadata(); metadata != nil {
+		if nodeUpdate, ok := decodeMetadataNodeUpdate(metadata, c.localNodeNum.Load(), now); ok {
+			out.NodeUpdate = &nodeUpdate
+		}
+	}
 
 	if channelInfo := wire.GetChannel(); channelInfo != nil {
 		defaultTitle := c.defaultPresetChannelTitle()
@@ -416,6 +421,9 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 		node.IsUnmessageable = &v
 	}
 	applyPositionCoordinates(&node, nodeInfo.GetPosition())
+	if node.PositionUpdatedAt.IsZero() {
+		node.PositionUpdatedAt = positionUpdateTime(nodeInfo.GetPosition(), now)
+	}
 	applyDeviceMetrics(&node, nodeInfo.GetDeviceMetrics())
 
 	if snr := nodeInfo.GetSnr(); snr != 0 {
@@ -603,6 +611,7 @@ func decodeNodePositionFromPacket(packet *generated.MeshPacket, payload []byte, 
 	if !applyPositionCoordinates(&node, &position) {
 		return domain.NodeUpdate{}, false
 	}
+	node.PositionUpdatedAt = positionUpdateTime(&position, packetTimestamp(packet.GetRxTime(), now))
 	if rssi := packet.GetRxRssi(); rssi != 0 {
 		rssiVal := int(rssi)
 		node.RSSI = &rssiVal
@@ -665,6 +674,62 @@ func applyDeviceMetrics(node *domain.Node, dm *generated.DeviceMetrics) {
 		v := float64(dm.GetVoltage())
 		node.Voltage = &v
 	}
+	if dm.UptimeSeconds != nil {
+		v := dm.GetUptimeSeconds()
+		node.UptimeSeconds = &v
+	}
+	if dm.ChannelUtilization != nil {
+		v := float64(dm.GetChannelUtilization())
+		node.ChannelUtilization = &v
+	}
+	if dm.AirUtilTx != nil {
+		v := float64(dm.GetAirUtilTx())
+		node.AirUtilTx = &v
+	}
+}
+
+func decodeMetadataNodeUpdate(
+	metadata *generated.DeviceMetadata,
+	localNodeNum uint32,
+	now time.Time,
+) (domain.NodeUpdate, bool) {
+	if metadata == nil || localNodeNum == 0 {
+		return domain.NodeUpdate{}, false
+	}
+
+	node := domain.Node{
+		NodeID:          formatNodeNum(localNodeNum),
+		FirmwareVersion: strings.TrimSpace(metadata.GetFirmwareVersion()),
+		LastHeardAt:     now,
+		UpdatedAt:       now,
+	}
+	if hwModel := metadata.GetHwModel(); hwModel != generated.HardwareModel_UNSET {
+		node.BoardModel = hwModel.String()
+	}
+	if role := strings.TrimSpace(metadata.GetRole().String()); role != "" {
+		node.Role = role
+	}
+
+	return domain.NodeUpdate{
+		Node:       node,
+		LastHeard:  node.LastHeardAt,
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeMetadata,
+	}, true
+}
+
+func positionUpdateTime(position *generated.Position, fallback time.Time) time.Time {
+	if position == nil {
+		return fallback
+	}
+	if ts := position.GetTimestamp(); ts != 0 {
+		return packetTimestamp(ts, fallback)
+	}
+	if ts := position.GetTime(); ts != 0 {
+		return packetTimestamp(ts, fallback)
+	}
+
+	return fallback
 }
 
 func applyEnvironmentMetrics(node *domain.Node, env *generated.EnvironmentMetrics) {

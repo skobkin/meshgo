@@ -102,6 +102,9 @@ type Node struct {
 	PositionPrecisionBits *uint32
 	BatteryLevel          *uint32
 	Voltage               *float64
+	UptimeSeconds         *uint32
+	ChannelUtilization    *float64
+	AirUtilTx             *float64
 	Temperature           *float64
 	Humidity              *float64
 	Pressure              *float64
@@ -109,8 +112,10 @@ type Node struct {
 	PowerVoltage          *float64
 	PowerCurrent          *float64
 	BoardModel            string
+	FirmwareVersion       string
 	Role                  string
 	IsUnmessageable       *bool
+	PositionUpdatedAt     time.Time
 	LastHeardAt           time.Time
 	RSSI                  *int
 	SNR                   *float64
@@ -134,6 +139,7 @@ const (
 	NodeUpdateTypeNodeInfoPacket   NodeUpdateType = "nodeinfo_packet"
 	NodeUpdateTypeTelemetryPacket  NodeUpdateType = "telemetry_packet"
 	NodeUpdateTypePositionPacket   NodeUpdateType = "position_packet"
+	NodeUpdateTypeMetadata         NodeUpdateType = "metadata"
 )
 
 // NodeDiscovered is emitted when a previously unknown node is seen in live traffic.

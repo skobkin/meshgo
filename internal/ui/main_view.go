@@ -55,6 +55,8 @@ func buildMainView(
 			handleNodeDirectMessageAction(dep, switchToChats, openDMChat, node)
 		case NodeActionTraceroute:
 			handleNodeTracerouteAction(window, dep, node)
+		case NodeActionInfo:
+			showNodeOverviewModal(window, dep, node, switchToChats, openDMChat)
 		}
 	}
 	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, DefaultNodeRowRenderer(), NodesTabActions{
@@ -76,7 +78,7 @@ func buildMainView(
 		applyMapTheme = mapWidget.applyThemeVariant
 		dep.Actions.OnMapDisplayConfigChanged = mapWidget.applyMapDisplayConfig
 	}
-	nodeSettingsTab, onNodeSettingsTabShow := newNodeTabWithOnShow(dep)
+	nodeSettingsTab := newNodeTabWithOnShow(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
 	tabContent := map[string]fyne.CanvasObject{
@@ -86,9 +88,7 @@ func buildMainView(
 		"Node":  nodeSettingsTab,
 		"App":   settingsTab,
 	}
-	tabOnShow := map[string]func(){
-		"Node": onNodeSettingsTabShow,
-	}
+	tabOnShow := map[string]func(){}
 	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
 	tabIcons := map[string]resources.UIIcon{
 		"Chats": resources.UIIconChats,

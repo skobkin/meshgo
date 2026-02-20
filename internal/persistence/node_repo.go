@@ -27,6 +27,9 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		precisionBits   any
 		batteryLevel    any
 		voltage         any
+		uptimeSeconds   any
+		channelUtil     any
+		airUtilTx       any
 		temperature     any
 		humidity        any
 		pressure        any
@@ -34,6 +37,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		powerVoltage    any
 		powerCurrent    any
 		isUnmessageable any
+		positionUpdated any
 	)
 	if n.Channel != nil {
 		channel = int64(*n.Channel)
@@ -55,6 +59,15 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	}
 	if n.Voltage != nil {
 		voltage = *n.Voltage
+	}
+	if n.UptimeSeconds != nil {
+		uptimeSeconds = int64(*n.UptimeSeconds)
+	}
+	if n.ChannelUtilization != nil {
+		channelUtil = *n.ChannelUtilization
+	}
+	if n.AirUtilTx != nil {
+		airUtilTx = *n.AirUtilTx
 	}
 	if n.Temperature != nil {
 		temperature = *n.Temperature
@@ -81,9 +94,12 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 			isUnmessageable = int64(0)
 		}
 	}
+	if !n.PositionUpdatedAt.IsZero() {
+		positionUpdated = timeToUnixMillis(n.PositionUpdatedAt)
+	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = CASE
 				WHEN excluded.long_name IS NOT NULL AND excluded.long_name <> '' THEN excluded.long_name
@@ -100,6 +116,9 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 			precision_bits = COALESCE(excluded.precision_bits, nodes.precision_bits),
 			battery_level = COALESCE(excluded.battery_level, nodes.battery_level),
 			voltage = COALESCE(excluded.voltage, nodes.voltage),
+			uptime_seconds = COALESCE(excluded.uptime_seconds, nodes.uptime_seconds),
+			channel_utilization = COALESCE(excluded.channel_utilization, nodes.channel_utilization),
+			air_util_tx = COALESCE(excluded.air_util_tx, nodes.air_util_tx),
 			temperature = COALESCE(excluded.temperature, nodes.temperature),
 			humidity = COALESCE(excluded.humidity, nodes.humidity),
 			pressure = COALESCE(excluded.pressure, nodes.pressure),
@@ -110,11 +129,21 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.board_model IS NOT NULL AND excluded.board_model <> '' THEN excluded.board_model
 				ELSE nodes.board_model
 			END,
+			firmware_version = CASE
+				WHEN excluded.firmware_version IS NOT NULL AND excluded.firmware_version <> '' THEN excluded.firmware_version
+				ELSE nodes.firmware_version
+			END,
 			device_role = CASE
 				WHEN excluded.device_role IS NOT NULL AND excluded.device_role <> '' THEN excluded.device_role
 				ELSE nodes.device_role
 			END,
 			is_unmessageable = COALESCE(excluded.is_unmessageable, nodes.is_unmessageable),
+			position_updated_at = CASE
+				WHEN excluded.position_updated_at IS NOT NULL AND (
+					nodes.position_updated_at IS NULL OR excluded.position_updated_at > nodes.position_updated_at
+				) THEN excluded.position_updated_at
+				ELSE nodes.position_updated_at
+			END,
 			last_heard_at = CASE
 				WHEN excluded.last_heard_at > nodes.last_heard_at THEN excluded.last_heard_at
 				ELSE nodes.last_heard_at
@@ -125,7 +154,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.updated_at > nodes.updated_at THEN excluded.updated_at
 				ELSE nodes.updated_at
 			END
-	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, altitude, precisionBits, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, altitude, precisionBits, batteryLevel, voltage, uptimeSeconds, channelUtil, airUtilTx, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.FirmwareVersion), nullableString(n.Role), isUnmessageable, positionUpdated, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -135,7 +164,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -159,6 +188,9 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			precisionBits sql.NullInt64
 			battery       sql.NullInt64
 			voltage       sql.NullFloat64
+			uptimeSeconds sql.NullInt64
+			channelUtil   sql.NullFloat64
+			airUtilTx     sql.NullFloat64
 			temperature   sql.NullFloat64
 			humidity      sql.NullFloat64
 			pressure      sql.NullFloat64
@@ -166,18 +198,20 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			powerVoltage  sql.NullFloat64
 			powerCurrent  sql.NullFloat64
 			board         sql.NullString
+			firmware      sql.NullString
 			role          sql.NullString
 			unmessageable sql.NullInt64
+			positionMS    sql.NullInt64
 			rssi          sql.NullInt64
 			snr           sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &altitude, &precisionBits, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &altitude, &precisionBits, &battery, &voltage, &uptimeSeconds, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &firmware, &role, &unmessageable, &positionMS, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
 		n.LastHeardAt = unixMillisToTime(heardMs)
 		n.UpdatedAt = unixMillisToTime(updMs)
 		if channel.Valid && channel.Int64 >= 0 && channel.Int64 <= math.MaxUint32 {
-			// #nosec G115 -- guarded by explicit int64 bounds check.
+			// #nosec G115 -- guarded by explicit uint32 range check on int64 input.
 			v := uint32(channel.Int64)
 			n.Channel = &v
 		}
@@ -190,23 +224,36 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			n.Longitude = &v
 		}
 		if altitude.Valid && altitude.Int64 >= math.MinInt32 && altitude.Int64 <= math.MaxInt32 {
-			// #nosec G115 -- guarded by explicit int64 bounds check.
+			// #nosec G115 -- guarded by explicit int32 range check on int64 input.
 			v := int32(altitude.Int64)
 			n.Altitude = &v
 		}
 		if precisionBits.Valid && precisionBits.Int64 >= 0 && precisionBits.Int64 <= math.MaxUint32 {
-			// #nosec G115 -- guarded by explicit int64 bounds check.
+			// #nosec G115 -- guarded by explicit uint32 range check on int64 input.
 			v := uint32(precisionBits.Int64)
 			n.PositionPrecisionBits = &v
 		}
 		if battery.Valid && battery.Int64 >= 0 && battery.Int64 <= math.MaxUint32 {
-			// #nosec G115 -- guarded by explicit int64 bounds check.
+			// #nosec G115 -- guarded by explicit uint32 range check on int64 input.
 			v := uint32(battery.Int64)
 			n.BatteryLevel = &v
 		}
 		if voltage.Valid {
 			v := voltage.Float64
 			n.Voltage = &v
+		}
+		if uptimeSeconds.Valid && uptimeSeconds.Int64 >= 0 && uptimeSeconds.Int64 <= math.MaxUint32 {
+			// #nosec G115 -- guarded by explicit uint32 range check on int64 input.
+			v := uint32(uptimeSeconds.Int64)
+			n.UptimeSeconds = &v
+		}
+		if channelUtil.Valid {
+			v := channelUtil.Float64
+			n.ChannelUtilization = &v
+		}
+		if airUtilTx.Valid {
+			v := airUtilTx.Float64
+			n.AirUtilTx = &v
 		}
 		if temperature.Valid {
 			v := temperature.Float64
@@ -235,12 +282,18 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 		if board.Valid {
 			n.BoardModel = board.String
 		}
+		if firmware.Valid {
+			n.FirmwareVersion = firmware.String
+		}
 		if role.Valid {
 			n.Role = role.String
 		}
 		if unmessageable.Valid {
 			v := unmessageable.Int64 != 0
 			n.IsUnmessageable = &v
+		}
+		if positionMS.Valid {
+			n.PositionUpdatedAt = unixMillisToTime(positionMS.Int64)
 		}
 		if rssi.Valid {
 			v := int(rssi.Int64)

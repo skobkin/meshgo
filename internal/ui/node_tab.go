@@ -7,12 +7,10 @@ import (
 )
 
 func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
-	tab, _ := newNodeTabWithOnShow(dep)
-
-	return tab
+	return newNodeTabWithOnShow(dep)
 }
 
-func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
+func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 	nodeSettingsTabLogger.Info("building node settings tab")
 	saveGate := &nodeSettingsSaveGate{}
 	loraPage, onLoRaTabOpened := newNodeLoRaSettingsPage(dep, saveGate)
@@ -130,11 +128,13 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
 
 	radioConfigTab := container.NewTabItem("Radio configuration", radioTabs)
+	overviewTopTab := container.NewTabItem("Node overview", newNodeOverviewSettingsPage(dep))
 	deviceConfigTab := container.NewTabItem("Device configuration", deviceTabs)
 	moduleConfigTab := container.NewTabItem("Module configuration", moduleTabs)
 	importExportTopTab := container.NewTabItem("Import/Export", importExportTab)
 	maintenanceTopTab := container.NewTabItem("Maintenance", maintenanceTab)
 	topTabs := container.NewAppTabs(
+		overviewTopTab,
 		radioConfigTab,
 		deviceConfigTab,
 		moduleConfigTab,
@@ -142,8 +142,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		maintenanceTopTab,
 	)
 	topTabs.SetTabLocation(container.TabLocationTop)
-	topTabs.DisableIndex(3)
 	topTabs.DisableIndex(4)
+	topTabs.DisableIndex(5)
 	topTabs.OnSelected = func(_ *container.TabItem) {
 		switch topTabs.Selected() {
 		case radioConfigTab:
@@ -155,21 +155,7 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) (fyne.CanvasObject, func()) {
 		}
 	}
 
-	onShow := func() {
-		// AppTabs keeps LoRa selected by default, but `OnSelected` does not fire for that
-		// initial selection. Trigger the currently selected nested tab when Node Settings
-		// becomes visible so LoRa performs its first lazy load on first open (not at startup).
-		switch topTabs.Selected() {
-		case radioConfigTab:
-			openSelectedRadioTab()
-		case deviceConfigTab:
-			openSelectedDeviceTab()
-		case moduleConfigTab:
-			openSelectedModuleTab()
-		}
-	}
-
-	return topTabs, onShow
+	return topTabs
 }
 
 func newSettingsPlaceholderPage(text string) fyne.CanvasObject {

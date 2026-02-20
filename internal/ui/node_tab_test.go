@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/skobkin/meshgo/internal/app"
@@ -282,7 +282,21 @@ func TestNodeTabSecuritySettingsLoadIsLazy(t *testing.T) {
 	}
 }
 
-func TestNodeTabLoRaSettingsLoadStartsOnNodeTabShow(t *testing.T) {
+func TestNodeTabContainsNodeOverviewAsFirstTopLevelTab(t *testing.T) {
+	tab := newNodeTabWithOnShow(RuntimeDependencies{})
+	topTabs, ok := tab.(*container.AppTabs)
+	if !ok {
+		t.Fatalf("expected node tab root to be app tabs, got %T", tab)
+	}
+	if len(topTabs.Items) == 0 {
+		t.Fatalf("expected top-level tabs")
+	}
+	if topTabs.Items[0].Text != "Node overview" {
+		t.Fatalf("expected first top-level tab to be Node overview, got %q", topTabs.Items[0].Text)
+	}
+}
+
+func TestNodeTabLoRaSettingsLoadStartsOnRadioConfigurationTabSelect(t *testing.T) {
 	if raceDetectorEnabled {
 		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
 	}
@@ -300,24 +314,19 @@ func TestNodeTabLoRaSettingsLoadStartsOnNodeTabShow(t *testing.T) {
 		},
 	}
 
-	tab, onShow := newNodeTabWithOnShow(dep)
+	tab := newNodeTabWithOnShow(dep)
 	_ = fynetest.NewTempWindow(t, tab)
 
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.LoRaLoadCalls(); got != 0 {
-		t.Fatalf("expected no eager LoRa load before Node tab OnShow, got %d", got)
+		t.Fatalf("expected no eager LoRa load before selecting Radio configuration tab, got %d", got)
 	}
 
-	fyne.DoAndWait(func() {
-		onShow()
-	})
+	mustSelectAppTabByText(t, tab, "Radio configuration")
 	waitForCondition(t, func() bool { return spy.LoRaLoadCalls() == 1 })
-	fyne.DoAndWait(func() {
-		onShow()
-	})
 	time.Sleep(100 * time.Millisecond)
 	if got := spy.LoRaLoadCalls(); got != 1 {
-		t.Fatalf("expected Node tab OnShow not to trigger redundant LoRa reloads, got %d", got)
+		t.Fatalf("expected one lazy initial LoRa load after selecting Radio configuration tab, got %d", got)
 	}
 
 	mustSelectAppTabByText(t, tab, "Security")

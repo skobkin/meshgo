@@ -25,7 +25,11 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	lon := -122.4194
 	alt := int32(123)
 	precisionBits := uint32(14)
+	uptimeSeconds := uint32(3600)
+	channelUtil := 17.4
+	airUtilTx := 2.5
 	now := time.Now().UTC()
+	positionUpdated := now.Add(-5 * time.Minute)
 
 	if err := repo.Upsert(ctx, domain.Node{
 		NodeID:                "!abcd1234",
@@ -34,6 +38,11 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 		Longitude:             &lon,
 		Altitude:              &alt,
 		PositionPrecisionBits: &precisionBits,
+		UptimeSeconds:         &uptimeSeconds,
+		ChannelUtilization:    &channelUtil,
+		AirUtilTx:             &airUtilTx,
+		FirmwareVersion:       "2.5.1.12345",
+		PositionUpdatedAt:     positionUpdated,
 		LastHeardAt:           now,
 		UpdatedAt:             now,
 	}); err != nil {
@@ -67,9 +76,24 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	if nodes[0].PositionPrecisionBits == nil || *nodes[0].PositionPrecisionBits != precisionBits {
 		t.Fatalf("expected precision bits to roundtrip, got %v", nodes[0].PositionPrecisionBits)
 	}
+	if nodes[0].UptimeSeconds == nil || *nodes[0].UptimeSeconds != uptimeSeconds {
+		t.Fatalf("expected uptime to roundtrip, got %v", nodes[0].UptimeSeconds)
+	}
+	if nodes[0].ChannelUtilization == nil || *nodes[0].ChannelUtilization != channelUtil {
+		t.Fatalf("expected channel utilization to roundtrip, got %v", nodes[0].ChannelUtilization)
+	}
+	if nodes[0].AirUtilTx == nil || *nodes[0].AirUtilTx != airUtilTx {
+		t.Fatalf("expected air util tx to roundtrip, got %v", nodes[0].AirUtilTx)
+	}
+	if nodes[0].FirmwareVersion != "2.5.1.12345" {
+		t.Fatalf("expected firmware version to roundtrip, got %q", nodes[0].FirmwareVersion)
+	}
+	if nodes[0].PositionUpdatedAt.UnixMilli() != positionUpdated.UnixMilli() {
+		t.Fatalf("expected position_updated_at to roundtrip, got %v", nodes[0].PositionUpdatedAt)
+	}
 }
 
-func TestOpen_MigratesV4DatabaseToV9(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV10(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -130,8 +154,8 @@ func TestOpen_MigratesV4DatabaseToV9(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 9 {
-		t.Fatalf("expected schema version 9, got %d", version)
+	if version != 10 {
+		t.Fatalf("expected schema version 10, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -172,6 +196,21 @@ func TestOpen_MigratesV4DatabaseToV9(t *testing.T) {
 	}
 	if !columns["precision_bits"] {
 		t.Fatalf("expected precision_bits column after migration")
+	}
+	if !columns["uptime_seconds"] {
+		t.Fatalf("expected uptime_seconds column after migration")
+	}
+	if !columns["channel_utilization"] {
+		t.Fatalf("expected channel_utilization column after migration")
+	}
+	if !columns["air_util_tx"] {
+		t.Fatalf("expected air_util_tx column after migration")
+	}
+	if !columns["firmware_version"] {
+		t.Fatalf("expected firmware_version column after migration")
+	}
+	if !columns["position_updated_at"] {
+		t.Fatalf("expected position_updated_at column after migration")
 	}
 	messageColumns := make(map[string]bool)
 	messageRows, err := migrated.QueryContext(ctx, `PRAGMA table_info(messages);`)

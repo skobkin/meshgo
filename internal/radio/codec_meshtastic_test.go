@@ -332,6 +332,56 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryPowerPacket(t *testing.T) {
 	assertFloatPtr(t, node.Voltage, 12.34, "voltage")
 }
 
+func TestMeshtasticCodec_DecodeFromRadioTelemetryDeviceMetricsPacket(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	telemetryPayload, err := proto.Marshal(&generated.Telemetry{
+		Variant: &generated.Telemetry_DeviceMetrics{
+			DeviceMetrics: &generated.DeviceMetrics{
+				BatteryLevel:       proto.Uint32(77),
+				Voltage:            proto.Float32(4.01),
+				UptimeSeconds:      proto.Uint32(98_765),
+				ChannelUtilization: proto.Float32(31.25),
+				AirUtilTx:          proto.Float32(6.5),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal telemetry: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Packet{
+			Packet: &generated.MeshPacket{
+				From: 0x7654dcba,
+				PayloadVariant: &generated.MeshPacket_Decoded{
+					Decoded: &generated.Data{
+						Portnum: generated.PortNum_TELEMETRY_APP,
+						Payload: telemetryPayload,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal fromradio: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode telemetry packet: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	node := frame.NodeUpdate.Node
+	assertUint32Ptr(t, node.BatteryLevel, 77, "battery level")
+	assertFloatPtr(t, node.Voltage, 4.01, "voltage")
+	assertUint32Ptr(t, node.UptimeSeconds, 98_765, "uptime seconds")
+	assertFloatPtr(t, node.ChannelUtilization, 31.25, "channel utilization")
+	assertFloatPtr(t, node.AirUtilTx, 6.5, "air util tx")
+}
+
 func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
 
@@ -377,6 +427,9 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
 	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 15, "precision bits")
+	if frame.NodeUpdate.Node.PositionUpdatedAt.IsZero() {
+		t.Fatalf("expected position updated timestamp")
+	}
 }
 
 func TestMeshtasticCodec_DecodeFromRadioPositionPacketInvalidCoordinatesIgnored(t *testing.T) {
@@ -455,6 +508,57 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
 	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 16, "precision bits")
+	if frame.NodeUpdate.Node.PositionUpdatedAt.IsZero() {
+		t.Fatalf("expected position updated timestamp")
+	}
+}
+
+func TestMeshtasticCodec_DecodeFromRadioMetadataUsesLocalNodeID(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	myInfoRaw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_MyInfo{
+			MyInfo: &generated.MyNodeInfo{MyNodeNum: 0x1234abcd},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal my_info: %v", err)
+	}
+	if _, err := codec.DecodeFromRadio(myInfoRaw); err != nil {
+		t.Fatalf("decode my_info: %v", err)
+	}
+
+	raw, err := proto.Marshal(&generated.FromRadio{
+		PayloadVariant: &generated.FromRadio_Metadata{
+			Metadata: &generated.DeviceMetadata{
+				FirmwareVersion: "2.5.1.99999",
+				HwModel:         generated.HardwareModel_TBEAM,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal metadata: %v", err)
+	}
+
+	frame, err := codec.DecodeFromRadio(raw)
+	if err != nil {
+		t.Fatalf("decode metadata frame: %v", err)
+	}
+	if frame.NodeUpdate == nil {
+		t.Fatalf("expected node update")
+	}
+	if frame.NodeUpdate.Type != domain.NodeUpdateTypeMetadata {
+		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	}
+	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
+		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
+	}
+	if frame.NodeUpdate.Node.FirmwareVersion != "2.5.1.99999" {
+		t.Fatalf("unexpected firmware version: %q", frame.NodeUpdate.Node.FirmwareVersion)
+	}
+	if frame.NodeUpdate.Node.BoardModel != generated.HardwareModel_TBEAM.String() {
+		t.Fatalf("unexpected board model: %q", frame.NodeUpdate.Node.BoardModel)
+	}
 }
 
 func TestMeshtasticCodec_DecodeFromRadioNodeInfoPacketUsesNodeInfoType(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 func migrate(ctx context.Context, db *sql.DB) error {
 	var version int
@@ -44,6 +44,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				precision_bits INTEGER NULL,
 				battery_level INTEGER NULL,
 				voltage REAL NULL,
+				uptime_seconds INTEGER NULL,
+				channel_utilization REAL NULL,
+				air_util_tx REAL NULL,
 				temperature REAL NULL,
 				humidity REAL NULL,
 				pressure REAL NULL,
@@ -51,8 +54,10 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				power_voltage REAL NULL,
 				power_current REAL NULL,
 				board_model TEXT NULL,
+				firmware_version TEXT NULL,
 				device_role TEXT NULL,
 				is_unmessageable INTEGER NULL,
+				position_updated_at INTEGER NULL,
 				last_heard_at INTEGER,
 				rssi INTEGER NULL,
 				snr REAL NULL,
@@ -236,6 +241,23 @@ func migrate(ctx context.Context, db *sql.DB) error {
 				}
 			}
 			version = 9
+		}
+		if version < 10 {
+			slog.Info("applying db migration", "from", version, "to", 10)
+			stmts := []string{
+				`ALTER TABLE nodes ADD COLUMN uptime_seconds INTEGER NULL;`,
+				`ALTER TABLE nodes ADD COLUMN channel_utilization REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN air_util_tx REAL NULL;`,
+				`ALTER TABLE nodes ADD COLUMN firmware_version TEXT NULL;`,
+				`ALTER TABLE nodes ADD COLUMN position_updated_at INTEGER NULL;`,
+				`PRAGMA user_version = 10;`,
+			}
+			for _, stmt := range stmts {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("apply migration statement: %w", err)
+				}
+			}
+			version = 10
 		}
 	}
 

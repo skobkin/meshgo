@@ -64,6 +64,7 @@ type RuntimeDomain struct {
 	NodeStore     *domain.NodeStore
 	ChatStore     *domain.ChatStore
 	NodeDiscovery *NodeDiscoveryProjection
+	NodeMetadata  *NodeMetadataProjection
 }
 
 // RuntimeConnectivity contains transport and radio services used for device communication.
@@ -146,6 +147,9 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	nodeDiscovery := NewNodeDiscoveryProjection(nodeStore, logMgr.Logger("node_discovery"))
 	nodeDiscovery.Start(ctx, b)
 	rt.Domain.NodeDiscovery = nodeDiscovery
+	nodeMetadata := NewNodeMetadataProjection()
+	nodeMetadata.Start(ctx, b)
+	rt.Domain.NodeMetadata = nodeMetadata
 
 	writerQueue := persistence.NewWriterQueue(logMgr.Logger("persistence"), 512)
 	writerQueue.Start(ctx)

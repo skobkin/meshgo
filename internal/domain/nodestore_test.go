@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	store := NewNodeStore()
@@ -8,6 +11,10 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	lon := -122.4194
 	alt := int32(123)
 	precisionBits := uint32(15)
+	uptimeSeconds := uint32(1200)
+	channelUtilization := 18.5
+	airUtilTx := 2.2
+	positionUpdatedAt := time.Now().Add(-2 * time.Minute).UTC()
 
 	store.Upsert(Node{
 		NodeID:                "!11111111",
@@ -18,6 +25,11 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 		LongName:              "Alpha",
 		ShortName:             "ALPH",
 		BoardModel:            "T-Echo",
+		FirmwareVersion:       "2.5.0",
+		UptimeSeconds:         &uptimeSeconds,
+		ChannelUtilization:    &channelUtilization,
+		AirUtilTx:             &airUtilTx,
+		PositionUpdatedAt:     positionUpdatedAt,
 	})
 	store.Upsert(Node{
 		NodeID:   "!11111111",
@@ -45,5 +57,20 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	}
 	if node.ShortName != "ALPH" {
 		t.Fatalf("expected short name preserved, got %q", node.ShortName)
+	}
+	if node.FirmwareVersion != "2.5.0" {
+		t.Fatalf("expected firmware preserved, got %q", node.FirmwareVersion)
+	}
+	if node.UptimeSeconds == nil || *node.UptimeSeconds != uptimeSeconds {
+		t.Fatalf("expected uptime preserved, got %v", node.UptimeSeconds)
+	}
+	if node.ChannelUtilization == nil || *node.ChannelUtilization != channelUtilization {
+		t.Fatalf("expected channel utilization preserved, got %v", node.ChannelUtilization)
+	}
+	if node.AirUtilTx == nil || *node.AirUtilTx != airUtilTx {
+		t.Fatalf("expected air util tx preserved, got %v", node.AirUtilTx)
+	}
+	if !node.PositionUpdatedAt.Equal(positionUpdatedAt) {
+		t.Fatalf("expected position updated at preserved, got %v", node.PositionUpdatedAt)
 	}
 }

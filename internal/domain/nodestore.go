@@ -88,6 +88,15 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.Voltage == nil {
 			node.Voltage = existing.Voltage
 		}
+		if node.UptimeSeconds == nil {
+			node.UptimeSeconds = existing.UptimeSeconds
+		}
+		if node.ChannelUtilization == nil {
+			node.ChannelUtilization = existing.ChannelUtilization
+		}
+		if node.AirUtilTx == nil {
+			node.AirUtilTx = existing.AirUtilTx
+		}
 		if node.Temperature == nil {
 			node.Temperature = existing.Temperature
 		}
@@ -109,6 +118,9 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.BoardModel == "" {
 			node.BoardModel = existing.BoardModel
 		}
+		if node.FirmwareVersion == "" {
+			node.FirmwareVersion = existing.FirmwareVersion
+		}
 		if node.Role == "" {
 			node.Role = existing.Role
 		}
@@ -123,6 +135,9 @@ func (s *NodeStore) Upsert(node Node) {
 		}
 		if node.LastHeardAt.IsZero() || existing.LastHeardAt.After(node.LastHeardAt) {
 			node.LastHeardAt = existing.LastHeardAt
+		}
+		if node.PositionUpdatedAt.IsZero() || existing.PositionUpdatedAt.After(node.PositionUpdatedAt) {
+			node.PositionUpdatedAt = existing.PositionUpdatedAt
 		}
 		if existing.UpdatedAt.After(node.UpdatedAt) {
 			node.UpdatedAt = existing.UpdatedAt
