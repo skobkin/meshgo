@@ -60,6 +60,8 @@ steps:
 
   build:
     image: golang:1.25-alpine
+    when:
+      - event: push
     commands:
       - export PATH=/usr/local/go/bin:/go/bin:$PATH
       - export CACHE_ROOT="$PWD/.ci-cache"
