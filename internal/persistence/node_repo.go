@@ -24,6 +24,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		latitude        any
 		longitude       any
 		altitude        any
+		precisionBits   any
 		batteryLevel    any
 		voltage         any
 		temperature     any
@@ -45,6 +46,9 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	}
 	if n.Altitude != nil {
 		altitude = int64(*n.Altitude)
+	}
+	if n.PositionPrecisionBits != nil {
+		precisionBits = int64(*n.PositionPrecisionBits)
 	}
 	if n.BatteryLevel != nil {
 		batteryLevel = int64(*n.BatteryLevel)
@@ -78,8 +82,8 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		}
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, altitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = CASE
 				WHEN excluded.long_name IS NOT NULL AND excluded.long_name <> '' THEN excluded.long_name
@@ -93,6 +97,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 			latitude = COALESCE(excluded.latitude, nodes.latitude),
 			longitude = COALESCE(excluded.longitude, nodes.longitude),
 			altitude = COALESCE(excluded.altitude, nodes.altitude),
+			precision_bits = COALESCE(excluded.precision_bits, nodes.precision_bits),
 			battery_level = COALESCE(excluded.battery_level, nodes.battery_level),
 			voltage = COALESCE(excluded.voltage, nodes.voltage),
 			temperature = COALESCE(excluded.temperature, nodes.temperature),
@@ -120,7 +125,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.updated_at > nodes.updated_at THEN excluded.updated_at
 				ELSE nodes.updated_at
 			END
-	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, altitude, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, altitude, precisionBits, batteryLevel, voltage, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.Role), isUnmessageable, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -130,7 +135,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, channel, latitude, longitude, altitude, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -151,6 +156,7 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			latitude      sql.NullFloat64
 			longitude     sql.NullFloat64
 			altitude      sql.NullInt64
+			precisionBits sql.NullInt64
 			battery       sql.NullInt64
 			voltage       sql.NullFloat64
 			temperature   sql.NullFloat64
@@ -165,7 +171,7 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			rssi          sql.NullInt64
 			snr           sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &altitude, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &altitude, &precisionBits, &battery, &voltage, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &role, &unmessageable, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
 		}
 		n.LastHeardAt = unixMillisToTime(heardMs)
@@ -187,6 +193,11 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			// #nosec G115 -- guarded by explicit int64 bounds check.
 			v := int32(altitude.Int64)
 			n.Altitude = &v
+		}
+		if precisionBits.Valid && precisionBits.Int64 >= 0 && precisionBits.Int64 <= math.MaxUint32 {
+			// #nosec G115 -- guarded by explicit int64 bounds check.
+			v := uint32(precisionBits.Int64)
+			n.PositionPrecisionBits = &v
 		}
 		if battery.Valid && battery.Int64 >= 0 && battery.Int64 <= math.MaxUint32 {
 			// #nosec G115 -- guarded by explicit int64 bounds check.

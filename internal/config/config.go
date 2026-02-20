@@ -49,6 +49,7 @@ type UIConfig struct {
 	LastSelectedChat string             `json:"last_selected_chat"`
 	Autostart        AutostartConfig    `json:"autostart"`
 	MapViewport      MapViewportConfig  `json:"map_viewport"`
+	MapDisplay       MapDisplayConfig   `json:"map_display"`
 	Notifications    NotificationConfig `json:"notifications"`
 }
 
@@ -64,6 +65,12 @@ type MapViewportConfig struct {
 	Zoom int  `json:"zoom"`
 	X    int  `json:"x"`
 	Y    int  `json:"y"`
+}
+
+// MapDisplayConfig stores map overlay display preferences.
+type MapDisplayConfig struct {
+	ShowPrecisionCircles            bool `json:"show_precision_circles"`
+	ShowPrecisionCirclesOnlyOnHover bool `json:"show_precision_circles_only_on_hover"`
 }
 
 // NotificationConfig stores desktop notification preferences.
@@ -109,6 +116,7 @@ func Default() AppConfig {
 				Mode:    AutostartModeNormal,
 			},
 			MapViewport: MapViewportConfig{},
+			MapDisplay:  MapDisplayConfig{},
 			Notifications: NotificationConfig{
 				NotifyWhenFocused: false,
 				Events: NotificationEventsConfig{
@@ -140,7 +148,7 @@ func Load(path string) (AppConfig, error) {
 		return AppConfig{}, fmt.Errorf("decode config json: %w", err)
 	}
 
-	// Check for deprecated "connector" field and migrate if needed
+	// Check for deprecated "connector" field and migrate if needed.
 	cfg = migrateDeprecatedConnector(raw, cfg)
 
 	cfg.FillMissingDefaults()
@@ -165,6 +173,7 @@ func (c *AppConfig) FillMissingDefaults() {
 	}
 	c.UI.Autostart.Mode = normalizeAutostartMode(c.UI.Autostart.Mode)
 	c.UI.MapViewport = normalizeMapViewport(c.UI.MapViewport)
+	c.UI.MapDisplay = normalizeMapDisplay(c.UI.MapDisplay)
 }
 
 func normalizeAutostartMode(mode AutostartMode) AutostartMode {
@@ -188,6 +197,14 @@ func normalizeMapViewport(viewport MapViewportConfig) MapViewportConfig {
 	}
 
 	return viewport
+}
+
+func normalizeMapDisplay(display MapDisplayConfig) MapDisplayConfig {
+	if !display.ShowPrecisionCircles {
+		display.ShowPrecisionCirclesOnlyOnHover = false
+	}
+
+	return display
 }
 
 func (c AppConfig) Validate() error {

@@ -64,16 +64,17 @@ type DataDependencies struct {
 
 // ActionDependencies contains user-triggered operations invoked from UI.
 type ActionDependencies struct {
-	Sender               MessageSender
-	Traceroute           TracerouteAction
-	OnSave               func(cfg config.AppConfig) error
-	OnChatSelected       func(chatKey string)
-	OnMapViewportChanged func(zoom, x, y int)
-	OnClearDB            func() error
-	OnClearCache         func() error
-	OnStartUpdateChecker func()
-	OnQuit               func()
-	NodeSettings         NodeSettingsAction
+	Sender                    MessageSender
+	Traceroute                TracerouteAction
+	OnSave                    func(cfg config.AppConfig) error
+	OnChatSelected            func(chatKey string)
+	OnMapViewportChanged      func(zoom, x, y int)
+	OnMapDisplayConfigChanged func(cfg config.MapDisplayConfig)
+	OnClearDB                 func() error
+	OnClearCache              func() error
+	OnStartUpdateChecker      func()
+	OnQuit                    func()
+	NodeSettings              NodeSettingsAction
 }
 
 // PlatformDependencies contains OS-specific helpers used by UI actions.

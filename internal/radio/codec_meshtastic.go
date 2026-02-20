@@ -645,6 +645,10 @@ func applyPositionCoordinates(node *domain.Node, position *generated.Position) b
 		alt := position.GetAltitude()
 		node.Altitude = &alt
 	}
+	if bits := position.GetPrecisionBits(); bits > 0 {
+		precisionBits := bits
+		node.PositionPrecisionBits = &precisionBits
+	}
 
 	return true
 }

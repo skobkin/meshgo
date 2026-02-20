@@ -28,6 +28,12 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	if cfg.UI.Autostart.Mode != AutostartModeNormal {
 		t.Fatalf("expected default autostart mode %q, got %q", AutostartModeNormal, cfg.UI.Autostart.Mode)
 	}
+	if cfg.UI.MapDisplay.ShowPrecisionCircles {
+		t.Fatalf("expected precision circles to be disabled by default")
+	}
+	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
+		t.Fatalf("expected precision circles hover-only mode to be disabled by default")
+	}
 }
 
 func TestDefaultEnablesNotificationTypes(t *testing.T) {
@@ -90,6 +96,12 @@ func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
 		!cfg.UI.Notifications.Events.ConnectionStatus ||
 		!cfg.UI.Notifications.Events.UpdateAvailable {
 		t.Fatalf("expected notification types to default to enabled, got %+v", cfg.UI.Notifications)
+	}
+	if cfg.UI.MapDisplay.ShowPrecisionCircles {
+		t.Fatalf("expected show_precision_circles to default to false")
+	}
+	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
+		t.Fatalf("expected show_precision_circles_only_on_hover to default to false")
 	}
 }
 
@@ -240,6 +252,22 @@ func TestAppConfigFillMissingDefaultsClearsUnsetMapViewport(t *testing.T) {
 	}
 	if cfg.UI.MapViewport.Zoom != 0 || cfg.UI.MapViewport.X != 0 || cfg.UI.MapViewport.Y != 0 {
 		t.Fatalf("expected unset viewport to normalize to zero values, got %+v", cfg.UI.MapViewport)
+	}
+}
+
+func TestAppConfigFillMissingDefaultsNormalizesMapDisplay(t *testing.T) {
+	cfg := AppConfig{
+		UI: UIConfig{
+			MapDisplay: MapDisplayConfig{
+				ShowPrecisionCircles:            false,
+				ShowPrecisionCirclesOnlyOnHover: true,
+			},
+		},
+	}
+
+	cfg.FillMissingDefaults()
+	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
+		t.Fatalf("expected hover-only mode to be disabled when circles are disabled")
 	}
 }
 

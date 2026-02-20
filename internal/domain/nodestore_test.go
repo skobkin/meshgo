@@ -7,15 +7,17 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	lat := 37.7749
 	lon := -122.4194
 	alt := int32(123)
+	precisionBits := uint32(15)
 
 	store.Upsert(Node{
-		NodeID:     "!11111111",
-		Latitude:   &lat,
-		Longitude:  &lon,
-		Altitude:   &alt,
-		LongName:   "Alpha",
-		ShortName:  "ALPH",
-		BoardModel: "T-Echo",
+		NodeID:                "!11111111",
+		Latitude:              &lat,
+		Longitude:             &lon,
+		Altitude:              &alt,
+		PositionPrecisionBits: &precisionBits,
+		LongName:              "Alpha",
+		ShortName:             "ALPH",
+		BoardModel:            "T-Echo",
 	})
 	store.Upsert(Node{
 		NodeID:   "!11111111",
@@ -34,6 +36,9 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	}
 	if node.Altitude == nil || *node.Altitude != alt {
 		t.Fatalf("expected altitude preserved, got %v", node.Altitude)
+	}
+	if node.PositionPrecisionBits == nil || *node.PositionPrecisionBits != precisionBits {
+		t.Fatalf("expected precision bits preserved, got %v", node.PositionPrecisionBits)
 	}
 	if node.LongName != "Alpha Updated" {
 		t.Fatalf("expected long name update to apply, got %q", node.LongName)

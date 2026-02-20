@@ -96,24 +96,25 @@ type Node struct {
 	Channel   *uint32
 	// Coordinates are kept as decimal degrees in memory; codec logic converts
 	// to/from Meshtastic fixed-point int32 values (degrees * 1e7).
-	Latitude        *float64
-	Longitude       *float64
-	Altitude        *int32
-	BatteryLevel    *uint32
-	Voltage         *float64
-	Temperature     *float64
-	Humidity        *float64
-	Pressure        *float64
-	AirQualityIndex *float64
-	PowerVoltage    *float64
-	PowerCurrent    *float64
-	BoardModel      string
-	Role            string
-	IsUnmessageable *bool
-	LastHeardAt     time.Time
-	RSSI            *int
-	SNR             *float64
-	UpdatedAt       time.Time
+	Latitude              *float64
+	Longitude             *float64
+	Altitude              *int32
+	PositionPrecisionBits *uint32
+	BatteryLevel          *uint32
+	Voltage               *float64
+	Temperature           *float64
+	Humidity              *float64
+	Pressure              *float64
+	AirQualityIndex       *float64
+	PowerVoltage          *float64
+	PowerCurrent          *float64
+	BoardModel            string
+	Role                  string
+	IsUnmessageable       *bool
+	LastHeardAt           time.Time
+	RSSI                  *int
+	SNR                   *float64
+	UpdatedAt             time.Time
 }
 
 // NodeUpdate is a bus event with node data and update source metadata.

@@ -24,16 +24,18 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	lat := 37.7749
 	lon := -122.4194
 	alt := int32(123)
+	precisionBits := uint32(14)
 	now := time.Now().UTC()
 
 	if err := repo.Upsert(ctx, domain.Node{
-		NodeID:      "!abcd1234",
-		LongName:    "Alpha",
-		Latitude:    &lat,
-		Longitude:   &lon,
-		Altitude:    &alt,
-		LastHeardAt: now,
-		UpdatedAt:   now,
+		NodeID:                "!abcd1234",
+		LongName:              "Alpha",
+		Latitude:              &lat,
+		Longitude:             &lon,
+		Altitude:              &alt,
+		PositionPrecisionBits: &precisionBits,
+		LastHeardAt:           now,
+		UpdatedAt:             now,
 	}); err != nil {
 		t.Fatalf("upsert with coordinates: %v", err)
 	}
@@ -62,9 +64,12 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	if nodes[0].Altitude == nil || *nodes[0].Altitude != alt {
 		t.Fatalf("expected altitude to roundtrip, got %v", nodes[0].Altitude)
 	}
+	if nodes[0].PositionPrecisionBits == nil || *nodes[0].PositionPrecisionBits != precisionBits {
+		t.Fatalf("expected precision bits to roundtrip, got %v", nodes[0].PositionPrecisionBits)
+	}
 }
 
-func TestOpen_MigratesV4DatabaseToV8(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV9(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -125,8 +130,8 @@ func TestOpen_MigratesV4DatabaseToV8(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 8 {
-		t.Fatalf("expected schema version 8, got %d", version)
+	if version != 9 {
+		t.Fatalf("expected schema version 9, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -164,6 +169,9 @@ func TestOpen_MigratesV4DatabaseToV8(t *testing.T) {
 	}
 	if !columns["altitude"] {
 		t.Fatalf("expected altitude column after migration")
+	}
+	if !columns["precision_bits"] {
+		t.Fatalf("expected precision_bits column after migration")
 	}
 	messageColumns := make(map[string]bool)
 	messageRows, err := migrated.QueryContext(ctx, `PRAGMA table_info(messages);`)

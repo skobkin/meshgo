@@ -79,6 +79,9 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.Altitude == nil {
 			node.Altitude = existing.Altitude
 		}
+		if node.PositionPrecisionBits == nil {
+			node.PositionPrecisionBits = existing.PositionPrecisionBits
+		}
 		if node.BatteryLevel == nil {
 			node.BatteryLevel = existing.BatteryLevel
 		}

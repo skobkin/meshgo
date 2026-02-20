@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	xwidget "fyne.io/x/fyne/widget"
@@ -26,7 +27,7 @@ import (
 )
 
 func TestNewMapTabNilStoreShowsPlaceholder(t *testing.T) {
-	tab := newMapTab(nil, nil, meshapp.Paths{}, config.MapViewportConfig{}, theme.VariantDark, nil)
+	tab := newMapTab(nil, nil, meshapp.Paths{}, config.MapViewportConfig{}, config.MapDisplayConfig{}, theme.VariantDark, nil)
 	_ = fynetest.NewTempWindow(t, tab)
 
 	if !hasLabelText(tab, "Map is unavailable") {
@@ -41,6 +42,7 @@ func TestNewMapTab_UsesSavedViewportWhenProvided(t *testing.T) {
 		nil,
 		meshapp.Paths{},
 		config.MapViewportConfig{Set: true, Zoom: 6, X: 5, Y: -3},
+		config.MapDisplayConfig{},
 		theme.VariantDark,
 		nil,
 	)
@@ -63,6 +65,7 @@ func TestNewMapTab_DeferredWarmupShowsLoading(t *testing.T) {
 		nil,
 		meshapp.Paths{},
 		config.MapViewportConfig{},
+		config.MapDisplayConfig{},
 		theme.VariantDark,
 		nil,
 	)
@@ -200,6 +203,103 @@ func TestMapTabWidget_RendersMarkersForPositionedNodes(t *testing.T) {
 	}
 	if tab.emptyLabel.Visible() {
 		t.Fatalf("empty label should be hidden when markers are available")
+	}
+}
+
+func TestMapTabWidget_PrecisionCirclesHiddenWhenDisabled(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	lat := 37.7749
+	lon := -122.4194
+	precisionBits := uint32(15)
+	tab.setNodes([]domain.Node{
+		{NodeID: "!local", Latitude: &lat, Longitude: &lon, PositionPrecisionBits: &precisionBits},
+	}, true)
+
+	window := fynetest.NewTempWindow(t, tab)
+	window.Resize(fyne.NewSize(800, 600))
+	tab.Refresh()
+
+	if got := len(tab.circleLayer.Objects); got != 0 {
+		t.Fatalf("expected no circles when disabled, got %d", got)
+	}
+}
+
+func TestMapTabWidget_PrecisionCirclesRenderWhenEnabled(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	lat := 37.7749
+	lon := -122.4194
+	precisionBits := uint32(15)
+	tab.setNodes([]domain.Node{
+		{NodeID: "!local", Latitude: &lat, Longitude: &lon, PositionPrecisionBits: &precisionBits},
+	}, true)
+
+	window := fynetest.NewTempWindow(t, tab)
+	window.Resize(fyne.NewSize(800, 600))
+	tab.applyMapDisplayConfig(config.MapDisplayConfig{ShowPrecisionCircles: true})
+	tab.Refresh()
+
+	if got := len(tab.circleLayer.Objects); got != 1 {
+		t.Fatalf("expected one circle when enabled, got %d", got)
+	}
+	if _, ok := tab.circleLayer.Objects[0].(*canvas.Circle); !ok {
+		t.Fatalf("expected circle overlay object type, got %T", tab.circleLayer.Objects[0])
+	}
+}
+
+func TestMapTabWidget_PrecisionCirclesOnlyOnHover(t *testing.T) {
+	baseMap := xwidget.NewMapWithOptions(
+		xwidget.WithOsmTiles(),
+		xwidget.WithZoomButtons(false),
+		xwidget.WithScrollButtons(false),
+		xwidget.WithHTTPClient(stubTileClient(t)),
+	)
+	tab := newMapTabWidget(baseMap, nil)
+	lat := 37.7749
+	lon := -122.4194
+	precisionBits := uint32(15)
+	tab.setNodes([]domain.Node{
+		{NodeID: "!local", Latitude: &lat, Longitude: &lon, PositionPrecisionBits: &precisionBits},
+	}, true)
+
+	window := fynetest.NewTempWindow(t, tab)
+	window.Resize(fyne.NewSize(800, 600))
+	tab.applyMapDisplayConfig(config.MapDisplayConfig{
+		ShowPrecisionCircles:            true,
+		ShowPrecisionCirclesOnlyOnHover: true,
+	})
+	tab.Refresh()
+
+	if got := len(tab.circleLayer.Objects); got != 0 {
+		t.Fatalf("expected no circles before hover in hover-only mode, got %d", got)
+	}
+	if len(tab.markerLayer.Objects) != 1 {
+		t.Fatalf("expected one marker, got %d", len(tab.markerLayer.Objects))
+	}
+	marker, ok := tab.markerLayer.Objects[0].(*mapwidgets.MapMarkerWidget)
+	if !ok {
+		t.Fatalf("expected marker type, got %T", tab.markerLayer.Objects[0])
+	}
+
+	marker.MouseIn(nil)
+	if got := len(tab.circleLayer.Objects); got != 1 {
+		t.Fatalf("expected one circle while marker is hovered, got %d", got)
+	}
+
+	marker.MouseOut()
+	if got := len(tab.circleLayer.Objects); got != 0 {
+		t.Fatalf("expected circles to clear after hover out, got %d", got)
 	}
 }
 

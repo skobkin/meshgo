@@ -340,6 +340,77 @@ func TestSettingsTabNotificationDefaults(t *testing.T) {
 	}
 }
 
+func TestSettingsTabMapDisplayDefaults(t *testing.T) {
+	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Map")
+
+	showCircles := mustFindCheckByText(t, tab, "Show precision circles")
+	onlyOnHover := mustFindCheckByText(t, tab, "Only on hover")
+	if showCircles.Checked {
+		t.Fatalf("expected circles toggle to be disabled by default")
+	}
+	if onlyOnHover.Checked {
+		t.Fatalf("expected hover-only toggle to be disabled by default")
+	}
+	if !onlyOnHover.Disabled() {
+		t.Fatalf("expected hover-only toggle to be disabled while circles toggle is off")
+	}
+}
+
+func TestSettingsTabSavePersistsMapDisplaySettingsAndNotifiesMap(t *testing.T) {
+	cfg := config.Default()
+	var (
+		saved        config.AppConfig
+		callbackSeen bool
+		callbackCfg  config.MapDisplayConfig
+	)
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnSave: func(next config.AppConfig) error {
+				saved = next
+
+				return nil
+			},
+			OnMapDisplayConfigChanged: func(next config.MapDisplayConfig) {
+				callbackSeen = true
+				callbackCfg = next
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "Map")
+
+	showCircles := mustFindCheckByText(t, tab, "Show precision circles")
+	onlyOnHover := mustFindCheckByText(t, tab, "Only on hover")
+	fynetest.Tap(showCircles)
+	if onlyOnHover.Disabled() {
+		t.Fatalf("expected hover-only toggle to be enabled when circles toggle is on")
+	}
+	fynetest.Tap(onlyOnHover)
+
+	saveButton := mustFindButtonByText(t, tab, "Save")
+	fynetest.Tap(saveButton)
+
+	if !saved.UI.MapDisplay.ShowPrecisionCircles {
+		t.Fatalf("expected map circles setting to be saved as enabled")
+	}
+	if !saved.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
+		t.Fatalf("expected map hover-only setting to be saved as enabled")
+	}
+	if !callbackSeen {
+		t.Fatalf("expected map display callback to be triggered after save")
+	}
+	if !callbackCfg.ShowPrecisionCircles || !callbackCfg.ShowPrecisionCirclesOnlyOnHover {
+		t.Fatalf("unexpected callback map config: %+v", callbackCfg)
+	}
+}
+
 func TestSettingsTabSavePersistsNotificationSettings(t *testing.T) {
 	cfg := config.Default()
 	var saved config.AppConfig

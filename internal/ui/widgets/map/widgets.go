@@ -26,10 +26,11 @@ const (
 type MapMarkerWidget struct {
 	widget.BaseWidget
 
-	Icon    *canvas.Image
-	tooltip string
-	manager *widgets.HoverTooltipManager
-	hovered bool
+	Icon          *canvas.Image
+	tooltip       string
+	manager       *widgets.HoverTooltipManager
+	hovered       bool
+	onHoverChange func(hovered bool)
 }
 
 var _ desktop.Hoverable = (*MapMarkerWidget)(nil)
@@ -89,6 +90,14 @@ func (m *MapMarkerWidget) showTooltip() {
 	m.manager.Show(m, widget.NewLabel(m.tooltip))
 }
 
+// SetHoverChangeHandler updates callback invoked when marker hover state changes.
+func (m *MapMarkerWidget) SetHoverChangeHandler(handler func(hovered bool)) {
+	if m == nil {
+		return
+	}
+	m.onHoverChange = handler
+}
+
 func (m *MapMarkerWidget) SetHovered(hovered bool) {
 	if m == nil || m.hovered == hovered {
 		return
@@ -116,6 +125,9 @@ func (m *MapMarkerWidget) SetHovered(hovered bool) {
 		tipY-newSize.Height,
 	))
 	m.Icon.Refresh()
+	if m.onHoverChange != nil {
+		m.onHoverChange(hovered)
+	}
 }
 
 // MapInteractionLayer is a transparent widget layer that handles scroll and drag events for map interaction.

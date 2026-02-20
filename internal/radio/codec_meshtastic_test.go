@@ -336,9 +336,10 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
 
 	positionPayload, err := proto.Marshal(&generated.Position{
-		LatitudeI:  proto.Int32(37_774_9000),
-		LongitudeI: proto.Int32(-122_419_4000),
-		Altitude:   proto.Int32(123),
+		LatitudeI:     proto.Int32(37_774_9000),
+		LongitudeI:    proto.Int32(-122_419_4000),
+		Altitude:      proto.Int32(123),
+		PrecisionBits: 15,
 	})
 	if err != nil {
 		t.Fatalf("marshal position: %v", err)
@@ -375,6 +376,7 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
+	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 15, "precision bits")
 }
 
 func TestMeshtasticCodec_DecodeFromRadioPositionPacketInvalidCoordinatesIgnored(t *testing.T) {
@@ -427,9 +429,10 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 					ShortName: "ALPH",
 				},
 				Position: &generated.Position{
-					LatitudeI:  proto.Int32(37_774_9000),
-					LongitudeI: proto.Int32(-122_419_4000),
-					Altitude:   proto.Int32(123),
+					LatitudeI:     proto.Int32(37_774_9000),
+					LongitudeI:    proto.Int32(-122_419_4000),
+					Altitude:      proto.Int32(123),
+					PrecisionBits: 16,
 				},
 			},
 		},
@@ -451,6 +454,7 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
 	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
 	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
+	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 16, "precision bits")
 }
 
 func TestMeshtasticCodec_DecodeFromRadioNodeInfoPacketUsesNodeInfoType(t *testing.T) {
@@ -561,6 +565,16 @@ func assertFloatPtr(t *testing.T, got *float64, want float64, field string) {
 }
 
 func assertInt32Ptr(t *testing.T, got *int32, want int32, field string) {
+	t.Helper()
+	if got == nil {
+		t.Fatalf("expected %s", field)
+	}
+	if *got != want {
+		t.Fatalf("unexpected %s value: got %v want %v", field, *got, want)
+	}
+}
+
+func assertUint32Ptr(t *testing.T, got *uint32, want uint32, field string) {
 	t.Helper()
 	if got == nil {
 		t.Fatalf("expected %s", field)

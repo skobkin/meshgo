@@ -50,7 +50,20 @@ func buildMainView(
 			showNodeContextMenu(window.Canvas(), position, node, nodeActionHandler)
 		},
 	})
-	mapTab := newMapTab(dep.Data.NodeStore, dep.Data.LocalNodeID, dep.Data.Paths, dep.Data.Config.UI.MapViewport, initialVariant, dep.Actions.OnMapViewportChanged)
+	mapTab := newMapTab(
+		dep.Data.NodeStore,
+		dep.Data.LocalNodeID,
+		dep.Data.Paths,
+		dep.Data.Config.UI.MapViewport,
+		dep.Data.Config.UI.MapDisplay,
+		initialVariant,
+		dep.Actions.OnMapViewportChanged,
+	)
+	applyMapTheme := func(fyne.ThemeVariant) {}
+	if mapWidget, ok := mapTab.(*mapTabWidget); ok {
+		applyMapTheme = mapWidget.applyThemeVariant
+		dep.Actions.OnMapDisplayConfigChanged = mapWidget.applyMapDisplayConfig
+	}
 	nodeSettingsTab, onNodeSettingsTabShow := newNodeTabWithOnShow(dep)
 	settingsTab := newSettingsTab(dep, settingsConnStatus)
 
@@ -98,10 +111,6 @@ func buildMainView(
 		updateIndicator.Button(),
 		connStatusPresenter.SidebarIcon(),
 	)
-	applyMapTheme := func(fyne.ThemeVariant) {}
-	if mapWidget, ok := mapTab.(*mapTabWidget); ok {
-		applyMapTheme = mapWidget.applyThemeVariant
-	}
 
 	return mainView{
 		left:                sidebar.left,

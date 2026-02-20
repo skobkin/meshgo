@@ -49,6 +49,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		"notify_node_discovered", current.UI.Notifications.Events.NodeDiscovered,
 		"notify_connection_status", current.UI.Notifications.Events.ConnectionStatus,
 		"notify_update_available", current.UI.Notifications.Events.UpdateAvailable,
+		"map_show_precision_circles", current.UI.MapDisplay.ShowPrecisionCircles,
+		"map_show_precision_circles_only_on_hover", current.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover,
 	)
 
 	// Temporary feature gate until BLE transport is stable (or removed):
@@ -104,6 +106,23 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	notifyConnectionStatus.SetChecked(current.UI.Notifications.Events.ConnectionStatus)
 	notifyUpdateAvailable := widget.NewCheck("Update available", nil)
 	notifyUpdateAvailable.SetChecked(current.UI.Notifications.Events.UpdateAvailable)
+	mapShowPrecisionCircles := widget.NewCheck("Show precision circles", nil)
+	mapShowPrecisionCircles.SetChecked(current.UI.MapDisplay.ShowPrecisionCircles)
+	mapShowPrecisionCirclesOnlyOnHover := widget.NewCheck("Only on hover", nil)
+	mapShowPrecisionCirclesOnlyOnHover.SetChecked(current.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+	setMapHoverOnlyEnabled := func(enabled bool) {
+		if enabled {
+			mapShowPrecisionCirclesOnlyOnHover.Enable()
+
+			return
+		}
+		mapShowPrecisionCirclesOnlyOnHover.SetChecked(false)
+		mapShowPrecisionCirclesOnlyOnHover.Disable()
+	}
+	mapShowPrecisionCircles.OnChanged = func(value bool) {
+		setMapHoverOnlyEnabled(value)
+	}
+	setMapHoverOnlyEnabled(mapShowPrecisionCircles.Checked)
 
 	status := widget.NewLabel("")
 	bluetoothTestingEnabledCheck := widget.NewCheck("Enable Bluetooth LE testing transport", nil)
@@ -396,6 +415,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyNodeDiscovered.SetChecked(next.UI.Notifications.Events.NodeDiscovered)
 		notifyConnectionStatus.SetChecked(next.UI.Notifications.Events.ConnectionStatus)
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
+		mapShowPrecisionCircles.SetChecked(next.UI.MapDisplay.ShowPrecisionCircles)
+		mapShowPrecisionCirclesOnlyOnHover.SetChecked(next.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+		setMapHoverOnlyEnabled(next.UI.MapDisplay.ShowPrecisionCircles)
 
 		setTransportFields(selected, next.Connection.BluetoothTestingEnabled)
 		if selected == config.TransportSerial {
@@ -425,6 +447,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			"notify_node_discovered", notifyNodeDiscovered.Checked,
 			"notify_connection_status", notifyConnectionStatus.Checked,
 			"notify_update_available", notifyUpdateAvailable.Checked,
+			"map_show_precision_circles", mapShowPrecisionCircles.Checked,
+			"map_show_precision_circles_only_on_hover", mapShowPrecisionCirclesOnlyOnHover.Checked,
 		)
 
 		baud := current.Connection.SerialBaud
@@ -456,6 +480,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Notifications.Events.NodeDiscovered = notifyNodeDiscovered.Checked
 		cfg.UI.Notifications.Events.ConnectionStatus = notifyConnectionStatus.Checked
 		cfg.UI.Notifications.Events.UpdateAvailable = notifyUpdateAvailable.Checked
+		cfg.UI.MapDisplay.ShowPrecisionCircles = mapShowPrecisionCircles.Checked
+		cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover = mapShowPrecisionCirclesOnlyOnHover.Checked
 
 		saveConfig := func(clearDatabase bool) {
 			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "transport", cfg.Connection.Transport)
@@ -479,6 +505,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				if errors.As(err, &devWarning) {
 					settingsLogger.Info("settings saved with dev-build autostart skip", "autostart_enabled", devWarning.Enabled)
 					applySavedConfigState(cfg, "Saved")
+					if dep.Actions.OnMapDisplayConfigChanged != nil {
+						dep.Actions.OnMapDisplayConfigChanged(cfg.UI.MapDisplay)
+					}
 
 					if devWarning.Enabled {
 						window := currentWindowFn()
@@ -500,6 +529,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				if errors.As(err, &warning) {
 					settingsLogger.Info("settings saved with warning", "warning", warning.Error())
 					applySavedConfigState(cfg, "Saved with warning: "+warning.Error())
+					if dep.Actions.OnMapDisplayConfigChanged != nil {
+						dep.Actions.OnMapDisplayConfigChanged(cfg.UI.MapDisplay)
+					}
 
 					return
 				}
@@ -510,6 +542,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			}
 			settingsLogger.Info("settings saved successfully", "transport", cfg.Connection.Transport)
 			applySavedConfigState(cfg, "Saved")
+			if dep.Actions.OnMapDisplayConfigChanged != nil {
+				dep.Actions.OnMapDisplayConfigChanged(cfg.UI.MapDisplay)
+			}
 		}
 
 		if transport != current.Connection.Transport {
@@ -611,6 +646,10 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyConnectionStatus,
 		notifyUpdateAvailable,
 	)
+	mapContent := container.NewVBox(
+		mapShowPrecisionCircles,
+		container.NewPadded(mapShowPrecisionCirclesOnlyOnHover),
+	)
 
 	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(
 		connStatusLabel,
@@ -618,6 +657,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	))
 	startupBlock := widget.NewCard("Startup", "", startupForm)
 	notificationsBlock := widget.NewCard("Notifications", "", notificationsContent)
+	mapBlock := widget.NewCard("Map", "", mapContent)
 	loggingBlock := widget.NewCard("Logging", "", loggingForm)
 	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewGridWithColumns(2,
 		clearDBButton,
@@ -647,6 +687,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	generalTab := newSettingsSubTabPage(startupBlock)
 	connectionTab := newSettingsSubTabPage(connectionBlock)
+	mapTab := newSettingsSubTabPage(mapBlock)
 	notificationsTab := newSettingsSubTabPage(notificationsBlock)
 	maintenanceTab := newSettingsSubTabPage(loggingBlock, maintenanceBlock)
 	aboutTab := newSettingsSubTabPage(versionBlock)
@@ -654,6 +695,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	subTabs := container.NewAppTabs(
 		container.NewTabItem("General", generalTab),
 		container.NewTabItem("Connection", connectionTab),
+		container.NewTabItem("Map", mapTab),
 		container.NewTabItem("Notifications", notificationsTab),
 		container.NewTabItem("Maintenance", maintenanceTab),
 		container.NewTabItem("About", aboutTab),

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"image/color"
 	"io"
 	"log/slog"
 	"math"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -30,20 +33,23 @@ import (
 )
 
 const (
-	mapDefaultZoom             = 11
-	mapMarkerOutsidePad        = float32(20)
-	mapScrollZoomStep          = float32(15)
-	mapZoomFocusDeadZoneRatio  = float32(0.18)
-	mapZoomFocusBoostRatio     = float32(0.65)
-	mapDragPanThreshold        = float32(96)
-	mapViewportPersistDebounce = 500 * time.Millisecond
-	mapTileSourceOSM           = "https://tile.openstreetmap.org/%d/%d/%d.png"
-	mapWarmupParallelism       = 8
-	mapWarmupRequestTimeout    = 8 * time.Second
-	mapLoadingProgressWidth    = float32(360)
-	mapLoadingProgressHeight   = float32(18)
-	mapTileRefreshDebounce     = 120 * time.Millisecond
-	mapViewLoadingDebounce     = 90 * time.Millisecond
+	mapDefaultZoom              = 11
+	mapMarkerOutsidePad         = float32(20)
+	mapScrollZoomStep           = float32(15)
+	mapZoomFocusDeadZoneRatio   = float32(0.18)
+	mapZoomFocusBoostRatio      = float32(0.65)
+	mapDragPanThreshold         = float32(96)
+	mapViewportPersistDebounce  = 500 * time.Millisecond
+	mapTileSourceOSM            = "https://tile.openstreetmap.org/%d/%d/%d.png"
+	mapWarmupParallelism        = 8
+	mapWarmupRequestTimeout     = 8 * time.Second
+	mapLoadingProgressWidth     = float32(360)
+	mapLoadingProgressHeight    = float32(18)
+	mapTileRefreshDebounce      = 120 * time.Millisecond
+	mapViewLoadingDebounce      = 90 * time.Millisecond
+	mapEarthCircumferenceMeters = 40075016.68557849
+	mapMinCirclePixelRadius     = 1.0
+	mapMaxCirclePixelRadius     = 5000.0
 )
 
 var mapLogger = slog.With("component", "ui.map")
@@ -54,6 +60,7 @@ func newMapTab(
 	localNodeID func() string,
 	paths meshapp.Paths,
 	initialViewport config.MapViewportConfig,
+	initialDisplay config.MapDisplayConfig,
 	initialVariant fyne.ThemeVariant,
 	onViewportChanged func(zoom, x, y int),
 ) fyne.CanvasObject {
@@ -83,6 +90,7 @@ func newMapTab(
 		"initial_theme", initialVariant,
 	)
 	tab.applyThemeVariant(initialVariant)
+	tab.applyMapDisplayConfig(initialDisplay)
 	tab.onViewportChanged = onViewportChanged
 	if initialViewport.Set {
 		mapLogger.Debug(
@@ -134,6 +142,7 @@ type mapTabWidget struct {
 	viewportPersistSeq uint64
 
 	interactionLayer *mapwidgets.MapInteractionLayer
+	circleLayer      *fyne.Container
 	markerLayer      *fyne.Container
 	tooltipLayer     *fyne.Container
 	emptyLabel       *widget.Label
@@ -147,6 +156,10 @@ type mapTabWidget struct {
 	viewLoadingLayer *fyne.Container
 
 	markerVariant fyne.ThemeVariant
+	hoveredNodeID string
+
+	showPrecisionCircles            bool
+	showPrecisionCirclesOnlyOnHover bool
 
 	loadingEnabled   bool
 	warmupDone       bool
@@ -229,6 +242,7 @@ func newMapProgressIndicator(placement mapProgressPlacement, labelText, actionTe
 }
 
 func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabWidget {
+	circleLayer := container.NewWithoutLayout()
 	markerLayer := container.NewWithoutLayout()
 	tooltipLayer := container.NewWithoutLayout()
 	emptyLabel := widget.NewLabel("No node positions yet")
@@ -240,6 +254,7 @@ func newMapTabWidget(mapWidget *xwidget.Map, localNodeID func() string) *mapTabW
 		mapWidget:        mapWidget,
 		localNodeID:      localNodeID,
 		tooltipManager:   widgets.NewHoverTooltipManager(tooltipLayer),
+		circleLayer:      circleLayer,
 		markerLayer:      markerLayer,
 		tooltipLayer:     tooltipLayer,
 		emptyLabel:       emptyLabel,
@@ -524,6 +539,9 @@ func (t *mapTabWidget) showLoadingState(text string, progress float64, allowRetr
 	if t.markerLayer != nil {
 		t.markerLayer.Hide()
 	}
+	if t.circleLayer != nil {
+		t.circleLayer.Hide()
+	}
 	if t.emptyLayer != nil {
 		t.emptyLayer.Hide()
 	}
@@ -557,6 +575,9 @@ func (t *mapTabWidget) showMapState() {
 	}
 	if t.markerLayer != nil {
 		t.markerLayer.Show()
+	}
+	if t.circleLayer != nil {
+		t.circleLayer.Show()
 	}
 	if t.emptyLayer != nil {
 		t.emptyLayer.Show()
@@ -675,6 +696,29 @@ func (t *mapTabWidget) applyThemeVariant(variant fyne.ThemeVariant) {
 	t.renderMarkers()
 }
 
+func (t *mapTabWidget) applyMapDisplayConfig(cfg config.MapDisplayConfig) {
+	if t == nil {
+		return
+	}
+
+	nextShow := cfg.ShowPrecisionCircles
+	nextOnlyOnHover := cfg.ShowPrecisionCirclesOnlyOnHover
+	if !nextShow {
+		nextOnlyOnHover = false
+	}
+	if t.showPrecisionCircles == nextShow &&
+		t.showPrecisionCirclesOnlyOnHover == nextOnlyOnHover {
+		return
+	}
+
+	t.showPrecisionCircles = nextShow
+	t.showPrecisionCirclesOnlyOnHover = nextOnlyOnHover
+	if !t.showPrecisionCirclesOnlyOnHover {
+		t.hoveredNodeID = ""
+	}
+	t.renderCircles()
+}
+
 func (t *mapTabWidget) centerToPreferred(zoom int) bool {
 	localID := ""
 	if t.localNodeID != nil {
@@ -744,6 +788,7 @@ func (t *mapTabWidget) renderMarkers() {
 	if t.tooltipManager != nil {
 		t.tooltipManager.Hide(nil)
 	}
+	t.hoveredNodeID = ""
 	t.markerLayer.Objects = nil
 
 	positionedNodes := 0
@@ -767,6 +812,10 @@ func (t *mapTabWidget) renderMarkers() {
 		visibleMarkers++
 
 		marker := mapwidgets.NewMapMarkerWidget(mapMarkerResource(t.markerVariant), mapMarkerTooltip(node), t.tooltipManager)
+		nodeID := node.NodeID
+		marker.SetHoverChangeHandler(func(hovered bool) {
+			t.handleMarkerHoverChanged(nodeID, hovered)
+		})
 		markerSize := marker.MinSize()
 		marker.Resize(markerSize)
 		marker.Move(fyne.NewPos(
@@ -782,6 +831,7 @@ func (t *mapTabWidget) renderMarkers() {
 		t.emptyLabel.Hide()
 	}
 	t.markerLayer.Refresh()
+	t.renderCircles()
 	t.emptyLayer.Refresh()
 	mapLogger.Debug(
 		"rendered map markers",
@@ -793,6 +843,187 @@ func (t *mapTabWidget) renderMarkers() {
 		"y", t.viewState.Y,
 	)
 	t.scheduleViewLoadingProgressRefresh()
+}
+
+func (t *mapTabWidget) handleMarkerHoverChanged(nodeID string, hovered bool) {
+	if t == nil || !t.showPrecisionCirclesOnlyOnHover {
+		return
+	}
+
+	if hovered {
+		if t.hoveredNodeID == nodeID {
+			return
+		}
+		t.hoveredNodeID = nodeID
+		t.renderCircles()
+
+		return
+	}
+	if t.hoveredNodeID != nodeID {
+		return
+	}
+
+	t.hoveredNodeID = ""
+	t.renderCircles()
+}
+
+func (t *mapTabWidget) renderCircles() {
+	if t == nil || t.circleLayer == nil {
+		return
+	}
+	if !t.showPrecisionCircles {
+		t.circleLayer.Objects = nil
+		t.circleLayer.Refresh()
+
+		return
+	}
+	if t.showPrecisionCirclesOnlyOnHover && t.hoveredNodeID == "" {
+		t.circleLayer.Objects = nil
+		t.circleLayer.Refresh()
+
+		return
+	}
+
+	size := t.circleLayer.Size()
+	if size.Width <= 0 || size.Height <= 0 {
+		size = t.markerLayer.Size()
+	}
+	tileSize := mapTileLogicalSizeForObject(t.mapWidget)
+	circles := make([]fyne.CanvasObject, 0, len(t.nodes))
+	for _, node := range t.nodes {
+		if t.showPrecisionCirclesOnlyOnHover && node.NodeID != t.hoveredNodeID {
+			continue
+		}
+
+		coord, ok := nodeCoordinate(node)
+		if !ok || node.PositionPrecisionBits == nil {
+			continue
+		}
+		radiusMeters, ok := precisionBitsToRadiusMeters(*node.PositionPrecisionBits)
+		if !ok {
+			continue
+		}
+		radiusPx, ok := radiusMetersToPixelsAtZoom(coord.Latitude, t.viewState.Zoom, tileSize, radiusMeters)
+		if !ok || radiusPx < mapMinCirclePixelRadius {
+			continue
+		}
+		if radiusPx > mapMaxCirclePixelRadius {
+			radiusPx = mapMaxCirclePixelRadius
+		}
+
+		pos, ok := projectCoordinateToScreenWithTileSize(coord, t.viewState, size, tileSize)
+		if !ok {
+			continue
+		}
+
+		baseColor := mapCircleColorForNode(node.NodeID)
+		fill := baseColor
+		fill.A = 48
+		stroke := baseColor
+		stroke.A = 90
+		circle := canvas.NewCircle(fill)
+		circle.StrokeColor = stroke
+		circle.StrokeWidth = 1.5
+		diameter := float32(radiusPx * 2)
+		circle.Resize(fyne.NewSize(diameter, diameter))
+		circle.Move(fyne.NewPos(
+			pos.X-float32(radiusPx),
+			pos.Y-float32(radiusPx),
+		))
+		circles = append(circles, circle)
+	}
+
+	t.circleLayer.Objects = circles
+	t.circleLayer.Refresh()
+}
+
+func precisionBitsToRadiusMeters(bits uint32) (float64, bool) {
+	if bits == 0 || bits > 31 {
+		return 0, false
+	}
+
+	return 23905787.925008 * math.Pow(0.5, float64(bits)), true
+}
+
+func radiusMetersToPixelsAtZoom(latitude float64, zoom int, tileSize float64, radiusMeters float64) (float64, bool) {
+	if radiusMeters <= 0 {
+		return 0, false
+	}
+	if zoom < 0 {
+		zoom = 0
+	}
+	if zoom > 19 {
+		zoom = 19
+	}
+	if tileSize <= 0 {
+		tileSize = float64(mapTileSize)
+	}
+
+	lat := max(-mapMaxLatitudeMerc, min(mapMaxLatitudeMerc, latitude))
+	metersPerPixel := math.Cos(lat*math.Pi/180) * mapEarthCircumferenceMeters / (tileSize * math.Pow(2, float64(zoom)))
+	if metersPerPixel <= 0 || math.IsNaN(metersPerPixel) || math.IsInf(metersPerPixel, 0) {
+		return 0, false
+	}
+
+	return radiusMeters / metersPerPixel, true
+}
+
+func mapCircleColorForNode(nodeID string) color.NRGBA {
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(nodeID))
+	hue := float64(hasher.Sum32() % 360)
+
+	return hsvToNRGBA(hue, 0.68, 0.92)
+}
+
+func hsvToNRGBA(h, s, v float64) color.NRGBA {
+	if s <= 0 {
+		gray := clampColorByte(v * 255)
+
+		return color.NRGBA{R: gray, G: gray, B: gray, A: 255}
+	}
+	h = math.Mod(h, 360)
+	if h < 0 {
+		h += 360
+	}
+
+	c := v * s
+	x := c * (1 - math.Abs(math.Mod(h/60, 2)-1))
+	m := v - c
+	var r, g, b float64
+	switch {
+	case h < 60:
+		r, g, b = c, x, 0
+	case h < 120:
+		r, g, b = x, c, 0
+	case h < 180:
+		r, g, b = 0, c, x
+	case h < 240:
+		r, g, b = 0, x, c
+	case h < 300:
+		r, g, b = x, 0, c
+	default:
+		r, g, b = c, 0, x
+	}
+
+	return color.NRGBA{
+		R: clampColorByte((r + m) * 255),
+		G: clampColorByte((g + m) * 255),
+		B: clampColorByte((b + m) * 255),
+		A: 255,
+	}
+}
+
+func clampColorByte(value float64) uint8 {
+	if math.IsNaN(value) || value <= 0 {
+		return 0
+	}
+	if value >= 255 {
+		return 255
+	}
+
+	// #nosec G115 -- value is clamped to [0,255] before converting to uint8.
+	return uint8(math.Round(value))
 }
 
 func isMarkerVisible(pos fyne.Position, size fyne.Size) bool {
@@ -825,6 +1056,7 @@ func (t *mapTabWidget) CreateRenderer() fyne.WidgetRenderer {
 	objects := []fyne.CanvasObject{
 		t.mapWidget,
 		t.interactionLayer,
+		t.circleLayer,
 		t.markerLayer,
 		t.emptyLayer,
 		t.controlPanel,
@@ -848,6 +1080,7 @@ func (r *mapTabRenderer) Layout(size fyne.Size) {
 	for _, obj := range []fyne.CanvasObject{
 		r.tab.mapWidget,
 		r.tab.interactionLayer,
+		r.tab.circleLayer,
 		r.tab.markerLayer,
 		r.tab.emptyLayer,
 		r.tab.loadingLayer,
