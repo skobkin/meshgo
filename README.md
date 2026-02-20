@@ -51,6 +51,10 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 ![node user settings](docs/screenshot_node_settings_device.png)
 
+![channel settings](docs/screenshot_node_settings_channels.png)
+
+![channel settings](docs/screenshot_node_settings_channels_edit.png)
+
 </details>
 <details>
 <summary>App settings</summary>
