@@ -53,6 +53,9 @@ var uiDarkLockRedWarning []byte
 //go:embed ui/dark/speaker_mute.svg
 var uiDarkSpeakerMute []byte
 
+//go:embed ui/dark/badge_primary.svg
+var uiDarkBadgePrimary []byte
+
 //go:embed ui/light/chats.svg
 var uiLightChats []byte
 
@@ -100,6 +103,9 @@ var uiLightLockRedWarning []byte
 
 //go:embed ui/light/speaker_mute.svg
 var uiLightSpeakerMute []byte
+
+//go:embed ui/light/badge_primary.svg
+var uiLightBadgePrimary []byte
 
 //go:embed ui/dark/icon_32.png
 var uiDarkIcon32 []byte

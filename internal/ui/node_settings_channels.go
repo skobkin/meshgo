@@ -683,15 +683,10 @@ func buildNodeChannelRow(
 	onEdit func(),
 	onDelete func(),
 ) fyne.CanvasObject {
-	roleText := "Secondary"
-	if index == 0 {
-		roleText = "Primary"
-	}
-	title := widget.NewLabel(fmt.Sprintf("%d. %s", index+1, nodeChannelDisplayTitle(channel, index, presetTitle)))
-	role := widget.NewLabel(roleText)
-	role.TextStyle = fyne.TextStyle{Bold: true}
+	isPrimary := index == 0
+	title := nodeChannelTitle(fmt.Sprintf("%d. %s", index+1, nodeChannelDisplayTitle(channel, index, presetTitle)), isPrimary)
 
-	icons := buildNodeChannelIndicatorIcons(channel, variant)
+	icons := buildNodeChannelIndicatorIcons(channel, variant, isPrimary)
 	indicators := container.New(layout.NewCenterLayout(), container.NewHBox(icons...))
 
 	moveUpButton := widget.NewButtonWithIcon("", theme.MoveUpIcon(), onMoveUp)
@@ -706,17 +701,17 @@ func buildNodeChannelRow(
 		moveDownButton.Disable()
 	}
 
-	left := container.NewVBox(
-		container.NewHBox(role, layout.NewSpacer(), indicators),
-		title,
-	)
+	left := container.NewBorder(nil, nil, nil, indicators, title)
 	actions := container.NewHBox(moveUpButton, moveDownButton, editButton, deleteButton)
 
 	return widget.NewCard("", "", container.NewBorder(nil, nil, nil, actions, left))
 }
 
-func buildNodeChannelIndicatorIcons(channel app.NodeChannelSettings, variant fyne.ThemeVariant) []fyne.CanvasObject {
-	icons := make([]fyne.CanvasObject, 0, 5)
+func buildNodeChannelIndicatorIcons(channel app.NodeChannelSettings, variant fyne.ThemeVariant, isPrimary bool) []fyne.CanvasObject {
+	icons := make([]fyne.CanvasObject, 0, 6)
+	if isPrimary {
+		icons = append(icons, nodeChannelIcon(resources.UIIconBadgePrimary, variant))
+	}
 	if channel.PositionPrecision > 0 {
 		icons = append(icons, nodeChannelIcon(resources.UIIconMapNodeMarker, variant))
 	}
@@ -732,6 +727,19 @@ func buildNodeChannelIndicatorIcons(channel app.NodeChannelSettings, variant fyn
 	icons = append(icons, nodeChannelIcon(nodeChannelEncryptionIcon(channel), variant))
 
 	return icons
+}
+
+func nodeChannelTitle(text string, isPrimary bool) fyne.CanvasObject {
+	style := widget.RichTextStyleInline
+	if isPrimary {
+		style.TextStyle = fyne.TextStyle{Bold: true}
+		style.ColorName = theme.ColorNameSuccess
+	}
+
+	return widget.NewRichText(&widget.TextSegment{
+		Text:  text,
+		Style: style,
+	})
 }
 
 func nodeChannelIcon(icon resources.UIIcon, variant fyne.ThemeVariant) fyne.CanvasObject {
