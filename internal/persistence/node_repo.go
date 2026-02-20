@@ -20,6 +20,7 @@ func NewNodeRepo(db *sql.DB) *NodeRepo {
 
 func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 	var (
+		publicKey       any
 		channel         any
 		latitude        any
 		longitude       any
@@ -39,6 +40,9 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		isUnmessageable any
 		positionUpdated any
 	)
+	if len(n.PublicKey) > 0 {
+		publicKey = n.PublicKey
+	}
 	if n.Channel != nil {
 		channel = int64(*n.Channel)
 	}
@@ -98,8 +102,8 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 		positionUpdated = timeToUnixMillis(n.PositionUpdatedAt)
 	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, public_key, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = CASE
 				WHEN excluded.long_name IS NOT NULL AND excluded.long_name <> '' THEN excluded.long_name
@@ -108,6 +112,10 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 			short_name = CASE
 				WHEN excluded.short_name IS NOT NULL AND excluded.short_name <> '' THEN excluded.short_name
 				ELSE nodes.short_name
+			END,
+			public_key = CASE
+				WHEN excluded.public_key IS NOT NULL AND length(excluded.public_key) > 0 THEN excluded.public_key
+				ELSE nodes.public_key
 			END,
 			channel = COALESCE(excluded.channel, nodes.channel),
 			latitude = COALESCE(excluded.latitude, nodes.latitude),
@@ -154,7 +162,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 				WHEN excluded.updated_at > nodes.updated_at THEN excluded.updated_at
 				ELSE nodes.updated_at
 			END
-	`, n.NodeID, n.LongName, n.ShortName, channel, latitude, longitude, altitude, precisionBits, batteryLevel, voltage, uptimeSeconds, channelUtil, airUtilTx, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.FirmwareVersion), nullableString(n.Role), isUnmessageable, positionUpdated, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
+	`, n.NodeID, n.LongName, n.ShortName, publicKey, channel, latitude, longitude, altitude, precisionBits, batteryLevel, voltage, uptimeSeconds, channelUtil, airUtilTx, temperature, humidity, pressure, airQualityIndex, powerVoltage, powerCurrent, nullableString(n.BoardModel), nullableString(n.FirmwareVersion), nullableString(n.Role), isUnmessageable, positionUpdated, timeToUnixMillis(n.LastHeardAt), n.RSSI, n.SNR, timeToUnixMillis(n.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("upsert node: %w", err)
 	}
@@ -164,7 +172,7 @@ func (r *NodeRepo) Upsert(ctx context.Context, n domain.Node) error {
 
 func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, public_key, channel, latitude, longitude, altitude, precision_bits, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, board_model, firmware_version, device_role, is_unmessageable, position_updated_at, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -181,6 +189,7 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			n             domain.Node
 			heardMs       int64
 			updMs         int64
+			publicKey     []byte
 			channel       sql.NullInt64
 			latitude      sql.NullFloat64
 			longitude     sql.NullFloat64
@@ -205,8 +214,11 @@ func (r *NodeRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node, er
 			rssi          sql.NullInt64
 			snr           sql.NullFloat64
 		)
-		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &channel, &latitude, &longitude, &altitude, &precisionBits, &battery, &voltage, &uptimeSeconds, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &firmware, &role, &unmessageable, &positionMS, &heardMs, &rssi, &snr, &updMs); err != nil {
+		if err := rows.Scan(&n.NodeID, &n.LongName, &n.ShortName, &publicKey, &channel, &latitude, &longitude, &altitude, &precisionBits, &battery, &voltage, &uptimeSeconds, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &board, &firmware, &role, &unmessageable, &positionMS, &heardMs, &rssi, &snr, &updMs); err != nil {
 			return nil, fmt.Errorf("scan node: %w", err)
+		}
+		if len(publicKey) > 0 {
+			n.PublicKey = append(make([]byte, 0, len(publicKey)), publicKey...)
 		}
 		n.LastHeardAt = unixMillisToTime(heardMs)
 		n.UpdatedAt = unixMillisToTime(updMs)

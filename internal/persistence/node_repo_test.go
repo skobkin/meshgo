@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"path/filepath"
@@ -30,6 +31,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	airUtilTx := 2.5
 	now := time.Now().UTC()
 	positionUpdated := now.Add(-5 * time.Minute)
+	publicKey := []byte{1, 2, 3, 4, 5}
 
 	if err := repo.Upsert(ctx, domain.Node{
 		NodeID:                "!abcd1234",
@@ -43,6 +45,7 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 		AirUtilTx:             &airUtilTx,
 		FirmwareVersion:       "2.5.1.12345",
 		PositionUpdatedAt:     positionUpdated,
+		PublicKey:             publicKey,
 		LastHeardAt:           now,
 		UpdatedAt:             now,
 	}); err != nil {
@@ -91,9 +94,12 @@ func TestNodeRepoUpsertAndList_RoundTripsCoordinates(t *testing.T) {
 	if nodes[0].PositionUpdatedAt.UnixMilli() != positionUpdated.UnixMilli() {
 		t.Fatalf("expected position_updated_at to roundtrip, got %v", nodes[0].PositionUpdatedAt)
 	}
+	if !bytes.Equal(nodes[0].PublicKey, publicKey) {
+		t.Fatalf("expected public_key to roundtrip, got %v", nodes[0].PublicKey)
+	}
 }
 
-func TestOpen_MigratesV4DatabaseToV10(t *testing.T) {
+func TestOpen_MigratesV4DatabaseToV11(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")
 
@@ -154,8 +160,8 @@ func TestOpen_MigratesV4DatabaseToV10(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 10 {
-		t.Fatalf("expected schema version 10, got %d", version)
+	if version != 11 {
+		t.Fatalf("expected schema version 11, got %d", version)
 	}
 
 	columns := make(map[string]bool)
@@ -211,6 +217,9 @@ func TestOpen_MigratesV4DatabaseToV10(t *testing.T) {
 	}
 	if !columns["position_updated_at"] {
 		t.Fatalf("expected position_updated_at column after migration")
+	}
+	if !columns["public_key"] {
+		t.Fatalf("expected public_key column after migration")
 	}
 	messageColumns := make(map[string]bool)
 	messageRows, err := migrated.QueryContext(ctx, `PRAGMA table_info(messages);`)
