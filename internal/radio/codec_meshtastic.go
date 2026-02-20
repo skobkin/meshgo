@@ -410,6 +410,9 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 		LastHeardAt: packetTimestamp(nodeInfo.GetLastHeard(), now),
 		UpdatedAt:   now,
 	}
+	if len(user.GetPublicKey()) > 0 {
+		node.PublicKey = cloneCodecKeyBytes(user.GetPublicKey())
+	}
 	if model := user.GetHwModel(); model != generated.HardwareModel_UNSET {
 		node.BoardModel = model.String()
 	}
@@ -565,6 +568,9 @@ func decodeNodeFromPacketPayload(packet *generated.MeshPacket, payload []byte, n
 		ShortName:   strings.TrimSpace(user.GetShortName()),
 		LastHeardAt: packetTimestamp(packet.GetRxTime(), now),
 		UpdatedAt:   now,
+	}
+	if len(user.GetPublicKey()) > 0 {
+		node.PublicKey = cloneCodecKeyBytes(user.GetPublicKey())
 	}
 	if model := user.GetHwModel(); model != generated.HardwareModel_UNSET {
 		node.BoardModel = model.String()
@@ -764,6 +770,17 @@ func applyEnvironmentMetrics(node *domain.Node, env *generated.EnvironmentMetric
 		v := float64(env.GetCurrent())
 		node.PowerCurrent = &v
 	}
+}
+
+func cloneCodecKeyBytes(raw []byte) []byte {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	out := make([]byte, len(raw))
+	copy(out, raw)
+
+	return out
 }
 
 func applyPowerMetrics(node *domain.Node, power *generated.PowerMetrics) {

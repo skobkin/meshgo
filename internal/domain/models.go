@@ -93,6 +93,7 @@ type Node struct {
 	NodeID    string
 	LongName  string
 	ShortName string
+	PublicKey []byte
 	Channel   *uint32
 	// Coordinates are kept as decimal degrees in memory; codec logic converts
 	// to/from Meshtastic fixed-point int32 values (degrees * 1e7).

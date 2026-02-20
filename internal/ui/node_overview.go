@@ -43,7 +43,22 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	}
 	header := container.NewHBox(title, layout.NewSpacer(), closeButton)
 
-	identity := container.NewVBox()
+	identityTables := container.NewVBox()
+	publicKeyEntry := widget.NewEntry()
+	publicKeyEntry.Disable()
+	publicKeyCopyButton := widget.NewButton("Copy", func() {
+		if err := copyTextToClipboard(publicKeyEntry.Text); err != nil {
+			nodeSettingsTabLogger.Debug("copy public key from overview failed", "error", err)
+		}
+	})
+	publicKeyCopyButton.Disable()
+	identity := container.NewVBox(
+		identityTables,
+		widget.NewForm(widget.NewFormItem(
+			"Public key",
+			container.NewBorder(nil, nil, nil, publicKeyCopyButton, publicKeyEntry),
+		)),
+	)
 
 	powerSection := container.NewVBox()
 	environmentSection := container.NewVBox()
@@ -125,7 +140,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	render := func() {
 		node, ok := resolveNode()
 		if !ok {
-			setOverviewSectionMetricRows(identity, [][]overviewMetric{
+			setOverviewSectionMetricRows(identityTables, [][]overviewMetric{
 				{
 					{Label: "Node", Value: "information is unavailable"},
 				},
@@ -135,6 +150,8 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 					{Label: "SNR", Value: "unknown"},
 				},
 			})
+			publicKeyEntry.SetText("")
+			publicKeyCopyButton.Disable()
 			powerCard.Hide()
 			environmentCard.Hide()
 			otherCard.Hide()
@@ -159,7 +176,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		if uptime := overviewUptime(node.UptimeSeconds); uptime != "unknown" {
 			identityMetrics = append(identityMetrics, overviewMetric{Label: "Uptime", Value: uptime})
 		}
-		setOverviewSectionMetricRows(identity, [][]overviewMetric{
+		setOverviewSectionMetricRows(identityTables, [][]overviewMetric{
 			identityMetrics,
 			{
 				{Label: "Last heard", Value: overviewAgo(node.LastHeardAt)},
@@ -167,6 +184,12 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 				overviewSNRMetric(node),
 			},
 		})
+		publicKeyEntry.SetText(encodeNodeSettingsKeyBase64(node.PublicKey))
+		if strings.TrimSpace(publicKeyEntry.Text) == "" {
+			publicKeyCopyButton.Disable()
+		} else {
+			publicKeyCopyButton.Enable()
+		}
 
 		if opts.OnDirectMessage != nil && !opts.ModeLocalNode {
 			chatButton.Enable()

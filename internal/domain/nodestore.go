@@ -67,6 +67,9 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.ShortName == "" {
 			node.ShortName = existing.ShortName
 		}
+		if len(node.PublicKey) == 0 {
+			node.PublicKey = cloneNodePublicKey(existing.PublicKey)
+		}
 		if node.Channel == nil {
 			node.Channel = existing.Channel
 		}
@@ -148,6 +151,17 @@ func (s *NodeStore) Upsert(node Node) {
 	}
 	s.nodes[node.NodeID] = node
 	s.notify()
+}
+
+func cloneNodePublicKey(key []byte) []byte {
+	if len(key) == 0 {
+		return nil
+	}
+
+	out := make([]byte, len(key))
+	copy(out, key)
+
+	return out
 }
 
 func (s *NodeStore) SnapshotSorted() []Node {

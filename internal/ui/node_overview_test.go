@@ -68,6 +68,34 @@ func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 	if hasLabelText(content, "Uptime") {
 		t.Fatalf("did not expect uptime field when uptime is unknown")
 	}
+	if copy := mustFindOverviewButtonByText(t, content, "Copy"); !copy.Disabled() {
+		t.Fatalf("expected public key copy action disabled when key is unknown")
+	}
+}
+
+func TestNewNodeOverviewContent_PublicKeyCopyEnabledWhenKeyIsKnown(t *testing.T) {
+	store := domain.NewNodeStore()
+	store.Upsert(domain.Node{
+		NodeID:      "!00000001",
+		LongName:    "Alpha",
+		LastHeardAt: time.Now(),
+		PublicKey:   []byte{1, 2, 3, 4},
+	})
+
+	content, stop := newNodeOverviewContent(nodeOverviewOptions{
+		Title:     "Node",
+		NodeStore: store,
+		NodeID: func() string {
+			return "!00000001"
+		},
+		ShowActions: true,
+	})
+	defer stop()
+	_ = fynetest.NewTempWindow(t, content)
+
+	if copy := mustFindOverviewButtonByText(t, content, "Copy"); copy.Disabled() {
+		t.Fatalf("expected public key copy action enabled when key is known")
+	}
 }
 
 func TestOverviewTelemetryHelpers(t *testing.T) {
