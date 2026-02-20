@@ -88,7 +88,6 @@ func buildMainView(
 		"Node":  nodeSettingsTab,
 		"App":   settingsTab,
 	}
-	tabOnShow := map[string]func(){}
 	order := []string{"Chats", "Nodes", "Map", "Node", "App"}
 	tabIcons := map[string]resources.UIIcon{
 		"Chats": resources.UIIconChats,
@@ -117,7 +116,6 @@ func buildMainView(
 	sidebar := buildSidebarLayout(
 		initialVariant,
 		tabContent,
-		tabOnShow,
 		order,
 		tabIcons,
 		updateIndicator.Button(),

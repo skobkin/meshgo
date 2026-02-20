@@ -43,7 +43,6 @@ func TestBuildSidebarLayoutSwitchesTabsAndCallsOnShow(t *testing.T) {
 	layout := buildSidebarLayout(
 		theme.VariantLight,
 		tabContent,
-		nil,
 		order,
 		tabIcons,
 		updateButton,
@@ -94,7 +93,6 @@ func TestSidebarLayoutSwitchTab_SwitchesProgrammatically(t *testing.T) {
 			"Chats": chatsTab,
 			"Nodes": nodesTab,
 		},
-		nil,
 		[]string{"Chats", "Nodes"},
 		map[string]resources.UIIcon{
 			"Chats": resources.UIIconChats,

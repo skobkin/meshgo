@@ -22,7 +22,6 @@ type sidebarLayout struct {
 func buildSidebarLayout(
 	initialVariant fyne.ThemeVariant,
 	tabContent map[string]fyne.CanvasObject,
-	tabOnShow map[string]func(),
 	order []string,
 	tabIcons map[string]resources.UIIcon,
 	updateButton *widgets.IconNavButton,
@@ -71,17 +70,8 @@ func buildSidebarLayout(
 		current.Hide()
 		active = name
 		next.Show()
-		onShowCalled := false
-		if tabOnShow != nil {
-			if onShow := tabOnShow[name]; onShow != nil {
-				onShow()
-				onShowCalled = true
-			}
-		}
-		if !onShowCalled {
-			if onShow, ok := next.(interface{ OnShow() }); ok {
-				onShow.OnShow()
-			}
+		if onShow, ok := next.(interface{ OnShow() }); ok {
+			onShow.OnShow()
 		}
 		updateNavSelection()
 		rightStack.Refresh()
