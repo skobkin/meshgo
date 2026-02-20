@@ -127,8 +127,8 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 	importExportTab := newDisabledTopLevelPage("Import/Export is planned and currently disabled.")
 	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
 
-	radioConfigTab := container.NewTabItem("Radio configuration", radioTabs)
 	overviewTopTab := container.NewTabItem("Node overview", newNodeOverviewSettingsPage(dep))
+	radioConfigTab := container.NewTabItem("Radio configuration", radioTabs)
 	deviceConfigTab := container.NewTabItem("Device configuration", deviceTabs)
 	moduleConfigTab := container.NewTabItem("Module configuration", moduleTabs)
 	importExportTopTab := container.NewTabItem("Import/Export", importExportTab)
