@@ -27,6 +27,15 @@ type nodeOverviewOptions struct {
 
 func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()) {
 	title := widget.NewLabelWithStyle(orUnknown(opts.Title), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	closeButton := widget.NewButton("X", func() {
+		if opts.OnClose != nil {
+			opts.OnClose()
+		}
+	})
+	if !opts.ShowCloseButton {
+		closeButton.Hide()
+	}
+	header := container.NewHBox(title, layout.NewSpacer(), closeButton)
 
 	identity := widget.NewLabel("")
 	identity.Wrapping = fyne.TextWrapWord
@@ -78,18 +87,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		actionsCard.Hide()
 	}
 
-	closeButton := widget.NewButton("Close", func() {
-		if opts.OnClose != nil {
-			opts.OnClose()
-		}
-	})
-	if !opts.ShowCloseButton {
-		closeButton.Hide()
-	}
-
-	content := container.NewVBox(
-		title,
-		widget.NewSeparator(),
+	body := container.NewVBox(
 		overviewCard("Identity", identity),
 		overviewCard("Last Heard", container.NewVBox(lastHeard, uptime)),
 		powerCard,
@@ -99,11 +97,19 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		adminCard,
 		firmwareCard,
 		actionsCard,
-		layout.NewSpacer(),
-		closeButton,
 	)
-	scroll := container.NewVScroll(content)
+	scroll := container.NewVScroll(body)
 	scroll.SetMinSize(fyne.NewSize(700, 520))
+	content := container.NewBorder(
+		container.NewVBox(
+			header,
+			widget.NewSeparator(),
+		),
+		nil,
+		nil,
+		nil,
+		scroll,
+	)
 
 	stopCh := make(chan struct{})
 
@@ -221,7 +227,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		}
 	}
 
-	return scroll, stop
+	return content, stop
 }
 
 func overviewCard(title string, body fyne.CanvasObject) *fyne.Container {
