@@ -25,6 +25,12 @@ type nodeOverviewOptions struct {
 	ModeLocalNode   bool
 }
 
+type overviewMetric struct {
+	Label     string
+	Value     string
+	ColorName fyne.ThemeColorName
+}
+
 func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()) {
 	title := widget.NewLabelWithStyle(orUnknown(opts.Title), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	closeButton := widget.NewButton("X", func() {
@@ -37,21 +43,13 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	}
 	header := container.NewHBox(title, layout.NewSpacer(), closeButton)
 
-	identity := widget.NewLabel("")
-	identity.Wrapping = fyne.TextWrapWord
-	lastHeard := widget.NewLabel("")
-	uptime := widget.NewLabel("")
+	identity := container.NewVBox()
 
-	powerSection := widget.NewLabel("")
-	powerSection.Wrapping = fyne.TextWrapWord
-	environmentSection := widget.NewLabel("")
-	environmentSection.Wrapping = fyne.TextWrapWord
-	otherSection := widget.NewLabel("")
-	otherSection.Wrapping = fyne.TextWrapWord
-	positionSection := widget.NewLabel("")
-	positionSection.Wrapping = fyne.TextWrapWord
-	firmwareSection := widget.NewLabel("")
-	firmwareSection.Wrapping = fyne.TextWrapWord
+	powerSection := container.NewVBox()
+	environmentSection := container.NewVBox()
+	otherSection := container.NewVBox()
+	positionSection := container.NewVBox()
+	firmwareSection := container.NewVBox()
 
 	powerCard := overviewCard("Telemetry: Power", powerSection)
 	environmentCard := overviewCard("Telemetry: Environmental and Air", environmentSection)
@@ -89,7 +87,6 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 
 	body := container.NewVBox(
 		overviewCard("Identity", identity),
-		overviewCard("Last Heard", container.NewVBox(lastHeard, uptime)),
 		powerCard,
 		environmentCard,
 		otherCard,
@@ -128,14 +125,25 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	render := func() {
 		node, ok := resolveNode()
 		if !ok {
-			identity.SetText("Node information is unavailable.")
-			lastHeard.SetText("Last heard: unknown\nRSSI/SNR: unknown")
-			uptime.SetText("Uptime: unknown")
+			setOverviewSectionMetricRows(identity, [][]overviewMetric{
+				{
+					{Label: "Node", Value: "information is unavailable"},
+				},
+				{
+					{Label: "Last heard", Value: "unknown"},
+					{Label: "RSSI", Value: "unknown"},
+					{Label: "SNR", Value: "unknown"},
+				},
+			})
 			powerCard.Hide()
 			environmentCard.Hide()
 			otherCard.Hide()
 			positionCard.Hide()
-			firmwareSection.SetText("Firmware: unknown\nBoard: unknown\nBoard image: unavailable (placeholder)")
+			setOverviewSectionMetricRows(firmwareSection, [][]overviewMetric{{
+				{Label: "Firmware", Value: "unknown"},
+				{Label: "Board", Value: "unknown"},
+				{Label: "Image", Value: "unavailable (placeholder)"},
+			}})
 			firmwareCard.Show()
 			chatButton.Disable()
 			tracerouteButton.Disable()
@@ -143,13 +151,22 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			return
 		}
 
-		identity.SetText(fmt.Sprintf("ID: %s\nShort name: %s\nLong name: %s", orUnknown(node.NodeID), orUnknown(node.ShortName), orUnknown(node.LongName)))
-		lastHeard.SetText(fmt.Sprintf(
-			"Last heard: %s\nRSSI/SNR: %s",
-			overviewAgo(node.LastHeardAt),
-			overviewLastHeardSignal(node),
-		))
-		uptime.SetText("Uptime: " + overviewUptime(node.UptimeSeconds))
+		identityMetrics := []overviewMetric{
+			{Label: "ID", Value: orUnknown(node.NodeID)},
+			{Label: "Short name", Value: orUnknown(node.ShortName)},
+			{Label: "Long name", Value: orUnknown(node.LongName)},
+		}
+		if uptime := overviewUptime(node.UptimeSeconds); uptime != "unknown" {
+			identityMetrics = append(identityMetrics, overviewMetric{Label: "Uptime", Value: uptime})
+		}
+		setOverviewSectionMetricRows(identity, [][]overviewMetric{
+			identityMetrics,
+			{
+				{Label: "Last heard", Value: overviewAgo(node.LastHeardAt)},
+				overviewRSSIMetric(node),
+				overviewSNRMetric(node),
+			},
+		})
 
 		if opts.OnDirectMessage != nil && !opts.ModeLocalNode {
 			chatButton.Enable()
@@ -164,56 +181,64 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			tracerouteButton.Disable()
 		}
 
-		powerText := overviewPowerTelemetry(node)
-		if powerText == "" {
+		powerMetrics := overviewPowerTelemetryMetrics(node)
+		if len(powerMetrics) == 0 {
 			powerCard.Hide()
 		} else {
-			powerSection.SetText(powerText)
+			setOverviewSectionMetrics(powerSection, powerMetrics)
 			powerCard.Show()
 		}
 
-		envText := overviewEnvironmentTelemetry(node)
-		if envText == "" {
+		envMetrics := overviewEnvironmentTelemetryMetrics(node)
+		if len(envMetrics) == 0 {
 			environmentCard.Hide()
 		} else {
-			environmentSection.SetText(envText)
+			setOverviewSectionMetrics(environmentSection, envMetrics)
 			environmentCard.Show()
 		}
 
-		otherText := overviewOtherTelemetry(node)
-		if otherText == "" {
+		otherMetrics := overviewOtherTelemetryMetrics(node)
+		if len(otherMetrics) == 0 {
 			otherCard.Hide()
 		} else {
-			otherSection.SetText(otherText)
+			setOverviewSectionMetrics(otherSection, otherMetrics)
 			otherCard.Show()
 		}
 
-		posText := overviewPosition(node)
-		if posText == "" {
+		positionMetrics := overviewPositionMetrics(node)
+		if len(positionMetrics) == 0 {
 			positionCard.Hide()
 		} else {
-			positionSection.SetText(posText)
+			setOverviewSectionMetricRows(positionSection, [][]overviewMetric{positionMetrics})
 			positionCard.Show()
 		}
 
-		firmwareSection.SetText(fmt.Sprintf(
-			"Firmware: %s\nBoard: %s\nBoard image: unavailable (placeholder)",
-			orUnknown(node.FirmwareVersion),
-			orUnknown(node.BoardModel),
-		))
+		setOverviewSectionMetricRows(firmwareSection, [][]overviewMetric{{
+			{Label: "Firmware", Value: orUnknown(node.FirmwareVersion)},
+			{Label: "Board", Value: orUnknown(node.BoardModel)},
+			{Label: "Image", Value: "unavailable (placeholder)"},
+		}})
 	}
 
 	fyne.DoAndWait(render)
 
 	if opts.NodeStore != nil {
 		changes := opts.NodeStore.Changes()
+	drain:
+		for {
+			select {
+			case <-changes:
+			default:
+				break drain
+			}
+		}
 		go func() {
 			for {
 				select {
 				case <-stopCh:
 					return
 				case <-changes:
-					fyne.Do(render)
+					fyne.DoAndWait(render)
 				}
 			}
 		}()
@@ -237,6 +262,71 @@ func overviewCard(title string, body fyne.CanvasObject) *fyne.Container {
 	)
 }
 
+func setOverviewSectionMetrics(section *fyne.Container, metrics []overviewMetric) {
+	setOverviewSectionMetricRows(section, [][]overviewMetric{metrics})
+}
+
+func setOverviewSectionMetricRows(section *fyne.Container, rows [][]overviewMetric) {
+	objects := make([]fyne.CanvasObject, 0, len(rows))
+	for _, row := range rows {
+		if len(row) == 0 {
+			continue
+		}
+		objects = append(objects, overviewMetricsGrid(row, overviewMetricsRowColumnCount(len(row))))
+	}
+	section.Objects = objects
+	section.Refresh()
+}
+
+func overviewMetricsGrid(metrics []overviewMetric, columns int) fyne.CanvasObject {
+	cells := make([]fyne.CanvasObject, 0, len(metrics))
+	for _, metric := range metrics {
+		label := widget.NewLabelWithStyle(metric.Label, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		cells = append(cells, container.NewVBox(label, overviewMetricValueObject(metric)))
+	}
+
+	return container.NewGridWithColumns(columns, cells...)
+}
+
+func overviewMetricValueObject(metric overviewMetric) fyne.CanvasObject {
+	value := orUnknown(metric.Value)
+	if metric.ColorName == "" {
+		label := widget.NewLabel(value)
+		label.Wrapping = fyne.TextWrapWord
+
+		return label
+	}
+	style := widget.RichTextStyleInline
+	style.ColorName = metric.ColorName
+	rich := widget.NewRichText(&widget.TextSegment{Text: value, Style: style})
+
+	return rich
+}
+
+func overviewMetricsColumnCount(metricCount int) int {
+	switch {
+	case metricCount <= 3:
+		return 2
+	case metricCount <= 8:
+		return 3
+	case metricCount <= 15:
+		return 4
+	default:
+		return 5
+	}
+}
+
+func overviewMetricsRowColumnCount(metricCount int) int {
+	if metricCount < 2 {
+		return 2
+	}
+	if metricCount > 5 {
+		return 5
+	}
+
+	return metricCount
+}
+
 func overviewAgo(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"
@@ -256,6 +346,26 @@ func overviewLastHeardSignal(node domain.Node) string {
 	}
 
 	return fmt.Sprintf("%s / %s", rssi, snr)
+}
+
+func overviewRSSIMetric(node domain.Node) overviewMetric {
+	metric := overviewMetric{Label: "RSSI", Value: "unknown"}
+	if node.RSSI != nil {
+		metric.Value = fmt.Sprintf("%d dBm", *node.RSSI)
+		metric.ColorName = signalThemeColorForRSSI(*node.RSSI)
+	}
+
+	return metric
+}
+
+func overviewSNRMetric(node domain.Node) overviewMetric {
+	metric := overviewMetric{Label: "SNR", Value: "unknown"}
+	if node.SNR != nil {
+		metric.Value = fmt.Sprintf("%.2f dB", *node.SNR)
+		metric.ColorName = signalThemeColorForSNR(*node.SNR)
+	}
+
+	return metric
 }
 
 func overviewUptime(uptimeSeconds *uint32) string {
@@ -282,72 +392,97 @@ func overviewUptime(uptimeSeconds *uint32) string {
 }
 
 func overviewPowerTelemetry(node domain.Node) string {
-	lines := make([]string, 0, 4)
+	return overviewMetricLines(overviewPowerTelemetryMetrics(node))
+}
+
+func overviewPowerTelemetryMetrics(node domain.Node) []overviewMetric {
+	metrics := make([]overviewMetric, 0, 4)
 	if node.BatteryLevel != nil {
-		lines = append(lines, fmt.Sprintf("Battery: %d%%", *node.BatteryLevel))
+		metrics = append(metrics, overviewMetric{Label: "Battery", Value: fmt.Sprintf("%d%%", *node.BatteryLevel)})
 	}
 	if node.Voltage != nil {
-		lines = append(lines, fmt.Sprintf("Voltage: %.2f V", *node.Voltage))
+		metrics = append(metrics, overviewMetric{Label: "Voltage", Value: fmt.Sprintf("%.2f V", *node.Voltage)})
 	}
 	if node.PowerVoltage != nil {
-		lines = append(lines, fmt.Sprintf("Power voltage: %.2f V", *node.PowerVoltage))
+		metrics = append(metrics, overviewMetric{Label: "Power voltage", Value: fmt.Sprintf("%.2f V", *node.PowerVoltage)})
 	}
 	if node.PowerCurrent != nil {
-		lines = append(lines, fmt.Sprintf("Power current: %.3f A", *node.PowerCurrent))
+		metrics = append(metrics, overviewMetric{Label: "Power current", Value: fmt.Sprintf("%.3f A", *node.PowerCurrent)})
 	}
 
-	return strings.Join(lines, "\n")
+	return metrics
 }
 
 func overviewEnvironmentTelemetry(node domain.Node) string {
-	lines := make([]string, 0, 5)
+	return overviewMetricLines(overviewEnvironmentTelemetryMetrics(node))
+}
+
+func overviewEnvironmentTelemetryMetrics(node domain.Node) []overviewMetric {
+	metrics := make([]overviewMetric, 0, 5)
 	if node.Temperature != nil {
-		lines = append(lines, fmt.Sprintf("Temperature: %.1f C", *node.Temperature))
+		metrics = append(metrics, overviewMetric{Label: "Temperature", Value: fmt.Sprintf("%.1f C", *node.Temperature)})
 	}
 	if node.Humidity != nil {
-		lines = append(lines, fmt.Sprintf("Humidity: %.1f%%", *node.Humidity))
+		metrics = append(metrics, overviewMetric{Label: "Humidity", Value: fmt.Sprintf("%.1f%%", *node.Humidity)})
 	}
 	if node.Pressure != nil {
-		lines = append(lines, fmt.Sprintf("Pressure: %.1f hPa", *node.Pressure))
+		metrics = append(metrics, overviewMetric{Label: "Pressure", Value: fmt.Sprintf("%.1f hPa", *node.Pressure)})
 	}
 	if node.AirQualityIndex != nil {
-		lines = append(lines, fmt.Sprintf("Air quality index: %.1f", *node.AirQualityIndex))
+		metrics = append(metrics, overviewMetric{Label: "Air quality index", Value: fmt.Sprintf("%.1f", *node.AirQualityIndex)})
 	}
 
-	return strings.Join(lines, "\n")
+	return metrics
 }
 
 func overviewOtherTelemetry(node domain.Node) string {
-	lines := make([]string, 0, 2)
+	return overviewMetricLines(overviewOtherTelemetryMetrics(node))
+}
+
+func overviewOtherTelemetryMetrics(node domain.Node) []overviewMetric {
+	metrics := make([]overviewMetric, 0, 2)
 	if node.ChannelUtilization != nil {
-		lines = append(lines, fmt.Sprintf("Channel utilization: %.2f%%", *node.ChannelUtilization))
+		metrics = append(metrics, overviewMetric{Label: "Channel utilization", Value: fmt.Sprintf("%.2f%%", *node.ChannelUtilization)})
 	}
 	if node.AirUtilTx != nil {
-		lines = append(lines, fmt.Sprintf("TX air utilization: %.2f%%", *node.AirUtilTx))
+		metrics = append(metrics, overviewMetric{Label: "TX air utilization", Value: fmt.Sprintf("%.2f%%", *node.AirUtilTx)})
 	}
 
-	return strings.Join(lines, "\n")
+	return metrics
 }
 
 func overviewPosition(node domain.Node) string {
+	return overviewMetricLines(overviewPositionMetrics(node))
+}
+
+func overviewPositionMetrics(node domain.Node) []overviewMetric {
 	if node.Latitude == nil || node.Longitude == nil {
-		return ""
+		return nil
 	}
-	lines := []string{
-		fmt.Sprintf("Latitude: %.6f", *node.Latitude),
-		fmt.Sprintf("Longitude: %.6f", *node.Longitude),
+	metrics := []overviewMetric{
+		{Label: "Latitude", Value: fmt.Sprintf("%.6f", *node.Latitude)},
+		{Label: "Longitude", Value: fmt.Sprintf("%.6f", *node.Longitude)},
 	}
 	if node.Altitude != nil {
-		lines = append(lines, fmt.Sprintf("Altitude: %d m", *node.Altitude))
+		metrics = append(metrics, overviewMetric{Label: "Altitude", Value: fmt.Sprintf("%d m", *node.Altitude)})
 	}
 	if node.PositionPrecisionBits != nil {
-		lines = append(lines, "Precision: "+nodeChannelPositionPrecisionLabel(*node.PositionPrecisionBits))
+		metrics = append(metrics, overviewMetric{Label: "Precision", Value: nodeChannelPositionPrecisionLabel(*node.PositionPrecisionBits)})
 	}
 	relevancy := node.PositionUpdatedAt
 	if relevancy.IsZero() {
 		relevancy = node.LastHeardAt
 	}
-	lines = append(lines, "Position age: "+overviewAgo(relevancy))
+	metrics = append(metrics, overviewMetric{Label: "Position age", Value: overviewAgo(relevancy)})
+
+	return metrics
+}
+
+func overviewMetricLines(metrics []overviewMetric) string {
+	lines := make([]string, 0, len(metrics))
+	for _, metric := range metrics {
+		lines = append(lines, metric.Label+": "+metric.Value)
+	}
 
 	return strings.Join(lines, "\n")
 }

@@ -24,11 +24,14 @@ func TestNewNodeOverviewContent_UnavailableNodeShowsFallback(t *testing.T) {
 	defer stop()
 	_ = fynetest.NewTempWindow(t, content)
 
-	if !hasLabelText(content, "Node information is unavailable.") {
+	if !hasLabelText(content, "information is unavailable") {
 		t.Fatalf("expected unavailable fallback text")
 	}
 	if !hasLabelText(content, "Remote Administration") {
 		t.Fatalf("expected remote administration section")
+	}
+	if hasLabelText(content, "Last Heard") {
+		t.Fatalf("did not expect separate Last Heard section title")
 	}
 }
 
@@ -61,6 +64,9 @@ func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 	trace := mustFindOverviewButtonByText(t, content, "Traceroute")
 	if trace.Disabled() {
 		t.Fatalf("expected traceroute action enabled for remote node")
+	}
+	if hasLabelText(content, "Uptime") {
+		t.Fatalf("did not expect uptime field when uptime is unknown")
 	}
 }
 
@@ -109,6 +115,27 @@ func TestOverviewTelemetryHelpers(t *testing.T) {
 		t.Fatalf("expected position text")
 	} else if !strings.Contains(got, "Precision: Approx.") {
 		t.Fatalf("expected human-readable precision label, got %q", got)
+	}
+}
+
+func TestOverviewMetricsColumnCount(t *testing.T) {
+	tests := []struct {
+		name    string
+		count   int
+		columns int
+	}{
+		{name: "few metrics use two columns", count: 1, columns: 2},
+		{name: "medium metrics use three columns", count: 4, columns: 3},
+		{name: "large metrics use four columns", count: 10, columns: 4},
+		{name: "very large metrics use five columns", count: 20, columns: 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := overviewMetricsColumnCount(tt.count); got != tt.columns {
+				t.Fatalf("expected %d columns for %d metrics, got %d", tt.columns, tt.count, got)
+			}
+		})
 	}
 }
 
