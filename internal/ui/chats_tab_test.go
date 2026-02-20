@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -807,6 +808,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 		nil,
 		"ch:general",
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -862,6 +864,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
@@ -927,11 +930,66 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 		nil,
 		"ch:general",
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
 	waitForCondition(t, func() bool {
 		return findRichTextBySubstringAndWrapping(tab, "wrap-token", fyne.TextWrapWord) != nil
+	})
+}
+
+func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	store := domain.NewChatStore()
+	base := time.Now()
+	store.Load(
+		[]domain.Chat{
+			{Key: "channel:0", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: base.Add(1 * time.Hour)},
+			{Key: "dm:!0000002a", Title: "dm:!0000002a", Type: domain.ChatTypeDM, UpdatedAt: base},
+		},
+		map[string][]domain.ChatMessage{},
+	)
+
+	openRequests := make(chan string, 1)
+	var selectedKeysMu sync.Mutex
+	selectedKeys := make([]string, 0, 2)
+	tab := newChatsTab(
+		store,
+		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
+			result := make(chan radio.SendResult, 1)
+			result <- radio.SendResult{}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		nil,
+		"channel:0",
+		openRequests,
+		func(chatKey string) {
+			selectedKeysMu.Lock()
+			selectedKeys = append(selectedKeys, chatKey)
+			selectedKeysMu.Unlock()
+		},
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	openRequests <- "dm:!0000002a"
+
+	waitForCondition(t, func() bool {
+		selectedKeysMu.Lock()
+		defer selectedKeysMu.Unlock()
+		if len(selectedKeys) == 0 {
+			return false
+		}
+
+		return selectedKeys[len(selectedKeys)-1] == "dm:!0000002a"
 	})
 }
 

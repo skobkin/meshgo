@@ -16,6 +16,7 @@ type sidebarLayout struct {
 	left       *fyne.Container
 	rightStack *fyne.Container
 	applyTheme func(fyne.ThemeVariant)
+	switchTab  func(name string)
 }
 
 func buildSidebarLayout(
@@ -114,5 +115,12 @@ func buildSidebarLayout(
 		left:       left,
 		rightStack: rightStack,
 		applyTheme: applyTheme,
+		switchTab:  switchTab,
+	}
+}
+
+func (s sidebarLayout) SwitchTab(name string) {
+	if s.switchTab != nil {
+		s.switchTab(name)
 	}
 }

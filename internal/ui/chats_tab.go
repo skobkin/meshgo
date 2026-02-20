@@ -38,6 +38,7 @@ func newChatsTab(
 	localNodeID func() string,
 	nodeChanges <-chan struct{},
 	initialSelectedKey string,
+	openRequests <-chan string,
 	onChatSelected func(string),
 ) fyne.CanvasObject {
 	chats := store.ChatListSorted()
@@ -73,6 +74,7 @@ func newChatsTab(
 	replyToDeviceMessageID := ""
 	hoveredReplyTargetDeviceMessageID := ""
 	replyShortcutRegistered := false
+	pendingRequestedChatKey := ""
 	messageItemHeightByID := make(map[widget.ListItemID]float32)
 	messageItemWidthByID := make(map[widget.ListItemID]float32)
 
@@ -507,7 +509,26 @@ func newChatsTab(
 	)
 	split.Offset = 0.32
 
-	refreshFromStore := func() {
+	var refreshFromStore func()
+	openRequestedChat := func(chatKey string) {
+		requested := strings.TrimSpace(chatKey)
+		if requested == "" {
+			return
+		}
+		pendingRequestedChatKey = requested
+		if selectedIndex := chatIndexByKey(chats, requested); selectedIndex >= 0 {
+			chatList.Select(selectedIndex)
+			pendingRequestedChatKey = ""
+			focusEntry(entry)
+
+			return
+		}
+		if refreshFromStore != nil {
+			refreshFromStore()
+		}
+	}
+
+	refreshFromStore = func() {
 		chatsLogger.Debug(
 			"refreshing chats tab from store",
 			"selected_chat", selectedKey,
@@ -515,6 +536,11 @@ func newChatsTab(
 		)
 		updatedChats := store.ChatListSorted()
 		nextSelectedKey := selectedKey
+		requestedChatKey := strings.TrimSpace(pendingRequestedChatKey)
+		if requestedChatKey != "" && hasChat(updatedChats, requestedChatKey) {
+			nextSelectedKey = requestedChatKey
+			pendingRequestedChatKey = ""
+		}
 		if nextSelectedKey == "" && len(updatedChats) > 0 {
 			nextSelectedKey = updatedChats[0].Key
 		}
@@ -617,6 +643,17 @@ func newChatsTab(
 					refreshReplyIndicator()
 					chatList.Refresh()
 					messageList.Refresh()
+				})
+			}
+		}()
+	}
+	if openRequests != nil {
+		chatsLogger.Debug("starting chat open request listener")
+		go func() {
+			for chatKey := range openRequests {
+				requested := chatKey
+				fyne.Do(func() {
+					openRequestedChat(requested)
 				})
 			}
 		}()

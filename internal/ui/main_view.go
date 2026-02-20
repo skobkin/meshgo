@@ -28,6 +28,15 @@ func buildMainView(
 ) mainView {
 	settingsConnStatus := widget.NewLabel("")
 	settingsConnStatus.Truncation = fyne.TextTruncateEllipsis
+	dmOpenRequests := make(chan string, 8)
+	switchToChats := func() {}
+	openDMChat := func(chatKey string) {
+		select {
+		case dmOpenRequests <- chatKey:
+		default:
+			appLogger.Warn("dropping direct message open request: queue is full", "chat_key", chatKey)
+		}
+	}
 
 	chatsTab := newChatsTab(
 		dep.Data.ChatStore,
@@ -37,13 +46,16 @@ func buildMainView(
 		dep.Data.LocalNodeID,
 		nodeChanges(dep.Data.NodeStore),
 		dep.Data.LastSelectedChat,
+		dmOpenRequests,
 		dep.Actions.OnChatSelected,
 	)
 	nodeActionHandler := func(node domain.Node, action NodeAction) {
-		if action != NodeActionTraceroute {
-			return
+		switch action {
+		case NodeActionDirectMessage:
+			handleNodeDirectMessageAction(dep, switchToChats, openDMChat, node)
+		case NodeActionTraceroute:
+			handleNodeTracerouteAction(window, dep, node)
 		}
-		handleNodeTracerouteAction(window, dep, node)
 	}
 	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, DefaultNodeRowRenderer(), NodesTabActions{
 		OnNodeSecondaryTapped: func(node domain.Node, position fyne.Position) {
@@ -111,6 +123,9 @@ func buildMainView(
 		updateIndicator.Button(),
 		connStatusPresenter.SidebarIcon(),
 	)
+	switchToChats = func() {
+		sidebar.SwitchTab("Chats")
+	}
 
 	return mainView{
 		left:                sidebar.left,

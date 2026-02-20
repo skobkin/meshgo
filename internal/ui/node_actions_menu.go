@@ -13,7 +13,8 @@ import (
 type NodeAction string
 
 const (
-	NodeActionTraceroute NodeAction = "traceroute"
+	NodeActionDirectMessage NodeAction = "direct_message"
+	NodeActionTraceroute    NodeAction = "traceroute"
 )
 
 // NodeActionHandler handles selected node action menu item.
@@ -27,6 +28,11 @@ func newNodeContextMenu(node domain.Node, onAction NodeActionHandler) *fyne.Menu
 
 	return fyne.NewMenu(
 		menuTitle,
+		fyne.NewMenuItem("Direct message", func() {
+			if onAction != nil {
+				onAction(node, NodeActionDirectMessage)
+			}
+		}),
 		fyne.NewMenuItem("Traceroute", func() {
 			if onAction != nil {
 				onAction(node, NodeActionTraceroute)

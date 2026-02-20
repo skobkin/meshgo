@@ -78,3 +78,41 @@ func TestBuildSidebarLayoutSwitchesTabsAndCallsOnShow(t *testing.T) {
 
 	layout.applyTheme(theme.VariantDark)
 }
+
+func TestSidebarLayoutSwitchTab_SwitchesProgrammatically(t *testing.T) {
+	app := fynetest.NewApp()
+	t.Cleanup(app.Quit)
+
+	chatsTab := widget.NewLabel("Chats")
+	nodesTab := &onShowCanvasObject{CanvasObject: widget.NewLabel("Nodes")}
+	updateButton := widgets.NewIconNavButton(nil, nil)
+	connIcon := widget.NewIcon(nil)
+
+	layout := buildSidebarLayout(
+		theme.VariantLight,
+		map[string]fyne.CanvasObject{
+			"Chats": chatsTab,
+			"Nodes": nodesTab,
+		},
+		nil,
+		[]string{"Chats", "Nodes"},
+		map[string]resources.UIIcon{
+			"Chats": resources.UIIconChats,
+			"Nodes": resources.UIIconNodes,
+		},
+		updateButton,
+		connIcon,
+	)
+
+	layout.SwitchTab("Nodes")
+
+	if chatsTab.Visible() {
+		t.Fatalf("expected chats tab to be hidden after programmatic switch")
+	}
+	if !nodesTab.Visible() {
+		t.Fatalf("expected nodes tab to be visible after programmatic switch")
+	}
+	if nodesTab.showCalls != 1 {
+		t.Fatalf("expected OnShow to be called once, got %d", nodesTab.showCalls)
+	}
+}
