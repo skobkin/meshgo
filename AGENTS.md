@@ -31,6 +31,7 @@
 - Exported identifiers: `PascalCase`; internal helpers: `camelCase`.
 - Keep UI updates on Fyne’s UI thread (`fyne.Do`/`fyne.DoAndWait`) when triggered from goroutines.
 - Use structured logging (`slog`) for runtime/platform operations and failures; include actionable context fields (for example operation trigger, mode, target path/key).
+- Use graceful degradation pattern where appropriate. If some information is missing, but it's not an obstacle, then it should be shown as missing and app should not crash.
 - Proactively suggest refactoring when code shows weak technical depth, poor readability, or unclear structure; call out concrete improvement options.
 
 ## Testing Guidelines
