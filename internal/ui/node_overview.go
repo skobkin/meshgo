@@ -358,19 +358,6 @@ func overviewAgo(t time.Time) string {
 	return formatSeenAgo(t, time.Now())
 }
 
-func overviewLastHeardSignal(node domain.Node) string {
-	rssi := "?"
-	if node.RSSI != nil {
-		rssi = fmt.Sprintf("%d dBm", *node.RSSI)
-	}
-	snr := "?"
-	if node.SNR != nil {
-		snr = fmt.Sprintf("%.2f dB", *node.SNR)
-	}
-
-	return fmt.Sprintf("%s / %s", rssi, snr)
-}
-
 func overviewRSSIMetric(node domain.Node) overviewMetric {
 	metric := overviewMetric{Label: "RSSI", Value: "unknown"}
 	if node.RSSI != nil {
