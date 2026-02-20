@@ -335,7 +335,7 @@ func overviewPosition(node domain.Node) string {
 		lines = append(lines, fmt.Sprintf("Altitude: %d m", *node.Altitude))
 	}
 	if node.PositionPrecisionBits != nil {
-		lines = append(lines, fmt.Sprintf("Precision bits: %d", *node.PositionPrecisionBits))
+		lines = append(lines, "Precision: "+nodeChannelPositionPrecisionLabel(*node.PositionPrecisionBits))
 	}
 	relevancy := node.PositionUpdatedAt
 	if relevancy.IsZero() {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -106,6 +107,8 @@ func TestOverviewTelemetryHelpers(t *testing.T) {
 	}
 	if got := overviewPosition(node); got == "" {
 		t.Fatalf("expected position text")
+	} else if !strings.Contains(got, "Precision: Approx.") {
+		t.Fatalf("expected human-readable precision label, got %q", got)
 	}
 }
 
