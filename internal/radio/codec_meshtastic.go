@@ -296,8 +296,6 @@ func assignSplitNodeUpdates(out *DecodedFrame, update domain.NodeUpdate) {
 	if out == nil {
 		return
 	}
-	copyUpdate := update
-	out.NodeUpdate = &copyUpdate
 	if core, ok := splitNodeCoreUpdate(update); ok {
 		out.NodeCoreUpdate = &core
 	}

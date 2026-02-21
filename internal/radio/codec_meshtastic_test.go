@@ -266,13 +266,13 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 	if err != nil {
 		t.Fatalf("decode telemetry packet: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeTelemetryUpdate == nil {
+		t.Fatalf("expected telemetry update")
 	}
-	if frame.NodeUpdate.Type != domain.NodeUpdateTypeTelemetryPacket {
-		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	if frame.NodeTelemetryUpdate.Type != domain.NodeUpdateTypeTelemetryPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodeTelemetryUpdate.Type)
 	}
-	node := frame.NodeUpdate.Node
+	node := frame.NodeTelemetryUpdate.Telemetry
 	if node.NodeID != "!1234abcd" {
 		t.Fatalf("unexpected node id: %q", node.NodeID)
 	}
@@ -323,10 +323,10 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryPowerPacket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode telemetry packet: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeTelemetryUpdate == nil {
+		t.Fatalf("expected telemetry update")
 	}
-	node := frame.NodeUpdate.Node
+	node := frame.NodeTelemetryUpdate.Telemetry
 	assertFloatPtr(t, node.PowerVoltage, 12.34, "power voltage")
 	assertFloatPtr(t, node.PowerCurrent, 1.25, "power current")
 	assertFloatPtr(t, node.Voltage, 12.34, "voltage")
@@ -371,10 +371,10 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryDeviceMetricsPacket(t *testing.
 	if err != nil {
 		t.Fatalf("decode telemetry packet: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeTelemetryUpdate == nil {
+		t.Fatalf("expected telemetry update")
 	}
-	node := frame.NodeUpdate.Node
+	node := frame.NodeTelemetryUpdate.Telemetry
 	assertUint32Ptr(t, node.BatteryLevel, 77, "battery level")
 	assertFloatPtr(t, node.Voltage, 4.01, "voltage")
 	assertUint32Ptr(t, node.UptimeSeconds, 98_765, "uptime seconds")
@@ -417,17 +417,17 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode position packet: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodePositionUpdate == nil {
+		t.Fatalf("expected position update")
 	}
-	if frame.NodeUpdate.Type != domain.NodeUpdateTypePositionPacket {
-		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	if frame.NodePositionUpdate.Type != domain.NodeUpdateTypePositionPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodePositionUpdate.Type)
 	}
-	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
-	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
-	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
-	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 15, "precision bits")
-	if frame.NodeUpdate.Node.PositionUpdatedAt.IsZero() {
+	assertFloatPtr(t, frame.NodePositionUpdate.Position.Latitude, 37.7749, "latitude")
+	assertFloatPtr(t, frame.NodePositionUpdate.Position.Longitude, -122.4194, "longitude")
+	assertInt32Ptr(t, frame.NodePositionUpdate.Position.Altitude, 123, "altitude")
+	assertUint32Ptr(t, frame.NodePositionUpdate.Position.PositionPrecisionBits, 15, "precision bits")
+	if frame.NodePositionUpdate.Position.PositionUpdatedAt.IsZero() {
 		t.Fatalf("expected position updated timestamp")
 	}
 }
@@ -464,8 +464,11 @@ func TestMeshtasticCodec_DecodeFromRadioPositionPacketInvalidCoordinatesIgnored(
 	if err != nil {
 		t.Fatalf("decode position packet: %v", err)
 	}
-	if frame.NodeUpdate != nil {
-		t.Fatalf("expected no node update for invalid coordinates")
+	if frame.NodePositionUpdate != nil {
+		t.Fatalf("expected no node position update for invalid coordinates")
+	}
+	if frame.NodeCoreUpdate != nil {
+		t.Fatalf("expected no node core update for invalid coordinates")
 	}
 }
 
@@ -498,17 +501,20 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	if err != nil {
 		t.Fatalf("decode node info frame: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeCoreUpdate == nil {
+		t.Fatalf("expected node core update")
 	}
-	if frame.NodeUpdate.Type != domain.NodeUpdateTypeNodeInfoSnapshot {
-		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	if frame.NodeCoreUpdate.Type != domain.NodeUpdateTypeNodeInfoSnapshot {
+		t.Fatalf("unexpected node update type: %q", frame.NodeCoreUpdate.Type)
 	}
-	assertFloatPtr(t, frame.NodeUpdate.Node.Latitude, 37.7749, "latitude")
-	assertFloatPtr(t, frame.NodeUpdate.Node.Longitude, -122.4194, "longitude")
-	assertInt32Ptr(t, frame.NodeUpdate.Node.Altitude, 123, "altitude")
-	assertUint32Ptr(t, frame.NodeUpdate.Node.PositionPrecisionBits, 16, "precision bits")
-	if frame.NodeUpdate.Node.PositionUpdatedAt.IsZero() {
+	if frame.NodePositionUpdate == nil {
+		t.Fatalf("expected node position update")
+	}
+	assertFloatPtr(t, frame.NodePositionUpdate.Position.Latitude, 37.7749, "latitude")
+	assertFloatPtr(t, frame.NodePositionUpdate.Position.Longitude, -122.4194, "longitude")
+	assertInt32Ptr(t, frame.NodePositionUpdate.Position.Altitude, 123, "altitude")
+	assertUint32Ptr(t, frame.NodePositionUpdate.Position.PositionPrecisionBits, 16, "precision bits")
+	if frame.NodePositionUpdate.Position.PositionUpdatedAt.IsZero() {
 		t.Fatalf("expected position updated timestamp")
 	}
 }
@@ -544,20 +550,20 @@ func TestMeshtasticCodec_DecodeFromRadioMetadataUsesLocalNodeID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode metadata frame: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeCoreUpdate == nil {
+		t.Fatalf("expected node core update")
 	}
-	if frame.NodeUpdate.Type != domain.NodeUpdateTypeMetadata {
-		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	if frame.NodeCoreUpdate.Type != domain.NodeUpdateTypeMetadata {
+		t.Fatalf("unexpected node update type: %q", frame.NodeCoreUpdate.Type)
 	}
-	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
-		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
+	if frame.NodeCoreUpdate.Core.NodeID != "!1234abcd" {
+		t.Fatalf("unexpected node id: %q", frame.NodeCoreUpdate.Core.NodeID)
 	}
-	if frame.NodeUpdate.Node.FirmwareVersion != "2.5.1.99999" {
-		t.Fatalf("unexpected firmware version: %q", frame.NodeUpdate.Node.FirmwareVersion)
+	if frame.NodeCoreUpdate.Core.FirmwareVersion != "2.5.1.99999" {
+		t.Fatalf("unexpected firmware version: %q", frame.NodeCoreUpdate.Core.FirmwareVersion)
 	}
-	if frame.NodeUpdate.Node.BoardModel != generated.HardwareModel_TBEAM.String() {
-		t.Fatalf("unexpected board model: %q", frame.NodeUpdate.Node.BoardModel)
+	if frame.NodeCoreUpdate.Core.BoardModel != generated.HardwareModel_TBEAM.String() {
+		t.Fatalf("unexpected board model: %q", frame.NodeCoreUpdate.Core.BoardModel)
 	}
 }
 
@@ -593,11 +599,11 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoPacketUsesNodeInfoType(t *testin
 	if err != nil {
 		t.Fatalf("decode fromradio: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeCoreUpdate == nil {
+		t.Fatalf("expected node core update")
 	}
-	if frame.NodeUpdate.Type != domain.NodeUpdateTypeNodeInfoPacket {
-		t.Fatalf("unexpected node update type: %q", frame.NodeUpdate.Type)
+	if frame.NodeCoreUpdate.Type != domain.NodeUpdateTypeNodeInfoPacket {
+		t.Fatalf("unexpected node update type: %q", frame.NodeCoreUpdate.Type)
 	}
 }
 
@@ -620,11 +626,11 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoWithoutUserDoesNotPanic(t *testi
 	if err != nil {
 		t.Fatalf("decode node info frame: %v", err)
 	}
-	if frame.NodeUpdate == nil {
-		t.Fatalf("expected node update")
+	if frame.NodeCoreUpdate == nil {
+		t.Fatalf("expected node core update")
 	}
-	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
-		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
+	if frame.NodeCoreUpdate.Core.NodeID != "!1234abcd" {
+		t.Fatalf("unexpected node id: %q", frame.NodeCoreUpdate.Core.NodeID)
 	}
 	if frame.NodePositionUpdate != nil {
 		t.Fatalf("expected no split node position update without coordinates")

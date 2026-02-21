@@ -8,10 +8,7 @@ import (
 
 // DecodedFrame is a parsed inbound radio frame with optional event payloads.
 type DecodedFrame struct {
-	Raw []byte
-	// NodeUpdate is kept for compatibility with existing tests/callers.
-	// Prefer split update fields for new code.
-	NodeUpdate          *domain.NodeUpdate
+	Raw                 []byte
 	NodeCoreUpdate      *domain.NodeCoreUpdate
 	NodePositionUpdate  *domain.NodePositionUpdate
 	NodeTelemetryUpdate *domain.NodeTelemetryUpdate
