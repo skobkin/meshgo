@@ -34,6 +34,15 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
 		t.Fatalf("expected precision circles hover-only mode to be disabled by default")
 	}
+	if cfg.Persistence.HistoryLimits.Position == nil || *cfg.Persistence.HistoryLimits.Position != DefaultPositionHistoryLimit {
+		t.Fatalf("expected default position history limit %d, got %v", DefaultPositionHistoryLimit, cfg.Persistence.HistoryLimits.Position)
+	}
+	if cfg.Persistence.HistoryLimits.Telemetry == nil || *cfg.Persistence.HistoryLimits.Telemetry != DefaultTelemetryHistoryLimit {
+		t.Fatalf("expected default telemetry history limit %d, got %v", DefaultTelemetryHistoryLimit, cfg.Persistence.HistoryLimits.Telemetry)
+	}
+	if cfg.Persistence.HistoryLimits.Identity == nil || *cfg.Persistence.HistoryLimits.Identity != DefaultIdentityHistoryLimit {
+		t.Fatalf("expected default identity history limit %d, got %v", DefaultIdentityHistoryLimit, cfg.Persistence.HistoryLimits.Identity)
+	}
 }
 
 func TestDefaultEnablesNotificationTypes(t *testing.T) {

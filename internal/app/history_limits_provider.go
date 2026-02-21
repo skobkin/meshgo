@@ -11,15 +11,24 @@ func newHistoryLimitsProvider(currentConfig func() config.AppConfig) historyLimi
 }
 
 func (p historyLimitsProvider) PositionHistoryLimit() int {
-	return p.limitOrDefault(func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Position }, 100)
+	return p.limitOrDefault(
+		func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Position },
+		config.DefaultPositionHistoryLimit,
+	)
 }
 
 func (p historyLimitsProvider) TelemetryHistoryLimit() int {
-	return p.limitOrDefault(func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Telemetry }, 250)
+	return p.limitOrDefault(
+		func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Telemetry },
+		config.DefaultTelemetryHistoryLimit,
+	)
 }
 
 func (p historyLimitsProvider) IdentityHistoryLimit() int {
-	return p.limitOrDefault(func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Identity }, 50)
+	return p.limitOrDefault(
+		func(cfg config.AppConfig) *int { return cfg.Persistence.HistoryLimits.Identity },
+		config.DefaultIdentityHistoryLimit,
+	)
 }
 
 func (p historyLimitsProvider) limitOrDefault(selectLimit func(config.AppConfig) *int, fallback int) int {

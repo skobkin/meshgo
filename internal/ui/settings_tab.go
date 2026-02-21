@@ -114,9 +114,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	historyPositionLimitSelect := widget.NewSelect(historyLimitOptions, nil)
 	historyTelemetryLimitSelect := widget.NewSelect(historyLimitOptions, nil)
 	historyIdentityLimitSelect := widget.NewSelect(historyLimitOptions, nil)
-	historyPositionLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Position))
-	historyTelemetryLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Telemetry))
-	historyIdentityLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Identity))
+	historyPositionLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Position, config.DefaultPositionHistoryLimit))
+	historyTelemetryLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Telemetry, config.DefaultTelemetryHistoryLimit))
+	historyIdentityLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Identity, config.DefaultIdentityHistoryLimit))
 	setMapHoverOnlyEnabled := func(enabled bool) {
 		if enabled {
 			mapShowPrecisionCirclesOnlyOnHover.Enable()
@@ -424,9 +424,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 		mapShowPrecisionCircles.SetChecked(next.UI.MapDisplay.ShowPrecisionCircles)
 		mapShowPrecisionCirclesOnlyOnHover.SetChecked(next.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
-		historyPositionLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Position))
-		historyTelemetryLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Telemetry))
-		historyIdentityLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Identity))
+		historyPositionLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Position, config.DefaultPositionHistoryLimit))
+		historyTelemetryLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Telemetry, config.DefaultTelemetryHistoryLimit))
+		historyIdentityLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Identity, config.DefaultIdentityHistoryLimit))
 		setMapHoverOnlyEnabled(next.UI.MapDisplay.ShowPrecisionCircles)
 
 		setTransportFields(selected, next.Connection.BluetoothTestingEnabled)
@@ -781,9 +781,9 @@ func parseHistoryLimitLabel(label string) (int, error) {
 	}
 }
 
-func historyLimitLabel(limit *int) string {
+func historyLimitLabel(limit *int, fallback int) string {
 	if limit == nil {
-		return "100"
+		return strconv.Itoa(fallback)
 	}
 	if *limit == 0 {
 		return "Unlimited"

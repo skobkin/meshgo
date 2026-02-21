@@ -21,6 +21,10 @@ const (
 	TransportSerial    TransportType = "serial"
 	DefaultSerialBaud                = 115200
 
+	DefaultPositionHistoryLimit  = 100
+	DefaultTelemetryHistoryLimit = 250
+	DefaultIdentityHistoryLimit  = 50
+
 	AutostartModeNormal     AutostartMode = "normal"
 	AutostartModeBackground AutostartMode = "background"
 )
@@ -227,9 +231,9 @@ func normalizeMapDisplay(display MapDisplayConfig) MapDisplayConfig {
 
 func defaultHistoryLimitsConfig() HistoryLimitsConfig {
 	return HistoryLimitsConfig{
-		Position:  intPtr(100),
-		Telemetry: intPtr(250),
-		Identity:  intPtr(50),
+		Position:  intPtr(DefaultPositionHistoryLimit),
+		Telemetry: intPtr(DefaultTelemetryHistoryLimit),
+		Identity:  intPtr(DefaultIdentityHistoryLimit),
 	}
 }
 
