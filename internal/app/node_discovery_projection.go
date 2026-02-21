@@ -42,12 +42,12 @@ func (p *NodeDiscoveryProjection) Start(ctx context.Context, messageBus bus.Mess
 	if p == nil || messageBus == nil {
 		return
 	}
-	nodeSub := messageBus.Subscribe(bus.TopicNodeInfo)
+	nodeSub := messageBus.Subscribe(bus.TopicNodeCore)
 	radioSub := messageBus.Subscribe(bus.TopicRadioFrom)
 	connSub := messageBus.Subscribe(bus.TopicConnStatus)
 
 	go func() {
-		defer messageBus.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+		defer messageBus.Unsubscribe(nodeSub, bus.TopicNodeCore)
 		defer messageBus.Unsubscribe(radioSub, bus.TopicRadioFrom)
 		defer messageBus.Unsubscribe(connSub, bus.TopicConnStatus)
 		for {
@@ -76,7 +76,7 @@ func (p *NodeDiscoveryProjection) Start(ctx context.Context, messageBus bus.Mess
 				if !ok {
 					return
 				}
-				update, ok := raw.(domain.NodeUpdate)
+				update, ok := raw.(domain.NodeCoreUpdate)
 				if !ok {
 					continue
 				}
@@ -136,11 +136,11 @@ func (p *NodeDiscoveryProjection) handleRadioFrame(frame radio.DecodedFrame) {
 	p.logger.Debug("node discovery armed after initial bootstrap")
 }
 
-func (p *NodeDiscoveryProjection) nodeDiscoveredEvent(update domain.NodeUpdate) (domain.NodeDiscovered, bool) {
+func (p *NodeDiscoveryProjection) nodeDiscoveredEvent(update domain.NodeCoreUpdate) (domain.NodeDiscovered, bool) {
 	if p == nil || update.Type != domain.NodeUpdateTypeNodeInfoPacket {
 		return domain.NodeDiscovered{}, false
 	}
-	nodeID := strings.TrimSpace(update.Node.NodeID)
+	nodeID := strings.TrimSpace(update.Core.NodeID)
 	if nodeID == "" {
 		return domain.NodeDiscovered{}, false
 	}
@@ -163,18 +163,32 @@ func (p *NodeDiscoveryProjection) nodeDiscoveredEvent(update domain.NodeUpdate) 
 	p.seenNodeIDs[nodeID] = struct{}{}
 
 	return domain.NodeDiscovered{
-		Node:         update.Node,
+		Node: domain.Node{
+			NodeID:          update.Core.NodeID,
+			LongName:        update.Core.LongName,
+			ShortName:       update.Core.ShortName,
+			PublicKey:       append([]byte(nil), update.Core.PublicKey...),
+			Channel:         update.Core.Channel,
+			BoardModel:      update.Core.BoardModel,
+			FirmwareVersion: update.Core.FirmwareVersion,
+			Role:            update.Core.Role,
+			IsUnmessageable: update.Core.IsUnmessageable,
+			LastHeardAt:     update.Core.LastHeardAt,
+			RSSI:            update.Core.RSSI,
+			SNR:             update.Core.SNR,
+			UpdatedAt:       update.Core.UpdatedAt,
+		},
 		NodeID:       nodeID,
 		DiscoveredAt: time.Now(),
 		Source:       nodeDiscoverySourceNodeInfoPacket,
 	}, true
 }
 
-func nodeUpdateAtOrAfterCutover(update domain.NodeUpdate, cutover time.Time) bool {
+func nodeUpdateAtOrAfterCutover(update domain.NodeCoreUpdate, cutover time.Time) bool {
 	if cutover.IsZero() {
 		return true
 	}
-	observedAt := update.Node.UpdatedAt
+	observedAt := update.Core.UpdatedAt
 	if observedAt.IsZero() {
 		return true
 	}

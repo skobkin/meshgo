@@ -2,10 +2,32 @@ package domain
 
 import "context"
 
-// NodeRepository persists node snapshots.
-type NodeRepository interface {
-	Upsert(ctx context.Context, n Node) error
-	ListSortedByLastHeard(ctx context.Context) ([]Node, error)
+// NodeCoreRepository persists node core snapshots.
+type NodeCoreRepository interface {
+	Upsert(ctx context.Context, update NodeCoreUpdate, identityHistoryLimit int) error
+	ListSortedByLastHeard(ctx context.Context) ([]NodeCore, error)
+	GetByNodeID(ctx context.Context, nodeID string) (NodeCore, bool, error)
+}
+
+// NodePositionRepository persists node position latest snapshot and history.
+type NodePositionRepository interface {
+	Upsert(ctx context.Context, update NodePositionUpdate, historyLimit int) error
+	ListLatest(ctx context.Context) ([]NodePosition, error)
+	GetLatestByNodeID(ctx context.Context, nodeID string) (NodePosition, bool, error)
+	ListHistoryByNodeID(ctx context.Context, query NodeHistoryQuery) ([]NodePositionHistoryEntry, error)
+}
+
+// NodeTelemetryRepository persists node telemetry latest snapshot and history.
+type NodeTelemetryRepository interface {
+	Upsert(ctx context.Context, update NodeTelemetryUpdate, historyLimit int) error
+	ListLatest(ctx context.Context) ([]NodeTelemetry, error)
+	GetLatestByNodeID(ctx context.Context, nodeID string) (NodeTelemetry, bool, error)
+	ListHistoryByNodeID(ctx context.Context, query NodeHistoryQuery) ([]NodeTelemetryHistoryEntry, error)
+}
+
+// NodeIdentityHistoryRepository persists identity change history for nodes.
+type NodeIdentityHistoryRepository interface {
+	ListHistoryByNodeID(ctx context.Context, query NodeHistoryQuery) ([]NodeIdentityHistoryEntry, error)
 }
 
 // ChatRepository persists chat metadata.

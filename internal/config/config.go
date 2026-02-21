@@ -87,11 +87,25 @@ type NotificationEventsConfig struct {
 	UpdateAvailable  bool `json:"update_available"`
 }
 
+// PersistenceConfig stores persistence behavior and retention settings.
+type PersistenceConfig struct {
+	HistoryLimits HistoryLimitsConfig `json:"history_limits"`
+}
+
+// HistoryLimitsConfig stores per-table node history row caps.
+// Nil values mean "use default", zero means unlimited.
+type HistoryLimitsConfig struct {
+	Position  *int `json:"position"`
+	Telemetry *int `json:"telemetry"`
+	Identity  *int `json:"identity"`
+}
+
 // AppConfig is the root persisted application configuration.
 type AppConfig struct {
-	Connection ConnectionConfig `json:"connection"`
-	Logging    LoggingConfig    `json:"logging"`
-	UI         UIConfig         `json:"ui"`
+	Connection  ConnectionConfig  `json:"connection"`
+	Logging     LoggingConfig     `json:"logging"`
+	Persistence PersistenceConfig `json:"persistence"`
+	UI          UIConfig          `json:"ui"`
 }
 
 func Default() AppConfig {
@@ -108,6 +122,9 @@ func Default() AppConfig {
 		Logging: LoggingConfig{
 			Level:     "info",
 			LogToFile: false,
+		},
+		Persistence: PersistenceConfig{
+			HistoryLimits: defaultHistoryLimitsConfig(),
 		},
 		UI: UIConfig{
 			LastSelectedChat: "",
@@ -174,6 +191,7 @@ func (c *AppConfig) FillMissingDefaults() {
 	c.UI.Autostart.Mode = normalizeAutostartMode(c.UI.Autostart.Mode)
 	c.UI.MapViewport = normalizeMapViewport(c.UI.MapViewport)
 	c.UI.MapDisplay = normalizeMapDisplay(c.UI.MapDisplay)
+	c.Persistence.HistoryLimits = normalizeHistoryLimitsConfig(c.Persistence.HistoryLimits)
 }
 
 func normalizeAutostartMode(mode AutostartMode) AutostartMode {
@@ -207,6 +225,35 @@ func normalizeMapDisplay(display MapDisplayConfig) MapDisplayConfig {
 	return display
 }
 
+func defaultHistoryLimitsConfig() HistoryLimitsConfig {
+	return HistoryLimitsConfig{
+		Position:  intPtr(100),
+		Telemetry: intPtr(250),
+		Identity:  intPtr(50),
+	}
+}
+
+func normalizeHistoryLimitsConfig(limits HistoryLimitsConfig) HistoryLimitsConfig {
+	defaults := defaultHistoryLimitsConfig()
+	if limits.Position == nil {
+		limits.Position = intPtr(*defaults.Position)
+	}
+	if limits.Telemetry == nil {
+		limits.Telemetry = intPtr(*defaults.Telemetry)
+	}
+	if limits.Identity == nil {
+		limits.Identity = intPtr(*defaults.Identity)
+	}
+
+	return limits
+}
+
+func intPtr(v int) *int {
+	value := v
+
+	return &value
+}
+
 func (c AppConfig) Validate() error {
 	switch c.Connection.Transport {
 	case TransportIP:
@@ -226,6 +273,15 @@ func (c AppConfig) Validate() error {
 		}
 	default:
 		return fmt.Errorf("unknown transport: %s", c.Connection.Transport)
+	}
+	if c.Persistence.HistoryLimits.Position != nil && *c.Persistence.HistoryLimits.Position < 0 {
+		return errors.New("position history limit must be non-negative")
+	}
+	if c.Persistence.HistoryLimits.Telemetry != nil && *c.Persistence.HistoryLimits.Telemetry < 0 {
+		return errors.New("telemetry history limit must be non-negative")
+	}
+	if c.Persistence.HistoryLimits.Identity != nil && *c.Persistence.HistoryLimits.Identity < 0 {
+		return errors.New("identity history limit must be non-negative")
 	}
 
 	return nil

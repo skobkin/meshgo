@@ -31,8 +31,8 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	})
 
 	// Before bootstrap completion, discovery must stay muted.
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000099",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -42,8 +42,8 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	armBootstrap(messageBus)
 
 	// Non-nodeinfo packets must not trigger discovery.
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000098",
 		},
 		Type: domain.NodeUpdateTypeTelemetryPacket,
@@ -51,8 +51,8 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	assertNoNodeDiscovered(t, sub)
 
 	// Already-known startup node should not emit.
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000001",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -60,8 +60,8 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 	assertNoNodeDiscovered(t, sub)
 
 	// Unknown node discovered post-bootstrap emits once.
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID:    "!00000099",
 			ShortName: "N99",
 		},
@@ -75,8 +75,8 @@ func TestNodeDiscoveryProjection_EmitsAfterBootstrapForUnknownNodeInfoPacket(t *
 		t.Fatalf("unexpected discovery source: %q", event.Source)
 	}
 
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000099",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -101,8 +101,8 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 	})
 
 	armBootstrap(messageBus)
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000042",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -114,8 +114,8 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 	proj.ResetFromStore(store)
 
 	// Must remain muted again until bootstrap is ready.
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000042",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -124,8 +124,8 @@ func TestNodeDiscoveryProjection_ResetFromStoreClearsSessionState(t *testing.T) 
 
 	// After re-arming bootstrap, the same node can be discovered again.
 	armBootstrap(messageBus)
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-		Node: domain.Node{
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID: "!00000042",
 		},
 		Type: domain.NodeUpdateTypeNodeInfoPacket,
@@ -140,8 +140,8 @@ func TestNodeDiscoveryProjection_IgnoresNodeInfoObservedBeforeBootstrapCutover(t
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	proj := NewNodeDiscoveryProjection(nil, logger)
 
-	staleUpdate := domain.NodeUpdate{
-		Node: domain.Node{
+	staleUpdate := domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID:    "!00000077",
 			UpdatedAt: time.Now().Add(-time.Second),
 		},
@@ -153,8 +153,8 @@ func TestNodeDiscoveryProjection_IgnoresNodeInfoObservedBeforeBootstrapCutover(t
 		t.Fatalf("expected stale pre-bootstrap update to be ignored")
 	}
 
-	freshUpdate := domain.NodeUpdate{
-		Node: domain.Node{
+	freshUpdate := domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
 			NodeID:    "!00000077",
 			UpdatedAt: time.Now(),
 		},

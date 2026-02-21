@@ -193,11 +193,11 @@ func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) 
 
 	if nodeInfo := wire.GetNodeInfo(); nodeInfo != nil {
 		nodeUpdate := decodeNodeInfo(nodeInfo, now)
-		out.NodeUpdate = &nodeUpdate
+		assignSplitNodeUpdates(&out, nodeUpdate)
 	}
 	if metadata := wire.GetMetadata(); metadata != nil {
 		if nodeUpdate, ok := decodeMetadataNodeUpdate(metadata, c.localNodeNum.Load(), now); ok {
-			out.NodeUpdate = &nodeUpdate
+			assignSplitNodeUpdates(&out, nodeUpdate)
 		}
 	}
 
@@ -262,15 +262,15 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 		out.TextMessage = &msg
 	case generated.PortNum_NODEINFO_APP:
 		if nodeUpdate, ok := decodeNodeFromPacketPayload(packet, decoded.GetPayload(), now); ok {
-			out.NodeUpdate = &nodeUpdate
+			assignSplitNodeUpdates(out, nodeUpdate)
 		}
 	case generated.PortNum_TELEMETRY_APP:
 		if nodeUpdate, ok := decodeNodeTelemetryFromPacket(packet, decoded.GetPayload(), now); ok {
-			out.NodeUpdate = &nodeUpdate
+			assignSplitNodeUpdates(out, nodeUpdate)
 		}
 	case generated.PortNum_POSITION_APP:
 		if nodeUpdate, ok := decodeNodePositionFromPacket(packet, decoded.GetPayload(), now); ok {
-			out.NodeUpdate = &nodeUpdate
+			assignSplitNodeUpdates(out, nodeUpdate)
 		}
 	case generated.PortNum_ADMIN_APP:
 		var admin generated.AdminMessage
@@ -290,6 +290,126 @@ func decodePacket(packet *generated.MeshPacket, now time.Time, localNode uint32,
 			out.Traceroute = &event
 		}
 	}
+}
+
+func assignSplitNodeUpdates(out *DecodedFrame, update domain.NodeUpdate) {
+	if out == nil {
+		return
+	}
+	copyUpdate := update
+	out.NodeUpdate = &copyUpdate
+	if core, ok := splitNodeCoreUpdate(update); ok {
+		out.NodeCoreUpdate = &core
+	}
+	if position, ok := splitNodePositionUpdate(update); ok {
+		out.NodePositionUpdate = &position
+	}
+	if telemetry, ok := splitNodeTelemetryUpdate(update); ok {
+		out.NodeTelemetryUpdate = &telemetry
+	}
+}
+
+func splitNodeCoreUpdate(update domain.NodeUpdate) (domain.NodeCoreUpdate, bool) {
+	node := update.Node
+	if strings.TrimSpace(node.NodeID) == "" {
+		return domain.NodeCoreUpdate{}, false
+	}
+
+	return domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:          node.NodeID,
+			LongName:        node.LongName,
+			ShortName:       node.ShortName,
+			PublicKey:       cloneCodecKeyBytes(node.PublicKey),
+			Channel:         node.Channel,
+			BoardModel:      node.BoardModel,
+			FirmwareVersion: node.FirmwareVersion,
+			Role:            node.Role,
+			IsUnmessageable: node.IsUnmessageable,
+			LastHeardAt:     node.LastHeardAt,
+			RSSI:            node.RSSI,
+			SNR:             node.SNR,
+			UpdatedAt:       node.UpdatedAt,
+		},
+		FromPacket: update.FromPacket,
+		Type:       update.Type,
+	}, true
+}
+
+func splitNodePositionUpdate(update domain.NodeUpdate) (domain.NodePositionUpdate, bool) {
+	node := update.Node
+	if strings.TrimSpace(node.NodeID) == "" {
+		return domain.NodePositionUpdate{}, false
+	}
+	if node.Latitude == nil && node.Longitude == nil && node.Altitude == nil && node.PositionPrecisionBits == nil && node.PositionUpdatedAt.IsZero() {
+		return domain.NodePositionUpdate{}, false
+	}
+	observedAt := node.LastHeardAt
+	if observedAt.IsZero() {
+		observedAt = node.UpdatedAt
+	}
+
+	return domain.NodePositionUpdate{
+		Position: domain.NodePosition{
+			NodeID:                node.NodeID,
+			Channel:               node.Channel,
+			Latitude:              node.Latitude,
+			Longitude:             node.Longitude,
+			Altitude:              node.Altitude,
+			PositionPrecisionBits: node.PositionPrecisionBits,
+			PositionUpdatedAt:     node.PositionUpdatedAt,
+			ObservedAt:            observedAt,
+			UpdatedAt:             node.UpdatedAt,
+		},
+		FromPacket: update.FromPacket,
+		Type:       update.Type,
+	}, true
+}
+
+func splitNodeTelemetryUpdate(update domain.NodeUpdate) (domain.NodeTelemetryUpdate, bool) {
+	node := update.Node
+	if strings.TrimSpace(node.NodeID) == "" {
+		return domain.NodeTelemetryUpdate{}, false
+	}
+	if node.BatteryLevel == nil &&
+		node.Voltage == nil &&
+		node.UptimeSeconds == nil &&
+		node.ChannelUtilization == nil &&
+		node.AirUtilTx == nil &&
+		node.Temperature == nil &&
+		node.Humidity == nil &&
+		node.Pressure == nil &&
+		node.AirQualityIndex == nil &&
+		node.PowerVoltage == nil &&
+		node.PowerCurrent == nil {
+		return domain.NodeTelemetryUpdate{}, false
+	}
+	observedAt := node.LastHeardAt
+	if observedAt.IsZero() {
+		observedAt = node.UpdatedAt
+	}
+
+	return domain.NodeTelemetryUpdate{
+		Telemetry: domain.NodeTelemetry{
+			NodeID:             node.NodeID,
+			Channel:            node.Channel,
+			BatteryLevel:       node.BatteryLevel,
+			Voltage:            node.Voltage,
+			UptimeSeconds:      node.UptimeSeconds,
+			ChannelUtilization: node.ChannelUtilization,
+			AirUtilTx:          node.AirUtilTx,
+			Temperature:        node.Temperature,
+			Humidity:           node.Humidity,
+			Pressure:           node.Pressure,
+			AirQualityIndex:    node.AirQualityIndex,
+			PowerVoltage:       node.PowerVoltage,
+			PowerCurrent:       node.PowerCurrent,
+			ObservedAt:         observedAt,
+			UpdatedAt:          node.UpdatedAt,
+		},
+		FromPacket: update.FromPacket,
+		Type:       update.Type,
+	}, true
 }
 
 func decodeTracerouteEvent(packet *generated.MeshPacket, decoded *generated.Data) (busmsg.TracerouteEvent, bool) {

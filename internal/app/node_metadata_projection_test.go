@@ -20,8 +20,8 @@ func TestNodeMetadataProjection_PublishesNodeUpdateFromAdminMetadata(t *testing.
 	defer cancel()
 	proj.Start(ctx, messageBus)
 
-	sub := messageBus.Subscribe(bus.TopicNodeInfo)
-	defer messageBus.Unsubscribe(sub, bus.TopicNodeInfo)
+	sub := messageBus.Subscribe(bus.TopicNodeCore)
+	defer messageBus.Unsubscribe(sub, bus.TopicNodeCore)
 
 	messageBus.Publish(bus.TopicAdminMessage, busmsg.AdminMessageEvent{
 		From: 0x1234abcd,
@@ -37,21 +37,21 @@ func TestNodeMetadataProjection_PublishesNodeUpdateFromAdminMetadata(t *testing.
 
 	select {
 	case raw := <-sub:
-		update, ok := raw.(domain.NodeUpdate)
+		update, ok := raw.(domain.NodeCoreUpdate)
 		if !ok {
 			t.Fatalf("unexpected payload type: %T", raw)
 		}
 		if update.Type != domain.NodeUpdateTypeMetadata {
 			t.Fatalf("unexpected update type: %q", update.Type)
 		}
-		if update.Node.NodeID != "!1234abcd" {
-			t.Fatalf("unexpected node id: %q", update.Node.NodeID)
+		if update.Core.NodeID != "!1234abcd" {
+			t.Fatalf("unexpected node id: %q", update.Core.NodeID)
 		}
-		if update.Node.FirmwareVersion != "2.5.1.99999" {
-			t.Fatalf("unexpected firmware version: %q", update.Node.FirmwareVersion)
+		if update.Core.FirmwareVersion != "2.5.1.99999" {
+			t.Fatalf("unexpected firmware version: %q", update.Core.FirmwareVersion)
 		}
-		if update.Node.BoardModel != generated.HardwareModel_TBEAM.String() {
-			t.Fatalf("unexpected board model: %q", update.Node.BoardModel)
+		if update.Core.BoardModel != generated.HardwareModel_TBEAM.String() {
+			t.Fatalf("unexpected board model: %q", update.Core.BoardModel)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for node metadata update")

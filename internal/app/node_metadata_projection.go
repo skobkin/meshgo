@@ -45,7 +45,7 @@ func (p *NodeMetadataProjection) Start(ctx context.Context, messageBus bus.Messa
 				}
 				nodeID := fmt.Sprintf("!%08x", event.From)
 				now := time.Now()
-				node := domain.Node{
+				node := domain.NodeCore{
 					NodeID:          nodeID,
 					FirmwareVersion: strings.TrimSpace(metadata.GetFirmwareVersion()),
 					LastHeardAt:     now,
@@ -57,9 +57,8 @@ func (p *NodeMetadataProjection) Start(ctx context.Context, messageBus bus.Messa
 				if role := strings.TrimSpace(metadata.GetRole().String()); role != "" {
 					node.Role = role
 				}
-				messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{
-					Node:       node,
-					LastHeard:  now,
+				messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{
+					Core:       node,
 					FromPacket: true,
 					Type:       domain.NodeUpdateTypeMetadata,
 				})

@@ -21,10 +21,12 @@ func startUIEventListeners(
 	}
 
 	connSub := messageBus.Subscribe(bus.TopicConnStatus)
-	nodeSub := messageBus.Subscribe(bus.TopicNodeInfo)
+	nodeCoreSub := messageBus.Subscribe(bus.TopicNodeCore)
+	nodePositionSub := messageBus.Subscribe(bus.TopicNodePosition)
+	nodeTelemetrySub := messageBus.Subscribe(bus.TopicNodeTelemetry)
 	appLogger.Debug(
 		"subscribed to UI bus topics",
-		"topics", []string{bus.TopicConnStatus, bus.TopicNodeInfo},
+		"topics", []string{bus.TopicConnStatus, bus.TopicNodeCore, bus.TopicNodePosition, bus.TopicNodeTelemetry},
 	)
 	done := make(chan struct{})
 	var stopOnce sync.Once
@@ -58,35 +60,43 @@ func startUIEventListeners(
 		}
 	}()
 
-	go func() {
-		for {
-			select {
-			case <-done:
-				return
-			case _, ok := <-nodeSub:
-				if !ok {
-					appLogger.Debug("node info subscription closed")
-
-					return
-				}
+	startNodeListener := func(sub bus.Subscription, topic string) {
+		go func() {
+			for {
 				select {
 				case <-done:
 					return
-				default:
-				}
-				if onNodeInfo != nil {
-					onNodeInfo()
+				case _, ok := <-sub:
+					if !ok {
+						appLogger.Debug("node subscription closed", "topic", topic)
+
+						return
+					}
+					select {
+					case <-done:
+						return
+					default:
+					}
+					if onNodeInfo != nil {
+						onNodeInfo()
+					}
 				}
 			}
-		}
-	}()
+		}()
+	}
+
+	startNodeListener(nodeCoreSub, bus.TopicNodeCore)
+	startNodeListener(nodePositionSub, bus.TopicNodePosition)
+	startNodeListener(nodeTelemetrySub, bus.TopicNodeTelemetry)
 
 	return func() {
 		stopOnce.Do(func() {
 			appLogger.Debug("stopping UI event listeners")
 			close(done)
 			messageBus.Unsubscribe(connSub, bus.TopicConnStatus)
-			messageBus.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+			messageBus.Unsubscribe(nodeCoreSub, bus.TopicNodeCore)
+			messageBus.Unsubscribe(nodePositionSub, bus.TopicNodePosition)
+			messageBus.Unsubscribe(nodeTelemetrySub, bus.TopicNodeTelemetry)
 		})
 	}
 }

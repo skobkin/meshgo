@@ -169,8 +169,14 @@ func (s *Service) runReader(ctx context.Context) error {
 		}
 		s.bus.Publish(bus.TopicRadioFrom, decoded)
 
-		if decoded.NodeUpdate != nil {
-			s.bus.Publish(bus.TopicNodeInfo, *decoded.NodeUpdate)
+		if decoded.NodeCoreUpdate != nil {
+			s.bus.Publish(bus.TopicNodeCore, *decoded.NodeCoreUpdate)
+		}
+		if decoded.NodePositionUpdate != nil {
+			s.bus.Publish(bus.TopicNodePosition, *decoded.NodePositionUpdate)
+		}
+		if decoded.NodeTelemetryUpdate != nil {
+			s.bus.Publish(bus.TopicNodeTelemetry, *decoded.NodeTelemetryUpdate)
 		}
 		if decoded.Channels != nil {
 			s.bus.Publish(bus.TopicChannels, *decoded.Channels)

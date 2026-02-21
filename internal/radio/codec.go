@@ -8,16 +8,21 @@ import (
 
 // DecodedFrame is a parsed inbound radio frame with optional event payloads.
 type DecodedFrame struct {
-	Raw              []byte
-	NodeUpdate       *domain.NodeUpdate
-	Channels         *domain.ChannelList
-	TextMessage      *domain.ChatMessage
-	MessageStatus    *domain.MessageStatusUpdate
-	ConfigSnapshot   *busmsg.ConfigSnapshot
-	AdminMessage     *busmsg.AdminMessageEvent
-	Traceroute       *busmsg.TracerouteEvent
-	ConfigCompleteID uint32
-	WantConfigReady  bool
+	Raw []byte
+	// NodeUpdate is kept for compatibility with existing tests/callers.
+	// Prefer split update fields for new code.
+	NodeUpdate          *domain.NodeUpdate
+	NodeCoreUpdate      *domain.NodeCoreUpdate
+	NodePositionUpdate  *domain.NodePositionUpdate
+	NodeTelemetryUpdate *domain.NodeTelemetryUpdate
+	Channels            *domain.ChannelList
+	TextMessage         *domain.ChatMessage
+	MessageStatus       *domain.MessageStatusUpdate
+	ConfigSnapshot      *busmsg.ConfigSnapshot
+	AdminMessage        *busmsg.AdminMessageEvent
+	Traceroute          *busmsg.TracerouteEvent
+	ConfigCompleteID    uint32
+	WantConfigReady     bool
 }
 
 // TextSendOptions provides optional fields for outgoing text frames.

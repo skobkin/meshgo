@@ -50,12 +50,15 @@ type RuntimeCore struct {
 
 // RuntimePersistence contains database handles, repositories, and write projection queue.
 type RuntimePersistence struct {
-	DB             *sql.DB
-	NodeRepo       *persistence.NodeRepo
-	ChatRepo       *persistence.ChatRepo
-	MessageRepo    *persistence.MessageRepo
-	TracerouteRepo *persistence.TracerouteRepo
-	WriterQueue    *persistence.WriterQueue
+	DB                  *sql.DB
+	NodeCoreRepo        *persistence.NodeCoreRepo
+	NodePositionRepo    *persistence.NodePositionRepo
+	NodeTelemetryRepo   *persistence.NodeTelemetryRepo
+	NodeIdentityHistory *persistence.NodeIdentityHistoryRepo
+	ChatRepo            *persistence.ChatRepo
+	MessageRepo         *persistence.MessageRepo
+	TracerouteRepo      *persistence.TracerouteRepo
+	WriterQueue         *persistence.WriterQueue
 }
 
 // RuntimeDomain contains in-memory stores and message bus projections used by the app/UI.
@@ -116,7 +119,10 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	}
 	rt.Persistence.DB = db
 
-	rt.Persistence.NodeRepo = persistence.NewNodeRepo(db)
+	rt.Persistence.NodeCoreRepo = persistence.NewNodeCoreRepo(db)
+	rt.Persistence.NodePositionRepo = persistence.NewNodePositionRepo(db)
+	rt.Persistence.NodeTelemetryRepo = persistence.NewNodeTelemetryRepo(db)
+	rt.Persistence.NodeIdentityHistory = persistence.NewNodeIdentityHistoryRepo(db)
 	rt.Persistence.ChatRepo = persistence.NewChatRepo(db)
 	rt.Persistence.MessageRepo = persistence.NewMessageRepo(db)
 	rt.Persistence.TracerouteRepo = persistence.NewTracerouteRepo(db)
@@ -127,7 +133,9 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		ctx,
 		nodeStore,
 		chatStore,
-		rt.Persistence.NodeRepo,
+		rt.Persistence.NodeCoreRepo,
+		rt.Persistence.NodePositionRepo,
+		rt.Persistence.NodeTelemetryRepo,
 		rt.Persistence.ChatRepo,
 		rt.Persistence.MessageRepo,
 	); err != nil {
@@ -158,7 +166,10 @@ func Initialize(parent context.Context) (*Runtime, error) {
 		ctx,
 		b,
 		writerQueue,
-		rt.Persistence.NodeRepo,
+		rt.Persistence.NodeCoreRepo,
+		rt.Persistence.NodePositionRepo,
+		rt.Persistence.NodeTelemetryRepo,
+		newHistoryLimitsProvider(rt.CurrentConfig),
 		rt.Persistence.ChatRepo,
 		rt.Persistence.MessageRepo,
 		rt.Persistence.TracerouteRepo,

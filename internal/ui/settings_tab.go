@@ -110,6 +110,13 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	mapShowPrecisionCircles.SetChecked(current.UI.MapDisplay.ShowPrecisionCircles)
 	mapShowPrecisionCirclesOnlyOnHover := widget.NewCheck("Only on hover", nil)
 	mapShowPrecisionCirclesOnlyOnHover.SetChecked(current.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+	historyLimitOptions := historyLimitOptionLabels()
+	historyPositionLimitSelect := widget.NewSelect(historyLimitOptions, nil)
+	historyTelemetryLimitSelect := widget.NewSelect(historyLimitOptions, nil)
+	historyIdentityLimitSelect := widget.NewSelect(historyLimitOptions, nil)
+	historyPositionLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Position))
+	historyTelemetryLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Telemetry))
+	historyIdentityLimitSelect.SetSelected(historyLimitLabel(current.Persistence.HistoryLimits.Identity))
 	setMapHoverOnlyEnabled := func(enabled bool) {
 		if enabled {
 			mapShowPrecisionCirclesOnlyOnHover.Enable()
@@ -417,6 +424,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 		mapShowPrecisionCircles.SetChecked(next.UI.MapDisplay.ShowPrecisionCircles)
 		mapShowPrecisionCirclesOnlyOnHover.SetChecked(next.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+		historyPositionLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Position))
+		historyTelemetryLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Telemetry))
+		historyIdentityLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Identity))
 		setMapHoverOnlyEnabled(next.UI.MapDisplay.ShowPrecisionCircles)
 
 		setTransportFields(selected, next.Connection.BluetoothTestingEnabled)
@@ -462,6 +472,24 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 				return
 			}
 		}
+		positionHistoryLimit, err := parseHistoryLimitLabel(historyPositionLimitSelect.Selected)
+		if err != nil {
+			status.SetText("Save failed: " + err.Error())
+
+			return
+		}
+		telemetryHistoryLimit, err := parseHistoryLimitLabel(historyTelemetryLimitSelect.Selected)
+		if err != nil {
+			status.SetText("Save failed: " + err.Error())
+
+			return
+		}
+		identityHistoryLimit, err := parseHistoryLimitLabel(historyIdentityLimitSelect.Selected)
+		if err != nil {
+			status.SetText("Save failed: " + err.Error())
+
+			return
+		}
 
 		cfg := current
 		cfg.Connection.Transport = transport
@@ -482,6 +510,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Notifications.Events.UpdateAvailable = notifyUpdateAvailable.Checked
 		cfg.UI.MapDisplay.ShowPrecisionCircles = mapShowPrecisionCircles.Checked
 		cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover = mapShowPrecisionCirclesOnlyOnHover.Checked
+		cfg.Persistence.HistoryLimits.Position = intPtr(positionHistoryLimit)
+		cfg.Persistence.HistoryLimits.Telemetry = intPtr(telemetryHistoryLimit)
+		cfg.Persistence.HistoryLimits.Identity = intPtr(identityHistoryLimit)
 
 		saveConfig := func(clearDatabase bool) {
 			settingsLogger.Info("applying settings", "clear_database", clearDatabase, "transport", cfg.Connection.Transport)
@@ -650,6 +681,14 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		mapShowPrecisionCircles,
 		container.NewPadded(mapShowPrecisionCirclesOnlyOnHover),
 	)
+	historyForm := widget.NewForm(
+		widget.NewFormItem("Position history rows", historyPositionLimitSelect),
+		widget.NewFormItem("Telemetry history rows", historyTelemetryLimitSelect),
+		widget.NewFormItem("Identity history rows", historyIdentityLimitSelect),
+	)
+	historyHelp := widget.NewLabel("Limits are per node and per table. Unlimited means history is not capped.")
+	historyHelp.Wrapping = fyne.TextWrapWord
+	historyContent := container.NewVBox(historyForm, historyHelp)
 
 	connectionBlock := widget.NewCard("Connection", "", container.NewVBox(
 		connStatusLabel,
@@ -658,6 +697,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	startupBlock := widget.NewCard("Startup", "", startupForm)
 	notificationsBlock := widget.NewCard("Notifications", "", notificationsContent)
 	mapBlock := widget.NewCard("Map", "", mapContent)
+	historyBlock := widget.NewCard("History", "", historyContent)
 	loggingBlock := widget.NewCard("Logging", "", loggingForm)
 	maintenanceBlock := widget.NewCard("Maintenance", "", container.NewGridWithColumns(2,
 		clearDBButton,
@@ -688,6 +728,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	generalTab := newSettingsSubTabPage(startupBlock)
 	connectionTab := newSettingsSubTabPage(connectionBlock)
 	mapTab := newSettingsSubTabPage(mapBlock)
+	historyTab := newSettingsSubTabPage(historyBlock)
 	notificationsTab := newSettingsSubTabPage(notificationsBlock)
 	maintenanceTab := newSettingsSubTabPage(loggingBlock, maintenanceBlock)
 	aboutTab := newSettingsSubTabPage(versionBlock)
@@ -696,6 +737,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		container.NewTabItem("General", generalTab),
 		container.NewTabItem("Connection", connectionTab),
 		container.NewTabItem("Map", mapTab),
+		container.NewTabItem("History", historyTab),
 		container.NewTabItem("Notifications", notificationsTab),
 		container.NewTabItem("Maintenance", maintenanceTab),
 		container.NewTabItem("About", aboutTab),
@@ -716,6 +758,44 @@ func newSettingsSubTabPage(content ...fyne.CanvasObject) fyne.CanvasObject {
 	page := container.NewVBox(content...)
 
 	return container.NewVScroll(container.NewPadded(page))
+}
+
+func historyLimitOptionLabels() []string {
+	return []string{"10", "50", "100", "250", "500", "1000", "Unlimited"}
+}
+
+func parseHistoryLimitLabel(label string) (int, error) {
+	trimmed := strings.TrimSpace(label)
+	if strings.EqualFold(trimmed, "unlimited") {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(trimmed)
+	if err != nil {
+		return 0, fmt.Errorf("invalid history limit value %q", trimmed)
+	}
+	switch value {
+	case 10, 50, 100, 250, 500, 1000:
+		return value, nil
+	default:
+		return 0, fmt.Errorf("unsupported history limit value %d", value)
+	}
+}
+
+func historyLimitLabel(limit *int) string {
+	if limit == nil {
+		return "100"
+	}
+	if *limit == 0 {
+		return "Unlimited"
+	}
+
+	return strconv.Itoa(*limit)
+}
+
+func intPtr(v int) *int {
+	value := v
+
+	return &value
 }
 
 func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDevice, onSelect func(DiscoveredBluetoothDevice)) {

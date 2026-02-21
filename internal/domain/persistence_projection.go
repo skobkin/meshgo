@@ -13,16 +13,28 @@ type WriteQueue interface {
 	Enqueue(name string, fn func(context.Context) error)
 }
 
+// HistoryLimitsProvider returns current node history caps.
+type HistoryLimitsProvider interface {
+	PositionHistoryLimit() int
+	TelemetryHistoryLimit() int
+	IdentityHistoryLimit() int
+}
+
 func StartPersistenceProjection(
 	ctx context.Context,
 	b bus.MessageBus,
 	queue WriteQueue,
-	nodeRepo NodeRepository,
+	coreRepo NodeCoreRepository,
+	positionRepo NodePositionRepository,
+	telemetryRepo NodeTelemetryRepository,
+	historyLimits HistoryLimitsProvider,
 	chatRepo ChatRepository,
 	msgRepo MessageRepository,
 	tracerouteRepo TracerouteRepository,
 ) {
-	nodeSub := b.Subscribe(bus.TopicNodeInfo)
+	coreSub := b.Subscribe(bus.TopicNodeCore)
+	positionSub := b.Subscribe(bus.TopicNodePosition)
+	telemetrySub := b.Subscribe(bus.TopicNodeTelemetry)
 	channelSub := b.Subscribe(bus.TopicChannels)
 	textSub := b.Subscribe(bus.TopicTextMessage)
 	statusSub := b.Subscribe(bus.TopicMessageStatus)
@@ -32,22 +44,81 @@ func StartPersistenceProjection(
 	}
 
 	go func() {
-		defer b.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+		defer b.Unsubscribe(coreSub, bus.TopicNodeCore)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case raw, ok := <-nodeSub:
+			case raw, ok := <-coreSub:
 				if !ok {
 					return
 				}
-				update, ok := raw.(NodeUpdate)
+				update, ok := raw.(NodeCoreUpdate)
 				if !ok {
 					continue
 				}
-				n := update.Node
-				queue.Enqueue("upsert_node", func(writeCtx context.Context) error {
-					return nodeRepo.Upsert(writeCtx, n)
+				copyUpdate := update
+				queue.Enqueue("upsert_node_core", func(writeCtx context.Context) error {
+					limit := 0
+					if historyLimits != nil {
+						limit = historyLimits.IdentityHistoryLimit()
+					}
+
+					return coreRepo.Upsert(writeCtx, copyUpdate, limit)
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(positionSub, bus.TopicNodePosition)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-positionSub:
+				if !ok {
+					return
+				}
+				update, ok := raw.(NodePositionUpdate)
+				if !ok {
+					continue
+				}
+				copyUpdate := update
+				queue.Enqueue("upsert_node_position", func(writeCtx context.Context) error {
+					limit := 0
+					if historyLimits != nil {
+						limit = historyLimits.PositionHistoryLimit()
+					}
+
+					return positionRepo.Upsert(writeCtx, copyUpdate, limit)
+				})
+			}
+		}
+	}()
+
+	go func() {
+		defer b.Unsubscribe(telemetrySub, bus.TopicNodeTelemetry)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case raw, ok := <-telemetrySub:
+				if !ok {
+					return
+				}
+				update, ok := raw.(NodeTelemetryUpdate)
+				if !ok {
+					continue
+				}
+				copyUpdate := update
+				queue.Enqueue("upsert_node_telemetry", func(writeCtx context.Context) error {
+					limit := 0
+					if historyLimits != nil {
+						limit = historyLimits.TelemetryHistoryLimit()
+					}
+
+					return telemetryRepo.Upsert(writeCtx, copyUpdate, limit)
 				})
 			}
 		}

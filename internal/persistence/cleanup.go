@@ -10,6 +10,11 @@ import (
 var clearDatabaseStatements = []string{
 	`DELETE FROM messages;`,
 	`DELETE FROM chats;`,
+	`DELETE FROM node_identity_history;`,
+	`DELETE FROM node_telemetry_history;`,
+	`DELETE FROM node_telemetry_latest;`,
+	`DELETE FROM node_position_history;`,
+	`DELETE FROM node_position_latest;`,
 	`DELETE FROM nodes;`,
 	`DELETE FROM traceroutes;`,
 }

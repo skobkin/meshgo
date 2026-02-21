@@ -104,15 +104,26 @@ func run() error {
 		}
 	}()
 
-	nodeRepo := persistence.NewNodeRepo(db)
+	nodeCoreRepo := persistence.NewNodeCoreRepo(db)
+	nodePositionRepo := persistence.NewNodePositionRepo(db)
+	nodeTelemetryRepo := persistence.NewNodeTelemetryRepo(db)
 	chatRepo := persistence.NewChatRepo(db)
 	msgRepo := persistence.NewMessageRepo(db)
 	tracerouteRepo := persistence.NewTracerouteRepo(db)
 
-	nodes, err := nodeRepo.ListSortedByLastHeard(ctx)
+	nodesCore, err := nodeCoreRepo.ListSortedByLastHeard(ctx)
 	if err != nil {
 		return fmt.Errorf("load cached nodes: %w", err)
 	}
+	nodesPosition, err := nodePositionRepo.ListLatest(ctx)
+	if err != nil {
+		return fmt.Errorf("load cached node positions: %w", err)
+	}
+	nodesTelemetry, err := nodeTelemetryRepo.ListLatest(ctx)
+	if err != nil {
+		return fmt.Errorf("load cached node telemetry: %w", err)
+	}
+	nodes := domainMergeNodesForDebug(nodesCore, nodesPosition, nodesTelemetry)
 	chats, err := chatRepo.ListSortedByLastSentByMe(ctx)
 	if err != nil {
 		return fmt.Errorf("load cached chats: %w", err)
@@ -124,7 +135,7 @@ func run() error {
 
 	nodeStore := domain.NewNodeStore()
 	chatStore := domain.NewChatStore()
-	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, nodeRepo, chatRepo, msgRepo); err != nil {
+	if err := domain.LoadStoresFromRepositories(ctx, nodeStore, chatStore, nodeCoreRepo, nodePositionRepo, nodeTelemetryRepo, chatRepo, msgRepo); err != nil {
 		return fmt.Errorf("bootstrap stores: %w", err)
 	}
 	nodeStore.Start(ctx, b)
@@ -132,7 +143,18 @@ func run() error {
 
 	writer := persistence.NewWriterQueue(logMgr.Logger("persistence"), 256)
 	writer.Start(ctx)
-	domain.StartPersistenceProjection(ctx, b, writer, nodeRepo, chatRepo, msgRepo, tracerouteRepo)
+	domain.StartPersistenceProjection(
+		ctx,
+		b,
+		writer,
+		nodeCoreRepo,
+		nodePositionRepo,
+		nodeTelemetryRepo,
+		debugHistoryLimitsProvider{},
+		chatRepo,
+		msgRepo,
+		tracerouteRepo,
+	)
 
 	codec, err := radio.NewMeshtasticCodec()
 	if err != nil {
@@ -247,7 +269,9 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 				"raw_len", len(frame.Raw),
 				"config_complete_id", frame.ConfigCompleteID,
 				"want_config_ready", frame.WantConfigReady,
-				"has_node", frame.NodeUpdate != nil,
+				"has_node_core", frame.NodeCoreUpdate != nil,
+				"has_node_position", frame.NodePositionUpdate != nil,
+				"has_node_telemetry", frame.NodeTelemetryUpdate != nil,
 				"has_channels", frame.Channels != nil,
 				"has_text", frame.TextMessage != nil,
 				"has_config", frame.ConfigSnapshot != nil,
@@ -264,7 +288,9 @@ func waitForInitialConfig(ctx context.Context, logger *slog.Logger, decodedSub, 
 func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 	connSub := b.Subscribe(bus.TopicConnStatus)
 	channelSub := b.Subscribe(bus.TopicChannels)
-	nodeSub := b.Subscribe(bus.TopicNodeInfo)
+	nodeCoreSub := b.Subscribe(bus.TopicNodeCore)
+	nodePositionSub := b.Subscribe(bus.TopicNodePosition)
+	nodeTelemetrySub := b.Subscribe(bus.TopicNodeTelemetry)
 	textSub := b.Subscribe(bus.TopicTextMessage)
 	statusSub := b.Subscribe(bus.TopicMessageStatus)
 	configSub := b.Subscribe(bus.TopicConfigSnapshot)
@@ -277,7 +303,9 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 			case <-ctx.Done():
 				b.Unsubscribe(connSub, bus.TopicConnStatus)
 				b.Unsubscribe(channelSub, bus.TopicChannels)
-				b.Unsubscribe(nodeSub, bus.TopicNodeInfo)
+				b.Unsubscribe(nodeCoreSub, bus.TopicNodeCore)
+				b.Unsubscribe(nodePositionSub, bus.TopicNodePosition)
+				b.Unsubscribe(nodeTelemetrySub, bus.TopicNodeTelemetry)
 				b.Unsubscribe(textSub, bus.TopicTextMessage)
 				b.Unsubscribe(statusSub, bus.TopicMessageStatus)
 				b.Unsubscribe(configSub, bus.TopicConfigSnapshot)
@@ -293,9 +321,21 @@ func watch(ctx context.Context, b bus.MessageBus, logger *slog.Logger) {
 				if channels, ok := raw.(domain.ChannelList); ok {
 					logger.Info("channels", "count", len(channels.Items))
 				}
-			case raw := <-nodeSub:
-				if node, ok := raw.(domain.NodeUpdate); ok {
-					logger.Info("node", "id", node.Node.NodeID, "name", domain.NodeDisplayName(node.Node))
+			case raw := <-nodeCoreSub:
+				if node, ok := raw.(domain.NodeCoreUpdate); ok {
+					logger.Info("node-core", "id", node.Core.NodeID, "name", domain.NodeDisplayName(domain.Node{
+						NodeID:    node.Core.NodeID,
+						LongName:  node.Core.LongName,
+						ShortName: node.Core.ShortName,
+					}))
+				}
+			case raw := <-nodePositionSub:
+				if node, ok := raw.(domain.NodePositionUpdate); ok {
+					logger.Info("node-position", "id", node.Position.NodeID, "lat", node.Position.Latitude, "lon", node.Position.Longitude)
+				}
+			case raw := <-nodeTelemetrySub:
+				if node, ok := raw.(domain.NodeTelemetryUpdate); ok {
+					logger.Info("node-telemetry", "id", node.Telemetry.NodeID, "battery", node.Telemetry.BatteryLevel)
 				}
 			case raw := <-textSub:
 				if msg, ok := raw.(domain.ChatMessage); ok {
@@ -345,6 +385,72 @@ func logInitialSnapshot(logger *slog.Logger, nodeStore *domain.NodeStore, chatSt
 	}
 	logger.Info("channels summary", "count", len(channels), "titles", fmt.Sprintf("%v", channels))
 }
+
+func domainMergeNodesForDebug(coreItems []domain.NodeCore, positionItems []domain.NodePosition, telemetryItems []domain.NodeTelemetry) []domain.Node {
+	nodes := make(map[string]domain.Node, len(coreItems))
+	for _, core := range coreItems {
+		nodes[core.NodeID] = domain.Node{
+			NodeID:          core.NodeID,
+			LongName:        core.LongName,
+			ShortName:       core.ShortName,
+			PublicKey:       append([]byte(nil), core.PublicKey...),
+			Channel:         core.Channel,
+			BoardModel:      core.BoardModel,
+			FirmwareVersion: core.FirmwareVersion,
+			Role:            core.Role,
+			IsUnmessageable: core.IsUnmessageable,
+			LastHeardAt:     core.LastHeardAt,
+			RSSI:            core.RSSI,
+			SNR:             core.SNR,
+			UpdatedAt:       core.UpdatedAt,
+		}
+	}
+	for _, pos := range positionItems {
+		node := nodes[pos.NodeID]
+		node.NodeID = pos.NodeID
+		if node.Channel == nil {
+			node.Channel = pos.Channel
+		}
+		node.Latitude = pos.Latitude
+		node.Longitude = pos.Longitude
+		node.Altitude = pos.Altitude
+		node.PositionPrecisionBits = pos.PositionPrecisionBits
+		node.PositionUpdatedAt = pos.PositionUpdatedAt
+		nodes[pos.NodeID] = node
+	}
+	for _, tel := range telemetryItems {
+		node := nodes[tel.NodeID]
+		node.NodeID = tel.NodeID
+		if node.Channel == nil {
+			node.Channel = tel.Channel
+		}
+		node.BatteryLevel = tel.BatteryLevel
+		node.Voltage = tel.Voltage
+		node.UptimeSeconds = tel.UptimeSeconds
+		node.ChannelUtilization = tel.ChannelUtilization
+		node.AirUtilTx = tel.AirUtilTx
+		node.Temperature = tel.Temperature
+		node.Humidity = tel.Humidity
+		node.Pressure = tel.Pressure
+		node.AirQualityIndex = tel.AirQualityIndex
+		node.PowerVoltage = tel.PowerVoltage
+		node.PowerCurrent = tel.PowerCurrent
+		nodes[tel.NodeID] = node
+	}
+
+	out := make([]domain.Node, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, node)
+	}
+
+	return out
+}
+
+type debugHistoryLimitsProvider struct{}
+
+func (debugHistoryLimitsProvider) PositionHistoryLimit() int  { return 100 }
+func (debugHistoryLimitsProvider) TelemetryHistoryLimit() int { return 250 }
+func (debugHistoryLimitsProvider) IdentityHistoryLimit() int  { return 50 }
 
 func previewHex(hex string) string {
 	hex = strings.TrimSpace(hex)

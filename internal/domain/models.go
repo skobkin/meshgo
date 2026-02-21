@@ -123,6 +123,76 @@ type Node struct {
 	UpdatedAt             time.Time
 }
 
+// NodeCore stores primary identity/activity snapshot fields.
+type NodeCore struct {
+	NodeID          string
+	LongName        string
+	ShortName       string
+	PublicKey       []byte
+	Channel         *uint32
+	BoardModel      string
+	FirmwareVersion string
+	Role            string
+	IsUnmessageable *bool
+	LastHeardAt     time.Time
+	RSSI            *int
+	SNR             *float64
+	UpdatedAt       time.Time
+}
+
+// NodePosition stores latest known node geospatial data and related metadata.
+type NodePosition struct {
+	NodeID                string
+	Channel               *uint32
+	Latitude              *float64
+	Longitude             *float64
+	Altitude              *int32
+	PositionPrecisionBits *uint32
+	PositionUpdatedAt     time.Time
+	ObservedAt            time.Time
+	UpdatedAt             time.Time
+}
+
+// NodeTelemetry stores latest known node telemetry metrics and related metadata.
+type NodeTelemetry struct {
+	NodeID             string
+	Channel            *uint32
+	BatteryLevel       *uint32
+	Voltage            *float64
+	UptimeSeconds      *uint32
+	ChannelUtilization *float64
+	AirUtilTx          *float64
+	Temperature        *float64
+	Humidity           *float64
+	Pressure           *float64
+	AirQualityIndex    *float64
+	PowerVoltage       *float64
+	PowerCurrent       *float64
+	ObservedAt         time.Time
+	UpdatedAt          time.Time
+}
+
+// NodeCoreUpdate carries node core data with source metadata.
+type NodeCoreUpdate struct {
+	Core       NodeCore
+	FromPacket bool
+	Type       NodeUpdateType
+}
+
+// NodePositionUpdate carries node position data with source metadata.
+type NodePositionUpdate struct {
+	Position   NodePosition
+	FromPacket bool
+	Type       NodeUpdateType
+}
+
+// NodeTelemetryUpdate carries node telemetry data with source metadata.
+type NodeTelemetryUpdate struct {
+	Telemetry  NodeTelemetry
+	FromPacket bool
+	Type       NodeUpdateType
+}
+
 // NodeUpdate is a bus event with node data and update source metadata.
 type NodeUpdate struct {
 	Node       Node
@@ -149,6 +219,73 @@ type NodeDiscovered struct {
 	NodeID       string
 	DiscoveredAt time.Time
 	Source       string
+}
+
+// HistorySortOrder controls the chronological order of history query results.
+type HistorySortOrder string
+
+const (
+	HistorySortAscending  HistorySortOrder = "asc"
+	HistorySortDescending HistorySortOrder = "desc"
+)
+
+// NodeHistoryQuery defines paginated per-node history reads.
+type NodeHistoryQuery struct {
+	NodeID           string
+	Limit            int
+	BeforeObservedAt time.Time
+	BeforeRowID      int64
+	Order            HistorySortOrder
+}
+
+// NodePositionHistoryEntry is one persisted position history point for a node.
+type NodePositionHistoryEntry struct {
+	RowID      int64
+	NodeID     string
+	Channel    *uint32
+	Latitude   *float64
+	Longitude  *float64
+	Altitude   *int32
+	Precision  *uint32
+	ObservedAt time.Time
+	WrittenAt  time.Time
+	UpdateType NodeUpdateType
+	FromPacket bool
+}
+
+// NodeTelemetryHistoryEntry is one persisted telemetry history point for a node.
+type NodeTelemetryHistoryEntry struct {
+	RowID              int64
+	NodeID             string
+	Channel            *uint32
+	BatteryLevel       *uint32
+	Voltage            *float64
+	UptimeSeconds      *uint32
+	ChannelUtilization *float64
+	AirUtilTx          *float64
+	Temperature        *float64
+	Humidity           *float64
+	Pressure           *float64
+	AirQualityIndex    *float64
+	PowerVoltage       *float64
+	PowerCurrent       *float64
+	ObservedAt         time.Time
+	WrittenAt          time.Time
+	UpdateType         NodeUpdateType
+	FromPacket         bool
+}
+
+// NodeIdentityHistoryEntry is one persisted identity history point for a node.
+type NodeIdentityHistoryEntry struct {
+	RowID      int64
+	NodeID     string
+	LongName   string
+	ShortName  string
+	PublicKey  []byte
+	ObservedAt time.Time
+	WrittenAt  time.Time
+	UpdateType NodeUpdateType
+	FromPacket bool
 }
 
 // ChannelList carries known device channels published by the radio.

@@ -53,6 +53,11 @@ func TestClearDatabase_ClearsAllTables(t *testing.T) {
 	}{
 		{name: "messages", query: "SELECT COUNT(*) FROM messages;"},
 		{name: "chats", query: "SELECT COUNT(*) FROM chats;"},
+		{name: "node_identity_history", query: "SELECT COUNT(*) FROM node_identity_history;"},
+		{name: "node_telemetry_history", query: "SELECT COUNT(*) FROM node_telemetry_history;"},
+		{name: "node_telemetry_latest", query: "SELECT COUNT(*) FROM node_telemetry_latest;"},
+		{name: "node_position_history", query: "SELECT COUNT(*) FROM node_position_history;"},
+		{name: "node_position_latest", query: "SELECT COUNT(*) FROM node_position_latest;"},
 		{name: "nodes", query: "SELECT COUNT(*) FROM nodes;"},
 		{name: "traceroutes", query: "SELECT COUNT(*) FROM traceroutes;"},
 	}

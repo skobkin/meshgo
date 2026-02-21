@@ -31,7 +31,7 @@ func TestStartUIEventListenersStopPreventsFurtherCallbacks(t *testing.T) {
 	)
 
 	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected})
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{})
+	messageBus.Publish(bus.TopicNodeCore, domain.NodeCoreUpdate{})
 
 	waitForCondition(t, func() bool {
 		return connEvents.Load() == 1 && nodeEvents.Load() == 1
@@ -42,7 +42,7 @@ func TestStartUIEventListenersStopPreventsFurtherCallbacks(t *testing.T) {
 	connBefore := connEvents.Load()
 	nodeBefore := nodeEvents.Load()
 	messageBus.Publish(bus.TopicConnStatus, busmsg.ConnectionStatus{State: busmsg.ConnectionStateDisconnected})
-	messageBus.Publish(bus.TopicNodeInfo, domain.NodeUpdate{})
+	messageBus.Publish(bus.TopicNodeTelemetry, domain.NodeTelemetryUpdate{})
 	time.Sleep(100 * time.Millisecond)
 
 	if connEvents.Load() != connBefore {

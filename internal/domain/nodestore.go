@@ -33,22 +33,44 @@ func (s *NodeStore) Load(nodes []Node) {
 }
 
 func (s *NodeStore) Start(ctx context.Context, b bus.MessageBus) {
-	sub := b.Subscribe(bus.TopicNodeInfo)
+	coreSub := b.Subscribe(bus.TopicNodeCore)
+	positionSub := b.Subscribe(bus.TopicNodePosition)
+	telemetrySub := b.Subscribe(bus.TopicNodeTelemetry)
 	go func() {
-		defer b.Unsubscribe(sub, bus.TopicNodeInfo)
+		defer b.Unsubscribe(coreSub, bus.TopicNodeCore)
+		defer b.Unsubscribe(positionSub, bus.TopicNodePosition)
+		defer b.Unsubscribe(telemetrySub, bus.TopicNodeTelemetry)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case msg, ok := <-sub:
+			case msg, ok := <-coreSub:
 				if !ok {
 					return
 				}
-				update, ok := msg.(NodeUpdate)
+				update, ok := msg.(NodeCoreUpdate)
 				if !ok {
 					continue
 				}
-				s.Upsert(update.Node)
+				s.Upsert(nodeFromCore(update.Core))
+			case msg, ok := <-positionSub:
+				if !ok {
+					return
+				}
+				update, ok := msg.(NodePositionUpdate)
+				if !ok {
+					continue
+				}
+				s.Upsert(nodeFromPosition(update.Position))
+			case msg, ok := <-telemetrySub:
+				if !ok {
+					return
+				}
+				update, ok := msg.(NodeTelemetryUpdate)
+				if !ok {
+					continue
+				}
+				s.Upsert(nodeFromTelemetry(update.Telemetry))
 			}
 		}
 	}()
@@ -162,6 +184,38 @@ func cloneNodePublicKey(key []byte) []byte {
 	copy(out, key)
 
 	return out
+}
+
+func nodeFromPosition(position NodePosition) Node {
+	return Node{
+		NodeID:                position.NodeID,
+		Channel:               position.Channel,
+		Latitude:              position.Latitude,
+		Longitude:             position.Longitude,
+		Altitude:              position.Altitude,
+		PositionPrecisionBits: position.PositionPrecisionBits,
+		PositionUpdatedAt:     position.PositionUpdatedAt,
+		UpdatedAt:             position.UpdatedAt,
+	}
+}
+
+func nodeFromTelemetry(telemetry NodeTelemetry) Node {
+	return Node{
+		NodeID:             telemetry.NodeID,
+		Channel:            telemetry.Channel,
+		BatteryLevel:       telemetry.BatteryLevel,
+		Voltage:            telemetry.Voltage,
+		UptimeSeconds:      telemetry.UptimeSeconds,
+		ChannelUtilization: telemetry.ChannelUtilization,
+		AirUtilTx:          telemetry.AirUtilTx,
+		Temperature:        telemetry.Temperature,
+		Humidity:           telemetry.Humidity,
+		Pressure:           telemetry.Pressure,
+		AirQualityIndex:    telemetry.AirQualityIndex,
+		PowerVoltage:       telemetry.PowerVoltage,
+		PowerCurrent:       telemetry.PowerCurrent,
+		UpdatedAt:          telemetry.UpdatedAt,
+	}
 }
 
 func (s *NodeStore) SnapshotSorted() []Node {
