@@ -166,6 +166,36 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	}
 }
 
+func TestNodeCoreRepo_ListSortedByLastHeard_IgnoresOutOfRangeRSSI(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	now := time.Now().UTC()
+	const outOfRangeRSSI = int64(1 << 40)
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO nodes(node_id, long_name, short_name, last_heard_at, rssi, updated_at)
+		VALUES(?, ?, ?, ?, ?, ?)
+	`, "!deadbeef", "Node", "NODE", now.UnixMilli(), outOfRangeRSSI, now.UnixMilli()); err != nil {
+		t.Fatalf("seed node row: %v", err)
+	}
+
+	repo := NewNodeCoreRepo(db)
+	items, err := repo.ListSortedByLastHeard(ctx)
+	if err != nil {
+		t.Fatalf("list node core: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one core row, got %d", len(items))
+	}
+	if items[0].RSSI != nil {
+		t.Fatalf("expected out-of-range rssi to be ignored, got %d", *items[0].RSSI)
+	}
+}
+
 func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")

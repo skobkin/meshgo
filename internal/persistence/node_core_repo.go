@@ -269,8 +269,10 @@ func scanNodeCore(scanner interface{ Scan(dest ...any) error }) (domain.NodeCore
 	}
 	item.LastHeardAt = unixMillisToTime(heardMS)
 	if rssi.Valid {
-		v := int(rssi.Int64)
-		item.RSSI = &v
+		if v, ok := int64ToInt32(rssi.Int64); ok {
+			rssiValue := int(v)
+			item.RSSI = &rssiValue
+		}
 	}
 	if snr.Valid {
 		v := snr.Float64
