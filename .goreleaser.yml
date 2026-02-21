@@ -89,6 +89,7 @@ changelog:
   sort: asc
   filters:
     exclude:
+      - '^build(\([^)]*\))?!?:'
       - '^docs(\([^)]*\))?!?:'
       - '^refactor(\([^)]*\))?!?:'
       - '^style(\([^)]*\))?!?:'
