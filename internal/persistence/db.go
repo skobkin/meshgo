@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	persistmigrations "github.com/skobkin/meshgo/internal/persistence/migrations"
+
 	_ "modernc.org/sqlite" // register sqlite driver
 )
 
@@ -28,7 +30,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 
 		return nil, fmt.Errorf("set wal mode: %w", err)
 	}
-	if err := migrate(ctx, db); err != nil {
+	if err := persistmigrations.Apply(ctx, db); err != nil {
 		_ = db.Close()
 
 		return nil, err

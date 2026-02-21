@@ -61,7 +61,8 @@
 - PRs should include a clear summary of user-visible changes.
 - PRs should include testing performed (`go test ./...`, manual GUI/debug steps).
 - PRs should include screenshots/GIFs for UI changes.
-- PRs should include migration notes when `internal/persistence/db.go` changes.
+- If a PR changes database schema, it must include corresponding migrations in the same PR.
+- PR description should include migration notes only when users may lose data or must perform manual actions (for example backup/cleanup/migration commands).
 
 ## Configuration & Data Paths
 - Runtime files are stored under `os.UserConfigDir()/meshgo`: `config.json`, `app.db`, `app.log`.
