@@ -35,6 +35,8 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 
 ![nodes view](docs/screenshot_nodes.png)
 
+![node overview](docs/screenshot_node_overview.png)
+
 ![nodes traceroute](docs/screenshot_traceroute.png)
 
 </details>
