@@ -1,10 +1,11 @@
-package domain
+package projections
 
 import (
 	"context"
 	"strconv"
 
 	"github.com/skobkin/meshgo/internal/bus"
+	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
 
@@ -24,13 +25,13 @@ func StartPersistenceProjection(
 	ctx context.Context,
 	b bus.MessageBus,
 	queue WriteQueue,
-	coreRepo NodeCoreRepository,
-	positionRepo NodePositionRepository,
-	telemetryRepo NodeTelemetryRepository,
+	coreRepo domain.NodeCoreRepository,
+	positionRepo domain.NodePositionRepository,
+	telemetryRepo domain.NodeTelemetryRepository,
 	historyLimits HistoryLimitsProvider,
-	chatRepo ChatRepository,
-	msgRepo MessageRepository,
-	tracerouteRepo TracerouteRepository,
+	chatRepo domain.ChatRepository,
+	msgRepo domain.MessageRepository,
+	tracerouteRepo domain.TracerouteRepository,
 ) {
 	coreSub := b.Subscribe(bus.TopicNodeCore)
 	positionSub := b.Subscribe(bus.TopicNodePosition)
@@ -53,7 +54,7 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				update, ok := raw.(NodeCoreUpdate)
+				update, ok := raw.(domain.NodeCoreUpdate)
 				if !ok {
 					continue
 				}
@@ -80,7 +81,7 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				update, ok := raw.(NodePositionUpdate)
+				update, ok := raw.(domain.NodePositionUpdate)
 				if !ok {
 					continue
 				}
@@ -107,7 +108,7 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				update, ok := raw.(NodeTelemetryUpdate)
+				update, ok := raw.(domain.NodeTelemetryUpdate)
 				if !ok {
 					continue
 				}
@@ -134,12 +135,16 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				channels, ok := raw.(ChannelList)
+				channels, ok := raw.(domain.ChannelList)
 				if !ok {
 					continue
 				}
 				for _, ch := range channels.Items {
-					chat := Chat{Key: ChatKeyForChannel(ch.Index), Title: ch.Title, Type: ChatTypeChannel}
+					chat := domain.Chat{
+						Key:   domain.ChatKeyForChannel(ch.Index),
+						Title: ch.Title,
+						Type:  domain.ChatTypeChannel,
+					}
 					queue.Enqueue("upsert_channel_chat", func(writeCtx context.Context) error {
 						return chatRepo.Upsert(writeCtx, chat)
 					})
@@ -158,7 +163,7 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				msg, ok := raw.(ChatMessage)
+				msg, ok := raw.(domain.ChatMessage)
 				if !ok {
 					continue
 				}
@@ -168,8 +173,13 @@ func StartPersistenceProjection(
 					if err != nil {
 						return err
 					}
-					chat := Chat{Key: copyMsg.ChatKey, Type: ChatTypeForKey(copyMsg.ChatKey), Title: copyMsg.ChatKey, UpdatedAt: copyMsg.At}
-					if copyMsg.Direction == MessageDirectionOut {
+					chat := domain.Chat{
+						Key:       copyMsg.ChatKey,
+						Type:      domain.ChatTypeForKey(copyMsg.ChatKey),
+						Title:     copyMsg.ChatKey,
+						UpdatedAt: copyMsg.At,
+					}
+					if copyMsg.Direction == domain.MessageDirectionOut {
 						chat.LastSentByMeAt = copyMsg.At
 					}
 
@@ -189,7 +199,7 @@ func StartPersistenceProjection(
 				if !ok {
 					return
 				}
-				update, ok := raw.(MessageStatusUpdate)
+				update, ok := raw.(domain.MessageStatusUpdate)
 				if !ok {
 					continue
 				}
@@ -216,7 +226,7 @@ func StartPersistenceProjection(
 					if !ok {
 						continue
 					}
-					rec := TracerouteRecord{
+					rec := domain.TracerouteRecord{
 						RequestID:    stringFromUint32(update.RequestID),
 						TargetNodeID: update.TargetNodeID,
 						StartedAt:    update.StartedAt,

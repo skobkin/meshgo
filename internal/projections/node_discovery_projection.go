@@ -1,4 +1,4 @@
-package app
+package projections
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type NodeDiscoveryProjection struct {
 
 func NewNodeDiscoveryProjection(nodeStore *domain.NodeStore, logger *slog.Logger) *NodeDiscoveryProjection {
 	if logger == nil {
-		logger = slog.Default().With("component", "app.node_discovery")
+		logger = slog.Default().With("component", "projections.node_discovery")
 	}
 
 	return &NodeDiscoveryProjection{

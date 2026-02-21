@@ -17,6 +17,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
+	"github.com/skobkin/meshgo/internal/projections"
 	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
@@ -143,7 +144,7 @@ func run() error {
 
 	writer := persistence.NewWriterQueue(logMgr.Logger("persistence"), 256)
 	writer.Start(ctx)
-	domain.StartPersistenceProjection(
+	projections.StartPersistenceProjection(
 		ctx,
 		b,
 		writer,

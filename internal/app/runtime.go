@@ -18,6 +18,7 @@ import (
 	"github.com/skobkin/meshgo/internal/logging"
 	"github.com/skobkin/meshgo/internal/persistence"
 	"github.com/skobkin/meshgo/internal/platform"
+	"github.com/skobkin/meshgo/internal/projections"
 	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
@@ -66,8 +67,8 @@ type RuntimeDomain struct {
 	Bus           *bus.PubSubBus
 	NodeStore     *domain.NodeStore
 	ChatStore     *domain.ChatStore
-	NodeDiscovery *NodeDiscoveryProjection
-	NodeMetadata  *NodeMetadataProjection
+	NodeDiscovery *projections.NodeDiscoveryProjection
+	NodeMetadata  *projections.NodeMetadataProjection
 }
 
 // RuntimeConnectivity contains transport and radio services used for device communication.
@@ -152,17 +153,17 @@ func Initialize(parent context.Context) (*Runtime, error) {
 	go rt.captureConnStatus(ctx, connSub)
 	nodeStore.Start(ctx, b)
 	chatStore.Start(ctx, b)
-	nodeDiscovery := NewNodeDiscoveryProjection(nodeStore, logMgr.Logger("node_discovery"))
+	nodeDiscovery := projections.NewNodeDiscoveryProjection(nodeStore, logMgr.Logger("node_discovery"))
 	nodeDiscovery.Start(ctx, b)
 	rt.Domain.NodeDiscovery = nodeDiscovery
-	nodeMetadata := NewNodeMetadataProjection()
+	nodeMetadata := projections.NewNodeMetadataProjection()
 	nodeMetadata.Start(ctx, b)
 	rt.Domain.NodeMetadata = nodeMetadata
 
 	writerQueue := persistence.NewWriterQueue(logMgr.Logger("persistence"), 512)
 	writerQueue.Start(ctx)
 	rt.Persistence.WriterQueue = writerQueue
-	domain.StartPersistenceProjection(
+	projections.StartPersistenceProjection(
 		ctx,
 		b,
 		writerQueue,
