@@ -626,6 +626,9 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoWithoutUserDoesNotPanic(t *testi
 	if frame.NodeUpdate.Node.NodeID != "!1234abcd" {
 		t.Fatalf("unexpected node id: %q", frame.NodeUpdate.Node.NodeID)
 	}
+	if frame.NodePositionUpdate != nil {
+		t.Fatalf("expected no split node position update without coordinates")
+	}
 }
 
 func TestPacketMetaJSON_IncludesRelayNode(t *testing.T) {

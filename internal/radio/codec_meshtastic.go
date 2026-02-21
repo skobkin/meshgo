@@ -341,7 +341,7 @@ func splitNodePositionUpdate(update domain.NodeUpdate) (domain.NodePositionUpdat
 	if strings.TrimSpace(node.NodeID) == "" {
 		return domain.NodePositionUpdate{}, false
 	}
-	if node.Latitude == nil && node.Longitude == nil && node.Altitude == nil && node.PositionPrecisionBits == nil && node.PositionUpdatedAt.IsZero() {
+	if node.Latitude == nil || node.Longitude == nil {
 		return domain.NodePositionUpdate{}, false
 	}
 	observedAt := node.LastHeardAt

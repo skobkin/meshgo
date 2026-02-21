@@ -433,7 +433,10 @@ func migrateV12SplitNodeSecondaryMetadata(ctx context.Context, db *sql.DB) error
 				'migration_baseline',
 				0
 		 FROM nodes_legacy
-		 WHERE latitude IS NOT NULL OR longitude IS NOT NULL OR altitude IS NOT NULL OR precision_bits IS NOT NULL OR position_updated_at IS NOT NULL;`,
+		 WHERE latitude IS NOT NULL
+		   AND longitude IS NOT NULL
+		   AND latitude BETWEEN -90 AND 90
+		   AND longitude BETWEEN -180 AND 180;`,
 		`INSERT INTO node_position_history(node_id, channel, latitude, longitude, altitude, precision_bits, position_updated_at, observed_at, written_at, update_type, from_packet)
 		 SELECT node_id, channel, latitude, longitude, altitude, precision_bits, position_updated_at, observed_at, written_at, update_type, from_packet
 		 FROM node_position_latest;`,

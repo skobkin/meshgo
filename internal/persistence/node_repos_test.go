@@ -273,6 +273,94 @@ func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	assertSingleTableRow(t, migrated, "node_identity_history")
 }
 
+func TestOpenMigratesV11ToV12_DoesNotBackfillPositionWithoutCoordinates(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "app.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+
+	now := time.Now().UnixMilli()
+	stmts := []string{
+		`CREATE TABLE nodes (
+			node_id TEXT PRIMARY KEY,
+			long_name TEXT,
+			short_name TEXT,
+			public_key BLOB NULL,
+			channel INTEGER NULL,
+			latitude REAL NULL,
+			longitude REAL NULL,
+			altitude INTEGER NULL,
+			precision_bits INTEGER NULL,
+			battery_level INTEGER NULL,
+			voltage REAL NULL,
+			uptime_seconds INTEGER NULL,
+			channel_utilization REAL NULL,
+			air_util_tx REAL NULL,
+			temperature REAL NULL,
+			humidity REAL NULL,
+			pressure REAL NULL,
+			air_quality_index REAL NULL,
+			power_voltage REAL NULL,
+			power_current REAL NULL,
+			board_model TEXT NULL,
+			firmware_version TEXT NULL,
+			device_role TEXT NULL,
+			is_unmessageable INTEGER NULL,
+			position_updated_at INTEGER NULL,
+			last_heard_at INTEGER,
+			rssi INTEGER NULL,
+			snr REAL NULL,
+			updated_at INTEGER NOT NULL
+		);`,
+		`CREATE INDEX nodes_last_heard_at_idx ON nodes(last_heard_at DESC);`,
+		`INSERT INTO nodes(node_id, long_name, short_name, channel, altitude, precision_bits, position_updated_at, last_heard_at, updated_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`PRAGMA user_version = 11;`,
+	}
+	for i, stmt := range stmts {
+		if i == 2 {
+			if _, err := db.ExecContext(ctx, stmt,
+				"!00000002", "Bravo", "BRAV", 2, 150, 12, now-2_000, now-1_000, now,
+			); err != nil {
+				_ = db.Close()
+				t.Fatalf("seed v11 node row without coordinates: %v", err)
+			}
+
+			continue
+		}
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			_ = db.Close()
+			t.Fatalf("seed v11 schema statement %d: %v", i, err)
+		}
+	}
+	_ = db.Close()
+
+	migrated, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("open migrated db: %v", err)
+	}
+	defer func() { _ = migrated.Close() }()
+
+	var latestCount int
+	if err := migrated.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_position_latest;`).Scan(&latestCount); err != nil {
+		t.Fatalf("count node_position_latest: %v", err)
+	}
+	if latestCount != 0 {
+		t.Fatalf("expected no node_position_latest rows without coordinates, got %d", latestCount)
+	}
+
+	var historyCount int
+	if err := migrated.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_position_history;`).Scan(&historyCount); err != nil {
+		t.Fatalf("count node_position_history: %v", err)
+	}
+	if historyCount != 0 {
+		t.Fatalf("expected no node_position_history rows without coordinates, got %d", historyCount)
+	}
+}
+
 func TestOpenMigratesV4ToV12(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")

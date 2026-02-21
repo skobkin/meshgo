@@ -105,7 +105,7 @@ func (r *NodePositionRepo) Upsert(ctx context.Context, update domain.NodePositio
 		return fmt.Errorf("upsert node position latest: %w", err)
 	}
 
-	if hasPositionData(next) && (!found || !nodePositionEqual(existing, next)) {
+	if hasPositionCoordinates(next) && (!found || !nodePositionEqual(existing, next)) {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO node_position_history(node_id, channel, latitude, longitude, altitude, precision_bits, position_updated_at, observed_at, written_at, update_type, from_packet)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -377,8 +377,8 @@ func mergeNodePosition(existing, incoming domain.NodePosition) domain.NodePositi
 	return next
 }
 
-func hasPositionData(value domain.NodePosition) bool {
-	return value.Latitude != nil || value.Longitude != nil || value.Altitude != nil || value.PositionPrecisionBits != nil
+func hasPositionCoordinates(value domain.NodePosition) bool {
+	return value.Latitude != nil && value.Longitude != nil
 }
 
 func nodePositionEqual(left, right domain.NodePosition) bool {
