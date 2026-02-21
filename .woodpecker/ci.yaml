@@ -1,5 +1,8 @@
 when:
-  - event: [push, tag]
+  - event: push
+    branch:
+      exclude: [master]
+  - event: tag
 
 clone:
   git:
