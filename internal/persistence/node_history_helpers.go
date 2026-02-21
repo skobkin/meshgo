@@ -9,8 +9,8 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
-func historyOrderSQL(order domain.HistorySortOrder) string {
-	if order == domain.HistorySortAscending {
+func historyOrderSQL(order domain.SortOrder) string {
+	if order == domain.SortAscending {
 		return "ASC"
 	}
 
@@ -31,7 +31,7 @@ func applyHistoryCursor(base string, query domain.NodeHistoryQuery, args []any) 
 	}
 
 	observedMS := timeToUnixMillis(query.BeforeObservedAt)
-	if query.Order == domain.HistorySortAscending {
+	if query.Order == domain.SortAscending {
 		base += " AND (observed_at > ? OR (observed_at = ? AND id > ?))"
 		args = append(args, observedMS, observedMS, query.BeforeRowID)
 

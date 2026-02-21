@@ -221,23 +221,6 @@ type NodeDiscovered struct {
 	Source       string
 }
 
-// HistorySortOrder controls the chronological order of history query results.
-type HistorySortOrder string
-
-const (
-	HistorySortAscending  HistorySortOrder = "asc"
-	HistorySortDescending HistorySortOrder = "desc"
-)
-
-// NodeHistoryQuery defines paginated per-node history reads.
-type NodeHistoryQuery struct {
-	NodeID           string
-	Limit            int
-	BeforeObservedAt time.Time
-	BeforeRowID      int64
-	Order            HistorySortOrder
-}
-
 // NodePositionHistoryEntry is one persisted position history point for a node.
 type NodePositionHistoryEntry struct {
 	RowID      int64

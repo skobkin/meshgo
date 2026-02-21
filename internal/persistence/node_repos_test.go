@@ -129,7 +129,7 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	history, err := identityRepo.ListHistoryByNodeID(ctx, domain.NodeHistoryQuery{
 		NodeID: nodeID,
 		Limit:  10,
-		Order:  domain.HistorySortDescending,
+		Order:  domain.SortDescending,
 	})
 	if err != nil {
 		t.Fatalf("list identity history: %v", err)
@@ -156,7 +156,7 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	history, err = identityRepo.ListHistoryByNodeID(ctx, domain.NodeHistoryQuery{
 		NodeID: nodeID,
 		Limit:  10,
-		Order:  domain.HistorySortDescending,
+		Order:  domain.SortDescending,
 	})
 	if err != nil {
 		t.Fatalf("list identity history after duplicate upsert: %v", err)
