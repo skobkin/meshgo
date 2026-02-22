@@ -58,6 +58,7 @@ type DataDependencies struct {
 	Bus               bus.MessageBus
 	LastSelectedChat  string
 	LocalNodeID       func() string
+	LocalNodeSnapshot func() app.LocalNodeSnapshot
 	CurrentConfig     func() config.AppConfig
 	CurrentConnStatus func() (busmsg.ConnectionStatus, bool)
 }

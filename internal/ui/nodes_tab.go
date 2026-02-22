@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -86,22 +87,30 @@ type nodeRowLabels struct {
 type nodeRowItem struct {
 	widget.BaseWidget
 
-	content     fyne.CanvasObject
-	onSecondary func(position fyne.Position)
+	content         fyne.CanvasObject
+	background      *canvas.Rectangle
+	backgroundStyle NodeRowBackground
+	onSecondary     func(position fyne.Position)
 }
 
 var _ fyne.Tappable = (*nodeRowItem)(nil)
 var _ fyne.SecondaryTappable = (*nodeRowItem)(nil)
 
 func newNodeRowItem(content fyne.CanvasObject) *nodeRowItem {
-	item := &nodeRowItem{content: content}
+	item := &nodeRowItem{
+		content:    content,
+		background: canvas.NewRectangle(color.Transparent),
+	}
 	item.ExtendBaseWidget(item)
 
 	return item
 }
 
 func (r *nodeRowItem) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(r.content)
+	return &nodeRowItemRenderer{
+		row:     r,
+		objects: []fyne.CanvasObject{r.background, r.content},
+	}
 }
 
 func (r *nodeRowItem) Tapped(*fyne.PointEvent) {}
@@ -112,6 +121,105 @@ func (r *nodeRowItem) TappedSecondary(event *fyne.PointEvent) {
 	}
 	r.onSecondary(event.AbsolutePosition)
 }
+
+// NodeRowBackground defines optional row background styling.
+type NodeRowBackground struct {
+	ThemeColorName fyne.ThemeColorName
+	CustomColor    color.Color
+	Alpha          float32
+}
+
+func (r *nodeRowItem) SetBackground(style NodeRowBackground) {
+	if r == nil {
+		return
+	}
+	r.backgroundStyle = style
+	r.Refresh()
+}
+
+func (r *nodeRowItem) ClearBackground() {
+	if r == nil {
+		return
+	}
+	r.backgroundStyle = NodeRowBackground{}
+	r.Refresh()
+}
+
+func (r *nodeRowItem) resolvedBackground() color.Color {
+	if r == nil {
+		return color.Transparent
+	}
+	alpha := r.backgroundStyle.Alpha
+	if alpha <= 0 {
+		return color.Transparent
+	}
+	if alpha > 1 {
+		alpha = 1
+	}
+
+	base := r.backgroundStyle.CustomColor
+	if base == nil {
+		name := r.backgroundStyle.ThemeColorName
+		if name == "" {
+			return color.Transparent
+		}
+		base = r.Theme().Color(name, currentThemeVariant())
+	}
+
+	nrgba := toNRGBA(base)
+	nrgba.A = uint8(float32(nrgba.A) * alpha)
+
+	return nrgba
+}
+
+type nodeRowItemRenderer struct {
+	row     *nodeRowItem
+	objects []fyne.CanvasObject
+}
+
+func (r *nodeRowItemRenderer) Layout(size fyne.Size) {
+	if r == nil || r.row == nil {
+		return
+	}
+	if r.row.background != nil {
+		r.row.background.Move(fyne.NewPos(0, 0))
+		r.row.background.Resize(size)
+	}
+	if r.row.content != nil {
+		r.row.content.Move(fyne.NewPos(0, 0))
+		r.row.content.Resize(size)
+	}
+}
+
+func (r *nodeRowItemRenderer) MinSize() fyne.Size {
+	if r == nil || r.row == nil || r.row.content == nil {
+		return fyne.NewSize(0, 0)
+	}
+
+	return r.row.content.MinSize()
+}
+
+func (r *nodeRowItemRenderer) Refresh() {
+	if r == nil || r.row == nil || r.row.background == nil {
+		return
+	}
+	r.row.background.FillColor = r.row.resolvedBackground()
+	r.row.background.Refresh()
+	if r.row.content != nil {
+		r.row.content.Refresh()
+	}
+	r.Layout(r.row.Size())
+}
+
+func (r *nodeRowItemRenderer) Objects() []fyne.CanvasObject {
+	if r == nil {
+		return nil
+	}
+
+	return r.objects
+}
+
+func (r *nodeRowItemRenderer) Destroy() {}
 
 // extractNodeRowLabels maps list row container objects to typed labels.
 func extractNodeRowLabels(obj fyne.CanvasObject) (nodeRowLabels, bool) {
@@ -302,10 +410,15 @@ func maxRounded(v float64) int {
 }
 
 func newNodesTab(store *domain.NodeStore, renderer NodeRowRenderer) fyne.CanvasObject {
-	return newNodesTabWithActions(store, renderer, NodesTabActions{})
+	return newNodesTabWithActions(store, nil, renderer, NodesTabActions{})
 }
 
-func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, actions NodesTabActions) fyne.CanvasObject {
+func newNodesTabWithActions(
+	store *domain.NodeStore,
+	localNodeID func() string,
+	renderer NodeRowRenderer,
+	actions NodesTabActions,
+) fyne.CanvasObject {
 	if store == nil {
 		title := widget.NewLabel("Nodes (0)")
 		filterEntry := widget.NewEntry()
@@ -322,7 +435,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 
 	allNodes := store.SnapshotSorted()
 	appliedFilter := ""
-	nodes := filterNodes(allNodes, appliedFilter)
+	nodes := displayNodes(allNodes, appliedFilter, localNodeIDValue(localNodeID))
 	title := widget.NewLabel(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 
 	list := widget.NewList(
@@ -339,6 +452,14 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 				return
 			}
 			renderer.Update(row.content, nodes[id])
+			if isLocalNode(nodes[id], localNodeIDValue(localNodeID)) {
+				row.SetBackground(NodeRowBackground{
+					ThemeColorName: theme.ColorNameSelection,
+					Alpha:          0.24,
+				})
+			} else {
+				row.ClearBackground()
+			}
 			if actions.OnNodeSecondaryTapped == nil {
 				row.onSecondary = nil
 
@@ -359,7 +480,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 
 	applyFilter := func(value string) {
 		appliedFilter = value
-		nodes = filterNodes(allNodes, appliedFilter)
+		nodes = displayNodes(allNodes, appliedFilter, localNodeIDValue(localNodeID))
 		title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 		list.Refresh()
 	}
@@ -386,7 +507,7 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 		for range store.Changes() {
 			fyne.Do(func() {
 				allNodes = store.SnapshotSorted()
-				nodes = filterNodes(allNodes, appliedFilter)
+				nodes = displayNodes(allNodes, appliedFilter, localNodeIDValue(localNodeID))
 				title.SetText(nodeCountLabelText(len(allNodes), len(nodes), appliedFilter))
 				list.Refresh()
 			})
@@ -396,6 +517,57 @@ func newNodesTabWithActions(store *domain.NodeStore, renderer NodeRowRenderer, a
 	header := container.NewHBox(title, layout.NewSpacer(), filterWidget)
 
 	return container.NewBorder(header, nil, nil, nil, list)
+}
+
+func displayNodes(nodes []domain.Node, rawFilter, localNodeID string) []domain.Node {
+	filtered := filterNodes(nodes, rawFilter)
+	if strings.TrimSpace(rawFilter) != "" {
+		return filtered
+	}
+
+	return localNodeFirst(filtered, localNodeID)
+}
+
+func localNodeFirst(nodes []domain.Node, localNodeID string) []domain.Node {
+	localNodeID = strings.TrimSpace(localNodeID)
+	if localNodeID == "" || len(nodes) < 2 {
+		return nodes
+	}
+
+	localIndex := -1
+	for i, node := range nodes {
+		if strings.TrimSpace(node.NodeID) == localNodeID {
+			localIndex = i
+
+			break
+		}
+	}
+	if localIndex <= 0 {
+		return nodes
+	}
+
+	out := make([]domain.Node, 0, len(nodes))
+	out = append(out, nodes[localIndex])
+	out = append(out, nodes[:localIndex]...)
+	out = append(out, nodes[localIndex+1:]...)
+
+	return out
+}
+
+func localNodeIDValue(provider func() string) string {
+	if provider == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(provider())
+}
+
+func isLocalNode(node domain.Node, localNodeID string) bool {
+	if localNodeID == "" {
+		return false
+	}
+
+	return strings.TrimSpace(node.NodeID) == localNodeID
 }
 
 func nodeCountLabelText(total int, visible int, rawFilter string) string {

@@ -59,7 +59,7 @@ func buildMainView(
 			showNodeOverviewModal(window, dep, node, switchToChats, openDMChat)
 		}
 	}
-	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, DefaultNodeRowRenderer(), NodesTabActions{
+	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, dep.Data.LocalNodeID, DefaultNodeRowRenderer(), NodesTabActions{
 		OnNodeSecondaryTapped: func(node domain.Node, position fyne.Position) {
 			showNodeContextMenu(window.Canvas(), position, node, nodeActionHandler)
 		},

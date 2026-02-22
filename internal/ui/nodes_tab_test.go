@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
 	fynetest "fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -251,6 +253,64 @@ func TestNodeCountLabelText(t *testing.T) {
 		if got != tt.expected {
 			t.Fatalf("%s: got %q want %q", tt.name, got, tt.expected)
 		}
+	}
+}
+
+func TestDisplayNodes(t *testing.T) {
+	nodes := []domain.Node{
+		{NodeID: "!a"},
+		{NodeID: "!b"},
+		{NodeID: "!c"},
+	}
+
+	t.Run("pins local first without filter", func(t *testing.T) {
+		got := displayNodes(nodes, "", "!b")
+		if len(got) != 3 {
+			t.Fatalf("unexpected length: %d", len(got))
+		}
+		if got[0].NodeID != "!b" {
+			t.Fatalf("expected local first, got %q", got[0].NodeID)
+		}
+		if got[1].NodeID != "!a" || got[2].NodeID != "!c" {
+			t.Fatalf("expected stable order for non-local nodes, got %+v", got)
+		}
+	})
+
+	t.Run("keeps filtered order", func(t *testing.T) {
+		got := displayNodes(nodes, "c", "!c")
+		if len(got) != 1 || got[0].NodeID != "!c" {
+			t.Fatalf("expected filtered result to stay unchanged, got %+v", got)
+		}
+	})
+}
+
+func TestNodeRowItemBackgroundStyling(t *testing.T) {
+	app := fynetest.NewApp()
+	t.Cleanup(app.Quit)
+
+	row := newNodeRowItem(widget.NewLabel("node"))
+	_ = fynetest.NewTempWindow(t, row)
+
+	row.SetBackground(NodeRowBackground{
+		ThemeColorName: theme.ColorNameSelection,
+		Alpha:          0.4,
+	})
+	if row.background.FillColor == color.Transparent {
+		t.Fatalf("expected non-transparent themed background")
+	}
+
+	row.SetBackground(NodeRowBackground{
+		CustomColor: color.NRGBA{R: 200, G: 10, B: 20, A: 255},
+		Alpha:       0.5,
+	})
+	got := toNRGBA(row.background.FillColor)
+	if got.A == 0 {
+		t.Fatalf("expected custom color alpha to be applied")
+	}
+
+	row.ClearBackground()
+	if row.background.FillColor != color.Transparent {
+		t.Fatalf("expected transparent background after clear")
 	}
 }
 

@@ -67,6 +67,13 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	if got := dep.Data.LocalNodeID(); got != "" {
 		t.Fatalf("expected empty local node id for zero radio service, got %q", got)
 	}
+	if dep.Data.LocalNodeSnapshot == nil {
+		t.Fatalf("expected local node snapshot provider to be mapped")
+	}
+	snapshot := dep.Data.LocalNodeSnapshot()
+	if snapshot.ID != "" || snapshot.Present {
+		t.Fatalf("expected empty local node snapshot, got %+v", snapshot)
+	}
 	if dep.Actions.Sender == nil {
 		t.Fatalf("expected sender to be mapped")
 	}
