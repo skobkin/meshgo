@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +31,6 @@ const (
 
 var defaultSerialBaudOptions = []string{"9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"}
 var settingsLogger = slog.With("component", "ui.settings")
-var externalURLLogger = slog.With("component", "ui.external_url")
 
 func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne.CanvasObject {
 	current := dep.Data.Config
@@ -110,6 +108,8 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 	mapShowPrecisionCircles.SetChecked(current.UI.MapDisplay.ShowPrecisionCircles)
 	mapShowPrecisionCirclesOnlyOnHover := widget.NewCheck("Only on hover", nil)
 	mapShowPrecisionCirclesOnlyOnHover.SetChecked(current.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+	mapLinkProviderSelect := widget.NewSelect(mapLinkProviderLabels(), nil)
+	mapLinkProviderSelect.SetSelected(mapLinkProviderLabel(current.UI.MapDisplay.MapLinkProvider))
 	historyLimitOptions := historyLimitOptionLabels()
 	historyPositionLimitSelect := widget.NewSelect(historyLimitOptions, nil)
 	historyTelemetryLimitSelect := widget.NewSelect(historyLimitOptions, nil)
@@ -424,6 +424,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyUpdateAvailable.SetChecked(next.UI.Notifications.Events.UpdateAvailable)
 		mapShowPrecisionCircles.SetChecked(next.UI.MapDisplay.ShowPrecisionCircles)
 		mapShowPrecisionCirclesOnlyOnHover.SetChecked(next.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover)
+		mapLinkProviderSelect.SetSelected(mapLinkProviderLabel(next.UI.MapDisplay.MapLinkProvider))
 		historyPositionLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Position, config.DefaultPositionHistoryLimit))
 		historyTelemetryLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Telemetry, config.DefaultTelemetryHistoryLimit))
 		historyIdentityLimitSelect.SetSelected(historyLimitLabel(next.Persistence.HistoryLimits.Identity, config.DefaultIdentityHistoryLimit))
@@ -510,6 +511,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.UI.Notifications.Events.UpdateAvailable = notifyUpdateAvailable.Checked
 		cfg.UI.MapDisplay.ShowPrecisionCircles = mapShowPrecisionCircles.Checked
 		cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover = mapShowPrecisionCirclesOnlyOnHover.Checked
+		cfg.UI.MapDisplay.MapLinkProvider = parseMapLinkProviderLabel(mapLinkProviderSelect.Selected)
 		cfg.Persistence.HistoryLimits.Position = intPtr(positionHistoryLimit)
 		cfg.Persistence.HistoryLimits.Telemetry = intPtr(telemetryHistoryLimit)
 		cfg.Persistence.HistoryLimits.Identity = intPtr(identityHistoryLimit)
@@ -677,9 +679,11 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		notifyConnectionStatus,
 		notifyUpdateAvailable,
 	)
+	mapForm := widget.NewForm(widget.NewFormItem("Open map links in", mapLinkProviderSelect))
 	mapContent := container.NewVBox(
 		mapShowPrecisionCircles,
 		container.NewPadded(mapShowPrecisionCirclesOnlyOnHover),
+		mapForm,
 	)
 	historyForm := widget.NewForm(
 		widget.NewFormItem("Position history rows", historyPositionLimitSelect),
@@ -867,60 +871,6 @@ func showBluetoothScanDialog(window fyne.Window, devices []DiscoveredBluetoothDe
 	)
 	scanDialog.Resize(fyne.NewSize(560, 420))
 	scanDialog.Show()
-}
-
-func openExternalURL(rawURL string) error {
-	externalURLLogger.Debug("opening external URL", "url", strings.TrimSpace(rawURL))
-	parsed, err := parseExternalURL(rawURL)
-	if err != nil {
-		externalURLLogger.Warn("invalid external URL", "url", strings.TrimSpace(rawURL), "error", err)
-
-		return err
-	}
-
-	currentApp := fyne.CurrentApp()
-	if currentApp == nil {
-		externalURLLogger.Warn("opening external URL failed: application is not initialized", "url", parsed.String())
-
-		return fmt.Errorf("application is not initialized")
-	}
-	if err := currentApp.OpenURL(parsed); err != nil {
-		externalURLLogger.Warn("opening external URL failed", "url", parsed.String(), "error", err)
-
-		return fmt.Errorf("open url: %w", err)
-	}
-	externalURLLogger.Info("opened external URL", "url", parsed.String())
-
-	return nil
-}
-
-func parseExternalURL(rawURL string) (*url.URL, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil {
-		return nil, fmt.Errorf("parse url: %w", err)
-	}
-	if strings.TrimSpace(parsed.Scheme) == "" || strings.TrimSpace(parsed.Host) == "" {
-		return nil, fmt.Errorf("invalid url %q: expected absolute URL", rawURL)
-	}
-
-	return parsed, nil
-}
-
-func newSafeHyperlink(label string, rawURL string, status *widget.Label) fyne.CanvasObject {
-	parsed, err := parseExternalURL(rawURL)
-	if err == nil {
-		return widget.NewHyperlink(label, parsed)
-	}
-
-	fallback := widget.NewButton(label, func() {
-		if status == nil {
-			return
-		}
-		status.SetText(fmt.Sprintf("%s link is unavailable: %v", label, err))
-	})
-	fallback.Importance = widget.LowImportance
-
-	return fallback
 }
 
 func setVisible(visible bool, objects ...fyne.CanvasObject) {

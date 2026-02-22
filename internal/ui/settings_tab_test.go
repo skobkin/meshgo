@@ -345,8 +345,12 @@ func TestSettingsTabMapDisplayDefaults(t *testing.T) {
 	_ = fynetest.NewTempWindow(t, tab)
 	mustSelectAppTabByText(t, tab, "Map")
 
+	mapProvider := mustFindSelectWithOption(t, tab, "OpenStreetMap")
 	showCircles := mustFindCheckByText(t, tab, "Show precision circles")
 	onlyOnHover := mustFindCheckByText(t, tab, "Only on hover")
+	if mapProvider.Selected != "OpenStreetMap" {
+		t.Fatalf("expected map provider to default to OpenStreetMap, got %q", mapProvider.Selected)
+	}
 	if showCircles.Checked {
 		t.Fatalf("expected circles toggle to be disabled by default")
 	}
@@ -386,8 +390,12 @@ func TestSettingsTabSavePersistsMapDisplaySettingsAndNotifiesMap(t *testing.T) {
 	_ = fynetest.NewTempWindow(t, tab)
 	mustSelectAppTabByText(t, tab, "Map")
 
+	mapProvider := mustFindSelectWithOption(t, tab, "OpenStreetMap")
 	showCircles := mustFindCheckByText(t, tab, "Show precision circles")
 	onlyOnHover := mustFindCheckByText(t, tab, "Only on hover")
+	if mapProvider.Selected != "OpenStreetMap" {
+		t.Fatalf("expected map provider select to stay on OpenStreetMap, got %q", mapProvider.Selected)
+	}
 	fynetest.Tap(showCircles)
 	if onlyOnHover.Disabled() {
 		t.Fatalf("expected hover-only toggle to be enabled when circles toggle is on")
@@ -403,10 +411,13 @@ func TestSettingsTabSavePersistsMapDisplaySettingsAndNotifiesMap(t *testing.T) {
 	if !saved.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
 		t.Fatalf("expected map hover-only setting to be saved as enabled")
 	}
+	if saved.UI.MapDisplay.MapLinkProvider != config.MapLinkProviderOpenStreetMap {
+		t.Fatalf("expected map link provider to be saved as OpenStreetMap, got %q", saved.UI.MapDisplay.MapLinkProvider)
+	}
 	if !callbackSeen {
 		t.Fatalf("expected map display callback to be triggered after save")
 	}
-	if !callbackCfg.ShowPrecisionCircles || !callbackCfg.ShowPrecisionCirclesOnlyOnHover {
+	if !callbackCfg.ShowPrecisionCircles || !callbackCfg.ShowPrecisionCirclesOnlyOnHover || callbackCfg.MapLinkProvider != config.MapLinkProviderOpenStreetMap {
 		t.Fatalf("unexpected callback map config: %+v", callbackCfg)
 	}
 }

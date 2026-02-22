@@ -34,6 +34,9 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
 		t.Fatalf("expected precision circles hover-only mode to be disabled by default")
 	}
+	if cfg.UI.MapDisplay.MapLinkProvider != MapLinkProviderOpenStreetMap {
+		t.Fatalf("expected default map link provider %q, got %q", MapLinkProviderOpenStreetMap, cfg.UI.MapDisplay.MapLinkProvider)
+	}
 	if cfg.Persistence.HistoryLimits.Position == nil || *cfg.Persistence.HistoryLimits.Position != DefaultPositionHistoryLimit {
 		t.Fatalf("expected default position history limit %d, got %v", DefaultPositionHistoryLimit, cfg.Persistence.HistoryLimits.Position)
 	}
@@ -111,6 +114,9 @@ func TestLoadMissingNotificationsUsesDefaults(t *testing.T) {
 	}
 	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
 		t.Fatalf("expected show_precision_circles_only_on_hover to default to false")
+	}
+	if cfg.UI.MapDisplay.MapLinkProvider != MapLinkProviderOpenStreetMap {
+		t.Fatalf("expected map_link_provider to default to %q, got %q", MapLinkProviderOpenStreetMap, cfg.UI.MapDisplay.MapLinkProvider)
 	}
 }
 
@@ -270,6 +276,7 @@ func TestAppConfigFillMissingDefaultsNormalizesMapDisplay(t *testing.T) {
 			MapDisplay: MapDisplayConfig{
 				ShowPrecisionCircles:            false,
 				ShowPrecisionCirclesOnlyOnHover: true,
+				MapLinkProvider:                 MapLinkProvider("invalid"),
 			},
 		},
 	}
@@ -277,6 +284,9 @@ func TestAppConfigFillMissingDefaultsNormalizesMapDisplay(t *testing.T) {
 	cfg.FillMissingDefaults()
 	if cfg.UI.MapDisplay.ShowPrecisionCirclesOnlyOnHover {
 		t.Fatalf("expected hover-only mode to be disabled when circles are disabled")
+	}
+	if cfg.UI.MapDisplay.MapLinkProvider != MapLinkProviderOpenStreetMap {
+		t.Fatalf("expected invalid map link provider to normalize to %q, got %q", MapLinkProviderOpenStreetMap, cfg.UI.MapDisplay.MapLinkProvider)
 	}
 }
 

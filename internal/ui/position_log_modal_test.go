@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 )
 
@@ -54,5 +57,34 @@ func TestPositionLogHelpersUnknownDefaults(t *testing.T) {
 	}
 	if got := formatPositionPrecision(nil); got != "unknown" {
 		t.Fatalf("unexpected precision fallback: %q", got)
+	}
+}
+
+func TestPositionLogLatitudeURL_UsesSelectedProvider(t *testing.T) {
+	latitude := 37.7749
+	longitude := -122.4194
+	precision := uint32(13)
+
+	parsed := positionLogLatitudeURL(domain.NodePositionHistoryEntry{
+		Latitude:  &latitude,
+		Longitude: &longitude,
+		Precision: &precision,
+	}, config.MapLinkProviderOpenStreetMap)
+	if parsed == nil {
+		t.Fatalf("expected latitude URL")
+	}
+	if parsed.Host != "www.openstreetmap.org" {
+		t.Fatalf("expected OSM host, got %q", parsed.Host)
+	}
+
+	values, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		t.Fatalf("parse OSM query: %v", err)
+	}
+	if values.Get("mlat") != "37.774900" || values.Get("mlon") != "-122.419400" {
+		t.Fatalf("unexpected OSM query: %q", parsed.RawQuery)
+	}
+	if !strings.Contains(parsed.Fragment, "/37.774900/-122.419400") {
+		t.Fatalf("unexpected OSM fragment: %q", parsed.Fragment)
 	}
 }

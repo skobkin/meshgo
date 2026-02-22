@@ -15,6 +15,9 @@ type TransportType string
 // AutostartMode controls how the app is launched by OS autostart.
 type AutostartMode string
 
+// MapLinkProvider identifies which external map provider is used for location links.
+type MapLinkProvider string
+
 const (
 	TransportIP        TransportType = "ip"
 	TransportBluetooth TransportType = "bluetooth"
@@ -27,6 +30,8 @@ const (
 
 	AutostartModeNormal     AutostartMode = "normal"
 	AutostartModeBackground AutostartMode = "background"
+
+	MapLinkProviderOpenStreetMap MapLinkProvider = "openstreetmap"
 )
 
 // LoggingConfig defines runtime logging behavior.
@@ -73,8 +78,9 @@ type MapViewportConfig struct {
 
 // MapDisplayConfig stores map overlay display preferences.
 type MapDisplayConfig struct {
-	ShowPrecisionCircles            bool `json:"show_precision_circles"`
-	ShowPrecisionCirclesOnlyOnHover bool `json:"show_precision_circles_only_on_hover"`
+	ShowPrecisionCircles            bool            `json:"show_precision_circles"`
+	ShowPrecisionCirclesOnlyOnHover bool            `json:"show_precision_circles_only_on_hover"`
+	MapLinkProvider                 MapLinkProvider `json:"map_link_provider"`
 }
 
 // NotificationConfig stores desktop notification preferences.
@@ -224,6 +230,14 @@ func normalizeMapViewport(viewport MapViewportConfig) MapViewportConfig {
 func normalizeMapDisplay(display MapDisplayConfig) MapDisplayConfig {
 	if !display.ShowPrecisionCircles {
 		display.ShowPrecisionCirclesOnlyOnHover = false
+	}
+	if display.MapLinkProvider == "" {
+		display.MapLinkProvider = MapLinkProviderOpenStreetMap
+	}
+	switch display.MapLinkProvider {
+	case MapLinkProviderOpenStreetMap:
+	default:
+		display.MapLinkProvider = MapLinkProviderOpenStreetMap
 	}
 
 	return display
