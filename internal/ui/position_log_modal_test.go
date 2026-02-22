@@ -88,3 +88,48 @@ func TestPositionLogLatitudeURL_UsesSelectedProvider(t *testing.T) {
 		t.Fatalf("unexpected OSM fragment: %q", parsed.Fragment)
 	}
 }
+
+func TestCurrentMapLinkProvider_UsesCurrentConfigWhenAvailable(t *testing.T) {
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: config.AppConfig{
+				UI: config.UIConfig{
+					MapDisplay: config.MapDisplayConfig{
+						MapLinkProvider: config.MapLinkProviderOpenStreetMap,
+					},
+				},
+			},
+			CurrentConfig: func() config.AppConfig {
+				return config.AppConfig{
+					UI: config.UIConfig{
+						MapDisplay: config.MapDisplayConfig{
+							MapLinkProvider: config.MapLinkProviderGoogle,
+						},
+					},
+				}
+			},
+		},
+	}
+
+	if got := currentMapLinkProvider(dep); got != config.MapLinkProviderGoogle {
+		t.Fatalf("expected provider from CurrentConfig, got %q", got)
+	}
+}
+
+func TestCurrentMapLinkProvider_FallsBackToSnapshotConfig(t *testing.T) {
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: config.AppConfig{
+				UI: config.UIConfig{
+					MapDisplay: config.MapDisplayConfig{
+						MapLinkProvider: config.MapLinkProviderYandex,
+					},
+				},
+			},
+		},
+	}
+
+	if got := currentMapLinkProvider(dep); got != config.MapLinkProviderYandex {
+		t.Fatalf("expected provider from snapshot config, got %q", got)
+	}
+}

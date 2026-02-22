@@ -57,7 +57,7 @@ func showPositionLogModal(window fyne.Window, dep RuntimeDependencies, node doma
 
 				return
 			}
-			mapLinkProvider := normalizeMapLinkProvider(dep.Data.Config.UI.MapDisplay.MapLinkProvider)
+			mapLinkProvider := currentMapLinkProvider(dep)
 			body.Objects = []fyne.CanvasObject{newPositionLogTable(rows, mapLinkProvider, func(target *url.URL) {
 				if target == nil {
 					return
@@ -69,6 +69,16 @@ func showPositionLogModal(window fyne.Window, dep RuntimeDependencies, node doma
 			body.Refresh()
 		})
 	}()
+}
+
+func currentMapLinkProvider(dep RuntimeDependencies) config.MapLinkProvider {
+	if dep.Data.CurrentConfig != nil {
+		current := dep.Data.CurrentConfig()
+
+		return normalizeMapLinkProvider(current.UI.MapDisplay.MapLinkProvider)
+	}
+
+	return normalizeMapLinkProvider(dep.Data.Config.UI.MapDisplay.MapLinkProvider)
 }
 
 func newPositionLogTable(
