@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,7 +8,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
@@ -21,36 +18,6 @@ import (
 )
 
 const tracerouteUnknownSNR = -128
-
-func handleNodeTracerouteAction(window fyne.Window, dep RuntimeDependencies, node domain.Node) {
-	if window == nil {
-		return
-	}
-	if dep.Actions.Traceroute == nil {
-		dialog.ShowError(fmt.Errorf("traceroute is unavailable: radio service is not configured"), window)
-
-		return
-	}
-
-	initial, err := dep.Actions.Traceroute.StartTraceroute(context.Background(), app.TracerouteTarget{NodeID: node.NodeID})
-	if err != nil {
-		var cooldownErr *app.TracerouteCooldownError
-		if errors.As(err, &cooldownErr) {
-			remaining := cooldownErr.Remaining.Round(time.Second)
-			if remaining < time.Second {
-				remaining = time.Second
-			}
-			dialog.ShowError(fmt.Errorf("traceroute is locked, try again in %s", remaining), window)
-
-			return
-		}
-		dialog.ShowError(err, window)
-
-		return
-	}
-
-	showTracerouteModal(window, dep.Data.Bus, dep.Data.NodeStore, node, initial)
-}
 
 func showTracerouteModal(
 	window fyne.Window,
