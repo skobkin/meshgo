@@ -663,7 +663,7 @@ func nodeMQTTMapPrecisionKnownLabel(bits uint32) string {
 	return nodeMQTTFormatMetricDistance(nodeMQTTPrecisionBitsToMeters(bits))
 }
 
-func nodeMQTTMapPrecisionCustomLabel(bits uint32) string {
+func nodeMQTTMapPrecisionCustomLabel(_ uint32) string {
 	return nodeMQTTMapPrecisionCustomText
 }
 
