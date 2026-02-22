@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -35,7 +34,7 @@ func TestPositionLogRow(t *testing.T) {
 	if got := row[2]; got != "123 m" {
 		t.Fatalf("unexpected altitude value: %q", got)
 	}
-	if got := row[3]; !strings.Contains(got, "(13)") {
+	if got := row[3]; got != "~ 2.9 km" {
 		t.Fatalf("unexpected precision value: %q", got)
 	}
 	if got := row[4]; got != "2" {

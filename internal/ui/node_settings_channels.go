@@ -945,11 +945,11 @@ func nodeChannelPositionPrecisionLabels() []string {
 func nodeChannelPositionPrecisionLabel(value uint32) string {
 	switch value {
 	case 0:
-		return "Disabled (0)"
+		return "Disabled"
 	case 32:
-		return "Precise location (32)"
+		return "Precise"
 	default:
-		return fmt.Sprintf("Approx. %s (%d)", nodeChannelDistanceLabel(nodeChannelPrecisionBitsToMeters(value)), value)
+		return fmt.Sprintf("~ %s", nodeChannelDistanceLabel(nodeChannelPrecisionBitsToMeters(value)))
 	}
 }
 

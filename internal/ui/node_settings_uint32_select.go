@@ -73,7 +73,6 @@ func nodeSettingsParseUint32SelectLabel(
 	fieldName string,
 	selected string,
 	options []nodeSettingsUint32Option,
-	customSuffix string,
 ) (uint32, error) {
 	selected = strings.TrimSpace(selected)
 	if selected == "" {
@@ -84,8 +83,8 @@ func nodeSettingsParseUint32SelectLabel(
 			return option.Value, nil
 		}
 	}
-	if strings.HasPrefix(selected, nodeSettingsCustomLabelPrefix) && strings.HasSuffix(selected, customSuffix) {
-		raw := strings.TrimSuffix(strings.TrimPrefix(selected, nodeSettingsCustomLabelPrefix), customSuffix)
+	if strings.HasPrefix(selected, nodeSettingsCustomLabelPrefix) && strings.HasSuffix(selected, nodeSettingsCustomSecondsLabelSuffix) {
+		raw := strings.TrimSuffix(strings.TrimPrefix(selected, nodeSettingsCustomLabelPrefix), nodeSettingsCustomSecondsLabelSuffix)
 		value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 32)
 		if err != nil {
 			return 0, fmt.Errorf("%s has invalid value", fieldName)

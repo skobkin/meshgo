@@ -532,7 +532,6 @@ func nodeDeviceParseNodeInfoBroadcastIntervalLabel(fieldName, selected string) (
 		fieldName,
 		selected,
 		nodeDeviceNodeInfoBroadcastIntervalOptions,
-		nodeSettingsCustomSecondsLabelSuffix,
 	)
 }
 

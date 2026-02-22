@@ -49,11 +49,14 @@ func TestNodeChannelEncryptionIcon(t *testing.T) {
 func TestParseNodeChannelPositionPrecision(t *testing.T) {
 	t.Parallel()
 
-	if got, err := parseNodeChannelPositionPrecision("Disabled (0)"); err != nil || got != 0 {
+	if got, err := parseNodeChannelPositionPrecision("Disabled"); err != nil || got != 0 {
 		t.Fatalf("expected disabled precision, got %d err=%v", got, err)
 	}
-	if got, err := parseNodeChannelPositionPrecision("Precise location (32)"); err != nil || got != 32 {
+	if got, err := parseNodeChannelPositionPrecision("Precise"); err != nil || got != 32 {
 		t.Fatalf("expected precise precision, got %d err=%v", got, err)
+	}
+	if got, err := parseNodeChannelPositionPrecision("Precise location (32)"); err != nil || got != 32 {
+		t.Fatalf("expected legacy precise precision, got %d err=%v", got, err)
 	}
 	label13 := nodeChannelPositionPrecisionLabel(13)
 	if got, err := parseNodeChannelPositionPrecision(label13); err != nil || got != 13 {

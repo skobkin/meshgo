@@ -905,7 +905,6 @@ func nodePositionParseBroadcastIntervalLabel(fieldName, selected string) (uint32
 		fieldName,
 		selected,
 		nodePositionBroadcastIntervalOptions,
-		nodeSettingsCustomSecondsLabelSuffix,
 	)
 }
 
@@ -914,7 +913,6 @@ func nodePositionParseSmartMinimumIntervalLabel(fieldName, selected string) (uin
 		fieldName,
 		selected,
 		nodePositionSmartMinimumIntervalOptions,
-		nodeSettingsCustomSecondsLabelSuffix,
 	)
 }
 
@@ -923,7 +921,6 @@ func nodePositionParseGpsUpdateIntervalLabel(fieldName, selected string) (uint32
 		fieldName,
 		selected,
 		nodePositionGpsUpdateIntervalOptions,
-		nodeSettingsCustomSecondsLabelSuffix,
 	)
 }
 

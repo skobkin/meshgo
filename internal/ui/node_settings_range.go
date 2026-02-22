@@ -381,7 +381,6 @@ func nodeRangeTestParseSenderIntervalLabel(fieldName, selected string) (uint32, 
 		fieldName,
 		selected,
 		nodeRangeTestSenderIntervalOptions,
-		nodeSettingsCustomSecondsLabelSuffix,
 	)
 }
 

@@ -28,6 +28,7 @@ const (
 	nodeMQTTMapPrecisionMax         = 15
 	nodeMQTTMapPrecisionDefault     = 14
 	nodeMQTTPrecisionMetersFactor   = 23905787.925008
+	nodeMQTTMapPrecisionCustomText  = "Custom"
 
 	nodeMQTTMapInterval1Hour  uint32 = 1 * 60 * 60  // 1 hour
 	nodeMQTTMapInterval2Hours uint32 = 2 * 60 * 60  // 2 hours
@@ -286,10 +287,11 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		if mapReportPositionPrecision == 0 {
 			mapReportPositionPrecision = nodeMQTTMapPrecisionDefault
 		}
-		parsedMapPrecision, err := nodeMQTTParseMapPrecisionLabel("position precision", mapReportPositionPrecisionSelect.Selected)
+		selectedMapPrecision := strings.TrimSpace(mapReportPositionPrecisionSelect.Selected)
+		parsedMapPrecision, err := nodeMQTTParseMapPrecisionLabel("position precision", selectedMapPrecision)
 		if err == nil {
 			mapReportPositionPrecision = parsedMapPrecision
-		} else if strings.TrimSpace(mapReportPositionPrecisionSelect.Selected) != "" {
+		} else if selectedMapPrecision != "" && selectedMapPrecision != nodeMQTTMapPrecisionCustomText {
 			return app.NodeMQTTSettings{}, err
 		}
 		mapReportPublishIntervalSecs := next.MapReportPublishIntervalSecs
@@ -658,19 +660,29 @@ func nodeMQTTMapIntervalSelectLabel(value uint32) string {
 }
 
 func nodeMQTTMapPrecisionKnownLabel(bits uint32) string {
-	return fmt.Sprintf("%s (%d bits)", nodeMQTTFormatMetricDistance(nodeMQTTPrecisionBitsToMeters(bits)), bits)
+	return nodeMQTTFormatMetricDistance(nodeMQTTPrecisionBitsToMeters(bits))
 }
 
 func nodeMQTTMapPrecisionCustomLabel(bits uint32) string {
-	return fmt.Sprintf("Custom (%d bits)", bits)
+	return nodeMQTTMapPrecisionCustomText
 }
 
 func nodeMQTTParseMapPrecisionLabel(fieldName, selected string) (uint32, error) {
-	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodeMQTTMapPrecisionOptions, " bits)")
+	selected = strings.TrimSpace(selected)
+	if selected == "" {
+		return 0, fmt.Errorf("%s must be selected", fieldName)
+	}
+	for _, option := range nodeMQTTMapPrecisionOptions {
+		if option.Label == selected {
+			return option.Value, nil
+		}
+	}
+
+	return 0, fmt.Errorf("%s has unsupported value", fieldName)
 }
 
 func nodeMQTTParseMapIntervalLabel(fieldName, selected string) (uint32, error) {
-	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodeMQTTMapIntervalOptions, nodeSettingsCustomSecondsLabelSuffix)
+	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodeMQTTMapIntervalOptions)
 }
 
 func nodeMQTTPrecisionBitsToMeters(bits uint32) float64 {
