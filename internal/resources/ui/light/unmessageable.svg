@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <g stroke="#000000" stroke-linecap="round" stroke-linejoin="round" shape-rendering="geometricPrecision">
+    <!-- phone silhouette -->
+    <rect x="14" y="7" width="20" height="34" rx="4" stroke-width="4"/>
+    <!-- wide top/bottom borders (drawn on the outer edge, not inside the screen) -->
+    <path d="M16 9 H32" stroke-width="6"/>
+    <path d="M16 39 H32" stroke-width="6"/>
+    <!-- strike-through -->
+    <path d="M10 38 L38 10" stroke-width="4"/>
+  </g>
+</svg>
