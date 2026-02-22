@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -190,6 +191,41 @@ func TestNewNodeOverviewContent_PublicKeyCopyEnabledWhenKeyIsKnown(t *testing.T)
 	}
 }
 
+func TestNewNodeOverviewContent_PositionSectionTitleIsHyperlink(t *testing.T) {
+	store := domain.NewNodeStore()
+	latitude := 1.1
+	longitude := 2.2
+	link, err := url.Parse("https://example.com/maps")
+	if err != nil {
+		t.Fatalf("parse link: %v", err)
+	}
+	store.Upsert(domain.Node{
+		NodeID:      "!00000001",
+		LongName:    "Alpha",
+		LastHeardAt: time.Now(),
+		Latitude:    &latitude,
+		Longitude:   &longitude,
+	})
+
+	content, stop := newNodeOverviewContent(nodeOverviewOptions{
+		Title:     "Node",
+		NodeStore: store,
+		NodeID: func() string {
+			return "!00000001"
+		},
+		ShowActions: true,
+		PositionMapURL: func(domain.Node) *url.URL {
+			return link
+		},
+	})
+	defer stop()
+	_ = fynetest.NewTempWindow(t, content)
+
+	if got := mustFindOverviewHyperlinkByText(t, content, "Position"); got.URL.String() != link.String() {
+		t.Fatalf("unexpected position hyperlink URL: %q", got.URL.String())
+	}
+}
+
 func TestOverviewTelemetryHelpers(t *testing.T) {
 	uptime := uint32(3661)
 	channelUtil := 12.5
@@ -320,4 +356,20 @@ func hasVisibleLabelText(root fyne.CanvasObject, expected string) bool {
 	}
 
 	return false
+}
+
+func mustFindOverviewHyperlinkByText(t *testing.T, root fyne.CanvasObject, text string) *widget.Hyperlink {
+	t.Helper()
+	for _, object := range fynetest.LaidOutObjects(root) {
+		link, ok := object.(*widget.Hyperlink)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(link.Text) == text {
+			return link
+		}
+	}
+	t.Fatalf("hyperlink %q not found", text)
+
+	return nil
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type nodeOverviewOptions struct {
 	OnTelemetryLog     func(domain.Node)
 	OnPositionLog      func(domain.Node)
 	OnIdentityLog      func(domain.Node)
+	PositionMapURL     func(domain.Node) *url.URL
 	ShowCloseButton    bool
 	OnClose            func()
 	ShowActions        bool
@@ -120,7 +122,8 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	environmentCard := overviewCard("Telemetry: Environmental", environmentSection, environmentCardActions...)
 	airQualityCard := overviewCard("Telemetry: Air Quality", airQualitySection, airQualityCardActions...)
 	otherCard := overviewCard("Telemetry: Other", otherSection, otherCardActions...)
-	positionCard := overviewCard("Position", positionSection)
+	positionCardTitle := container.NewStack(overviewCardTitleLabel("Position"))
+	positionCard := overviewCardWithTitle(positionCardTitle, positionSection)
 	firmwareCard := overviewCard("Firmware and Board", firmwareSection)
 
 	adminButton := widget.NewButton("Administration", nil)
@@ -336,7 +339,17 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			setOverviewSectionMetrics(otherSection, otherMetrics)
 		}
 
+		positionURL := (*url.URL)(nil)
+		if opts.PositionMapURL != nil {
+			positionURL = opts.PositionMapURL(node)
+		}
 		positionMetrics := overviewPositionMetrics(node)
+		if positionURL != nil {
+			positionCardTitle.Objects = []fyne.CanvasObject{widget.NewHyperlink("Position", positionURL)}
+		} else {
+			positionCardTitle.Objects = []fyne.CanvasObject{overviewCardTitleLabel("Position")}
+		}
+		positionCardTitle.Refresh()
 		if len(positionMetrics) > 0 {
 			setOverviewSectionMetricRows(positionSection, [][]overviewMetric{positionMetrics})
 		}
@@ -404,7 +417,14 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 }
 
 func overviewCard(title string, body fyne.CanvasObject, actions ...fyne.CanvasObject) *fyne.Container {
-	titleLabel := widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	return overviewCardWithTitle(overviewCardTitleLabel(title), body, actions...)
+}
+
+func overviewCardTitleLabel(title string) fyne.CanvasObject {
+	return widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+}
+
+func overviewCardWithTitle(titleLabel fyne.CanvasObject, body fyne.CanvasObject, actions ...fyne.CanvasObject) *fyne.Container {
 	if len(actions) == 0 {
 		return container.NewVBox(titleLabel, body)
 	}
@@ -738,6 +758,9 @@ func showNodeOverviewModal(
 		OnIdentityLog: func(target domain.Node) {
 			handleNodeIdentityLogAction(window, dep, target)
 		},
+		PositionMapURL: func(target domain.Node) *url.URL {
+			return overviewNodePositionURL(dep, target)
+		},
 	}
 	var modal *widget.PopUp
 	var stop func()
@@ -775,7 +798,28 @@ func newNodeOverviewSettingsPage(dep RuntimeDependencies) fyne.CanvasObject {
 		OnIdentityLog: func(target domain.Node) {
 			handleNodeIdentityLogAction(currentRuntimeWindow(dep), dep, target)
 		},
+		PositionMapURL: func(target domain.Node) *url.URL {
+			return overviewNodePositionURL(dep, target)
+		},
 	})
 
 	return content
+}
+
+func overviewNodePositionURL(dep RuntimeDependencies, node domain.Node) *url.URL {
+	if node.Latitude == nil || node.Longitude == nil {
+		return nil
+	}
+
+	parsed, err := nodePositionMapURL(
+		currentMapLinkProvider(dep),
+		*node.Latitude,
+		*node.Longitude,
+		node.PositionPrecisionBits,
+	)
+	if err != nil {
+		return nil
+	}
+
+	return parsed
 }
