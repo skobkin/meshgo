@@ -14,6 +14,7 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	uptimeSeconds := uint32(1200)
 	channelUtilization := 18.5
 	airUtilTx := 2.2
+	isFavorite := true
 	positionUpdatedAt := time.Now().Add(-2 * time.Minute).UTC()
 
 	store.Upsert(Node{
@@ -26,6 +27,7 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 		ShortName:             "ALPH",
 		BoardModel:            "T-Echo",
 		FirmwareVersion:       "2.5.0",
+		IsFavorite:            &isFavorite,
 		UptimeSeconds:         &uptimeSeconds,
 		ChannelUtilization:    &channelUtilization,
 		AirUtilTx:             &airUtilTx,
@@ -61,6 +63,9 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	if node.FirmwareVersion != "2.5.0" {
 		t.Fatalf("expected firmware preserved, got %q", node.FirmwareVersion)
 	}
+	if node.IsFavorite == nil || !*node.IsFavorite {
+		t.Fatalf("expected favorite flag preserved, got %v", node.IsFavorite)
+	}
 	if node.UptimeSeconds == nil || *node.UptimeSeconds != uptimeSeconds {
 		t.Fatalf("expected uptime preserved, got %v", node.UptimeSeconds)
 	}
@@ -72,5 +77,37 @@ func TestNodeStoreUpsert_PreservesCoordinatesOnSparseUpdates(t *testing.T) {
 	}
 	if !node.PositionUpdatedAt.Equal(positionUpdatedAt) {
 		t.Fatalf("expected position updated at preserved, got %v", node.PositionUpdatedAt)
+	}
+}
+
+func TestSanitizeNodeCoreUpdate_DropsFavoriteFromNodeInfoPacket(t *testing.T) {
+	favorite := true
+	update := NodeCoreUpdate{
+		Core: NodeCore{
+			NodeID:     "!11111111",
+			IsFavorite: &favorite,
+		},
+		FromPacket: true,
+		Type:       NodeUpdateTypeNodeInfoPacket,
+	}
+
+	got := sanitizeNodeCoreUpdate(update)
+	if got.Core.IsFavorite != nil {
+		t.Fatalf("expected NODEINFO packet favorite to be dropped, got %v", got.Core.IsFavorite)
+	}
+}
+
+func TestSanitizeNodeCoreUpdate_PreservesFavoriteFromSnapshot(t *testing.T) {
+	favorite := true
+	got := sanitizeNodeCoreUpdate(NodeCoreUpdate{
+		Core: NodeCore{
+			NodeID:     "!11111111",
+			IsFavorite: &favorite,
+		},
+		FromPacket: true,
+		Type:       NodeUpdateTypeNodeInfoSnapshot,
+	})
+	if got.Core.IsFavorite == nil || !*got.Core.IsFavorite {
+		t.Fatalf("expected snapshot favorite to be preserved, got %v", got.Core.IsFavorite)
 	}
 }

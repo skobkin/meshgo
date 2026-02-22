@@ -121,6 +121,7 @@ type Node struct {
 	BoardModel            string
 	FirmwareVersion       string
 	Role                  string
+	IsFavorite            *bool
 	IsUnmessageable       *bool
 	PositionUpdatedAt     time.Time
 	LastHeardAt           time.Time
@@ -139,6 +140,7 @@ type NodeCore struct {
 	BoardModel      string
 	FirmwareVersion string
 	Role            string
+	IsFavorite      *bool
 	IsUnmessageable *bool
 	LastHeardAt     time.Time
 	RSSI            *int

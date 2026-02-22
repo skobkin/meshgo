@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const targetSchemaVersion = 13
+const targetSchemaVersion = 14
 
 type migrationStep struct {
 	version int
@@ -29,6 +29,7 @@ var schemaMigrations = []migrationStep{
 	{version: 11, name: "add_node_public_key", apply: migrateV11AddNodePublicKey},
 	{version: 12, name: "split_node_secondary_metadata", apply: migrateV12SplitNodeSecondaryMetadata},
 	{version: 13, name: "add_extended_environment_telemetry", apply: migrateV13AddExtendedEnvironmentTelemetry},
+	{version: 14, name: "add_node_favorite_flag", apply: migrateV14AddNodeFavoriteFlag},
 }
 
 func Apply(ctx context.Context, db *sql.DB) error {

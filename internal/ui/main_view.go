@@ -53,6 +53,8 @@ func buildMainView(
 		switch action {
 		case NodeActionDirectMessage:
 			handleNodeDirectMessageAction(dep, switchToChats, openDMChat, node)
+		case NodeActionFavorite:
+			handleNodeFavoriteAction(window, dep, node, node.IsFavorite == nil || !*node.IsFavorite)
 		case NodeActionTraceroute:
 			handleNodeTracerouteAction(window, dep, node)
 		case NodeActionInfo:
@@ -61,7 +63,13 @@ func buildMainView(
 	}
 	nodesTab := newNodesTabWithActions(dep.Data.NodeStore, dep.Data.LocalNodeID, DefaultNodeRowRenderer(), NodesTabActions{
 		OnNodeSecondaryTapped: func(node domain.Node, position fyne.Position) {
-			showNodeContextMenu(window.Canvas(), position, node, nodeActionHandler)
+			showNodeContextMenu(
+				window.Canvas(),
+				position,
+				node,
+				isLocalNode(node, localNodeIDValue(dep.Data.LocalNodeID)),
+				nodeActionHandler,
+			)
 		},
 	})
 	mapTab := newMapTab(

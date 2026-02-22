@@ -58,6 +58,11 @@ type NodeOverviewAction interface {
 	ListIdentityHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodeIdentityHistoryEntry, error)
 }
 
+// NodeFavoriteAction handles marking remote nodes as favorite on local node DB.
+type NodeFavoriteAction interface {
+	SetFavorite(ctx context.Context, targetNodeID string, favorite bool) error
+}
+
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
 	Config            config.AppConfig
@@ -86,6 +91,7 @@ type ActionDependencies struct {
 	OnQuit                    func()
 	NodeSettings              NodeSettingsAction
 	NodeOverview              NodeOverviewAction
+	NodeFavorite              NodeFavoriteAction
 }
 
 // PlatformDependencies contains OS-specific helpers used by UI actions.

@@ -28,6 +28,7 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	nodeID := "!abcd1234"
 	channel := uint32(2)
 	pubKey := []byte{1, 2, 3, 4}
+	isFavorite := true
 	if err := coreRepo.Upsert(ctx, domain.NodeCoreUpdate{
 		Core: domain.NodeCore{
 			NodeID:          nodeID,
@@ -37,11 +38,12 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 			Channel:         &channel,
 			BoardModel:      "T-Echo",
 			FirmwareVersion: "2.5.1",
+			IsFavorite:      &isFavorite,
 			LastHeardAt:     now,
 			UpdatedAt:       now,
 		},
-		FromPacket: true,
-		Type:       domain.NodeUpdateTypeNodeInfoPacket,
+		FromPacket: false,
+		Type:       domain.NodeUpdateTypeNodeInfoSnapshot,
 	}, 50); err != nil {
 		t.Fatalf("upsert node core: %v", err)
 	}
@@ -103,6 +105,9 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	if !bytes.Equal(coreList[0].PublicKey, pubKey) {
 		t.Fatalf("expected public key to roundtrip, got %v", coreList[0].PublicKey)
 	}
+	if coreList[0].IsFavorite == nil || !*coreList[0].IsFavorite {
+		t.Fatalf("expected favorite flag to roundtrip, got %v", coreList[0].IsFavorite)
+	}
 
 	positionList, err := positionRepo.ListLatest(ctx)
 	if err != nil {
@@ -163,6 +168,110 @@ func TestNodeReposRoundTrip_CorePositionTelemetryAndIdentityHistory(t *testing.T
 	}
 	if len(history) != 1 {
 		t.Fatalf("expected duplicate identity update to be skipped, got %d rows", len(history))
+	}
+}
+
+func TestNodeCoreRepo_Upsert_DoesNotPersistFavoriteFromNodeInfoPacket(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := NewNodeCoreRepo(db)
+	now := time.Now().UTC()
+	nodeID := "!abcd1234"
+	initialFavorite := true
+
+	if err := repo.Upsert(ctx, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:      nodeID,
+			IsFavorite:  &initialFavorite,
+			LastHeardAt: now,
+			UpdatedAt:   now,
+		},
+		FromPacket: false,
+		Type:       domain.NodeUpdateTypeUnknown,
+	}, 0); err != nil {
+		t.Fatalf("seed node favorite: %v", err)
+	}
+
+	packetFavorite := false
+	if err := repo.Upsert(ctx, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:      nodeID,
+			IsFavorite:  &packetFavorite,
+			LastHeardAt: now.Add(time.Second),
+			UpdatedAt:   now.Add(time.Second),
+		},
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeNodeInfoPacket,
+	}, 0); err != nil {
+		t.Fatalf("packet upsert node favorite: %v", err)
+	}
+
+	item, ok, err := repo.GetByNodeID(ctx, nodeID)
+	if err != nil {
+		t.Fatalf("get node by id: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected node row")
+	}
+	if item.IsFavorite == nil || !*item.IsFavorite {
+		t.Fatalf("expected favorite=true to be preserved, got %v", item.IsFavorite)
+	}
+}
+
+func TestNodeCoreRepo_Upsert_PersistsFavoriteFromSnapshot(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := NewNodeCoreRepo(db)
+	now := time.Now().UTC()
+	nodeID := "!abcd1234"
+	initialFavorite := false
+
+	if err := repo.Upsert(ctx, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:      nodeID,
+			IsFavorite:  &initialFavorite,
+			LastHeardAt: now,
+			UpdatedAt:   now,
+		},
+		FromPacket: false,
+		Type:       domain.NodeUpdateTypeUnknown,
+	}, 0); err != nil {
+		t.Fatalf("seed node favorite: %v", err)
+	}
+
+	snapshotFavorite := true
+	if err := repo.Upsert(ctx, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:      nodeID,
+			IsFavorite:  &snapshotFavorite,
+			LastHeardAt: now.Add(time.Second),
+			UpdatedAt:   now.Add(time.Second),
+		},
+		FromPacket: true,
+		Type:       domain.NodeUpdateTypeNodeInfoSnapshot,
+	}, 0); err != nil {
+		t.Fatalf("snapshot upsert node favorite: %v", err)
+	}
+
+	item, ok, err := repo.GetByNodeID(ctx, nodeID)
+	if err != nil {
+		t.Fatalf("get node by id: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected node row")
+	}
+	if item.IsFavorite == nil || !*item.IsFavorite {
+		t.Fatalf("expected favorite=true from snapshot, got %v", item.IsFavorite)
 	}
 }
 
@@ -273,8 +382,8 @@ func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 13 {
-		t.Fatalf("expected schema version 13, got %d", version)
+	if version != 14 {
+		t.Fatalf("expected schema version 14, got %d", version)
 	}
 
 	if hasColumn(t, migrated, "nodes", "latitude") {
@@ -282,6 +391,9 @@ func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	}
 	if !hasColumn(t, migrated, "nodes", "channel") {
 		t.Fatalf("nodes table should keep channel after split migration")
+	}
+	if !hasColumn(t, migrated, "nodes", "is_favorite") {
+		t.Fatalf("nodes table should include is_favorite after migration")
 	}
 
 	for _, table := range []string{
@@ -460,8 +572,8 @@ func TestOpenMigratesV4ToV12(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 13 {
-		t.Fatalf("expected schema version 13, got %d", version)
+	if version != 14 {
+		t.Fatalf("expected schema version 14, got %d", version)
 	}
 }
 

@@ -59,6 +59,9 @@ var uiDarkBadgePrimary []byte
 //go:embed ui/dark/refresh.svg
 var uiDarkRefresh []byte
 
+//go:embed ui/dark/favorite.svg
+var uiDarkFavorite []byte
+
 //go:embed ui/light/chats.svg
 var uiLightChats []byte
 
@@ -112,6 +115,9 @@ var uiLightBadgePrimary []byte
 
 //go:embed ui/light/refresh.svg
 var uiLightRefresh []byte
+
+//go:embed ui/light/favorite.svg
+var uiLightFavorite []byte
 
 //go:embed ui/dark/icon_32.png
 var uiDarkIcon32 []byte

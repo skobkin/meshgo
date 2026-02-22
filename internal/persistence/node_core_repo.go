@@ -44,6 +44,11 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 
 	writtenAt := time.Now()
 	core := update.Core
+	if update.Type == domain.NodeUpdateTypeNodeInfoPacket {
+		// NODEINFO packet user payload does not provide authoritative favorite
+		// state; keep stored value until a NodeInfoSnapshot arrives.
+		core.IsFavorite = nil
+	}
 	if core.UpdatedAt.IsZero() {
 		core.UpdatedAt = writtenAt
 	}
@@ -51,6 +56,7 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 	var (
 		publicKey       any
 		channel         any
+		isFavorite      any
 		isUnmessageable any
 		rssi            any
 		snr             any
@@ -60,6 +66,13 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 	}
 	if core.Channel != nil {
 		channel = int64(*core.Channel)
+	}
+	if core.IsFavorite != nil {
+		if *core.IsFavorite {
+			isFavorite = int64(1)
+		} else {
+			isFavorite = int64(0)
+		}
 	}
 	if core.IsUnmessageable != nil {
 		if *core.IsUnmessageable {
@@ -76,8 +89,8 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO nodes(node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO nodes(node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_favorite, is_unmessageable, last_heard_at, rssi, snr, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			long_name = CASE
 				WHEN excluded.long_name IS NOT NULL AND excluded.long_name <> '' THEN excluded.long_name
@@ -104,6 +117,7 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 				WHEN excluded.device_role IS NOT NULL AND excluded.device_role <> '' THEN excluded.device_role
 				ELSE nodes.device_role
 			END,
+			is_favorite = COALESCE(excluded.is_favorite, nodes.is_favorite),
 			is_unmessageable = COALESCE(excluded.is_unmessageable, nodes.is_unmessageable),
 			last_heard_at = CASE
 				WHEN excluded.last_heard_at > nodes.last_heard_at THEN excluded.last_heard_at
@@ -124,6 +138,7 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 		nullableString(core.BoardModel),
 		nullableString(core.FirmwareVersion),
 		nullableString(core.Role),
+		isFavorite,
 		isUnmessageable,
 		timeToUnixMillis(core.LastHeardAt),
 		rssi,
@@ -178,7 +193,7 @@ func (r *NodeCoreRepo) Upsert(ctx context.Context, update domain.NodeCoreUpdate,
 
 func (r *NodeCoreRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.NodeCore, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_favorite, is_unmessageable, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		ORDER BY last_heard_at DESC
 	`)
@@ -206,7 +221,7 @@ func (r *NodeCoreRepo) ListSortedByLastHeard(ctx context.Context) ([]domain.Node
 
 func (r *NodeCoreRepo) GetByNodeID(ctx context.Context, nodeID string) (domain.NodeCore, bool, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_unmessageable, last_heard_at, rssi, snr, updated_at
+		SELECT node_id, long_name, short_name, public_key, channel, board_model, firmware_version, device_role, is_favorite, is_unmessageable, last_heard_at, rssi, snr, updated_at
 		FROM nodes
 		WHERE node_id = ?
 		LIMIT 1
@@ -236,13 +251,14 @@ func scanNodeCore(scanner interface{ Scan(dest ...any) error }) (domain.NodeCore
 		board         sql.NullString
 		firmware      sql.NullString
 		role          sql.NullString
+		favorite      sql.NullInt64
 		unmessageable sql.NullInt64
 		heardMS       int64
 		rssi          sql.NullInt64
 		snr           sql.NullFloat64
 		updatedMS     int64
 	)
-	if err := scanner.Scan(&item.NodeID, &item.LongName, &item.ShortName, &publicKey, &channel, &board, &firmware, &role, &unmessageable, &heardMS, &rssi, &snr, &updatedMS); err != nil {
+	if err := scanner.Scan(&item.NodeID, &item.LongName, &item.ShortName, &publicKey, &channel, &board, &firmware, &role, &favorite, &unmessageable, &heardMS, &rssi, &snr, &updatedMS); err != nil {
 		return domain.NodeCore{}, fmt.Errorf("scan node core row: %w", err)
 	}
 	if len(publicKey) > 0 {
@@ -262,6 +278,10 @@ func scanNodeCore(scanner interface{ Scan(dest ...any) error }) (domain.NodeCore
 	}
 	if role.Valid {
 		item.Role = role.String
+	}
+	if favorite.Valid {
+		v := favorite.Int64 != 0
+		item.IsFavorite = &v
 	}
 	if unmessageable.Valid {
 		v := unmessageable.Int64 != 0

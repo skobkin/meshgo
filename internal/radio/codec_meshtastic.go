@@ -403,6 +403,7 @@ func splitNodeCoreUpdate(update domain.NodeUpdate) (domain.NodeCoreUpdate, bool)
 			BoardModel:      node.BoardModel,
 			FirmwareVersion: node.FirmwareVersion,
 			Role:            node.Role,
+			IsFavorite:      node.IsFavorite,
 			IsUnmessageable: node.IsUnmessageable,
 			LastHeardAt:     node.LastHeardAt,
 			RSSI:            node.RSSI,
@@ -629,6 +630,8 @@ func decodeNodeInfo(nodeInfo *generated.NodeInfo, now time.Time) domain.NodeUpda
 	if role := strings.TrimSpace(user.GetRole().String()); role != "" {
 		node.Role = role
 	}
+	isFavorite := nodeInfo.GetIsFavorite()
+	node.IsFavorite = &isFavorite
 	if user != nil && user.IsUnmessagable != nil {
 		v := user.GetIsUnmessagable()
 		node.IsUnmessageable = &v

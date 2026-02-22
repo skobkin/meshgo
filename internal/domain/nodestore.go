@@ -52,7 +52,7 @@ func (s *NodeStore) Start(ctx context.Context, b bus.MessageBus) {
 				if !ok {
 					continue
 				}
-				s.Upsert(nodeFromCore(update.Core))
+				s.Upsert(nodeFromCore(sanitizeNodeCoreUpdate(update).Core))
 			case msg, ok := <-positionSub:
 				if !ok {
 					return
@@ -74,6 +74,16 @@ func (s *NodeStore) Start(ctx context.Context, b bus.MessageBus) {
 			}
 		}
 	}()
+}
+
+func sanitizeNodeCoreUpdate(update NodeCoreUpdate) NodeCoreUpdate {
+	// NODEINFO packet user payload does not provide authoritative favorite state;
+	// keep local/store value until a NodeInfoSnapshot arrives.
+	if update.Type == NodeUpdateTypeNodeInfoPacket {
+		update.Core.IsFavorite = nil
+	}
+
+	return update
 }
 
 func (s *NodeStore) Upsert(node Node) {
@@ -166,6 +176,9 @@ func (s *NodeStore) Upsert(node Node) {
 		}
 		if node.Role == "" {
 			node.Role = existing.Role
+		}
+		if node.IsFavorite == nil {
+			node.IsFavorite = existing.IsFavorite
 		}
 		if node.IsUnmessageable == nil {
 			node.IsUnmessageable = existing.IsUnmessageable

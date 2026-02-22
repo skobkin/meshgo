@@ -27,6 +27,7 @@ const (
 	UIIconSpeakerMute     UIIcon = "speaker_mute"
 	UIIconBadgePrimary    UIIcon = "badge_primary"
 	UIIconRefresh         UIIcon = "refresh"
+	UIIconFavorite        UIIcon = "favorite"
 )
 
 var uiDarkIconResources = map[UIIcon]fyne.Resource{
@@ -48,6 +49,7 @@ var uiDarkIconResources = map[UIIcon]fyne.Resource{
 	UIIconSpeakerMute:     fyne.NewStaticResource("resources/ui/dark/speaker_mute.svg", uiDarkSpeakerMute),
 	UIIconBadgePrimary:    fyne.NewStaticResource("resources/ui/dark/badge_primary.svg", uiDarkBadgePrimary),
 	UIIconRefresh:         fyne.NewStaticResource("resources/ui/dark/refresh.svg", uiDarkRefresh),
+	UIIconFavorite:        fyne.NewStaticResource("resources/ui/dark/favorite.svg", uiDarkFavorite),
 }
 
 var uiLightIconResources = map[UIIcon]fyne.Resource{
@@ -69,6 +71,7 @@ var uiLightIconResources = map[UIIcon]fyne.Resource{
 	UIIconSpeakerMute:     fyne.NewStaticResource("resources/ui/light/speaker_mute.svg", uiLightSpeakerMute),
 	UIIconBadgePrimary:    fyne.NewStaticResource("resources/ui/light/badge_primary.svg", uiLightBadgePrimary),
 	UIIconRefresh:         fyne.NewStaticResource("resources/ui/light/refresh.svg", uiLightRefresh),
+	UIIconFavorite:        fyne.NewStaticResource("resources/ui/light/favorite.svg", uiLightFavorite),
 }
 
 func UIIconResource(icon UIIcon, variant fyne.ThemeVariant) fyne.Resource {

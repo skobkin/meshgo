@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 // NodeRowRenderer defines create/update callbacks for nodes list row widgets.
@@ -36,7 +37,10 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 		Create: func() fyne.CanvasObject {
 			nameLabel := widget.NewLabel("name")
 			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+			favoriteIcon := widget.NewIcon(nil)
+			favoriteIcon.Hide()
 			line1Right := widget.NewLabel("seen")
+			line1RightBox := container.NewHBox(favoriteIcon, line1Right)
 			line2Model := widget.NewLabel("model")
 			line2Role := widget.NewLabel("role")
 			line2Role.Alignment = fyne.TextAlignCenter
@@ -48,7 +52,7 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 			line2RightBox := container.NewHBox(line2Signal, line2Right)
 
 			return container.NewVBox(
-				container.NewHBox(nameLabel, layout.NewSpacer(), line1Right),
+				container.NewHBox(nameLabel, layout.NewSpacer(), line1RightBox),
 				container.NewBorder(nil, nil, line2Model, line2RightBox, line2Role),
 			)
 		},
@@ -59,6 +63,17 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 			}
 			labels.name.SetText(nodeDisplayName(node))
 			labels.seen.SetText(nodeLine1Right(node, time.Now()))
+			if node.IsFavorite != nil && *node.IsFavorite {
+				iconResource := resources.UIIconResource(resources.UIIconFavorite, currentThemeVariant())
+				if iconResource == nil {
+					iconResource = resources.UIIconResource(resources.UIIconFavorite, theme.VariantDark)
+				}
+				labels.favorite.SetResource(iconResource)
+				labels.favorite.Show()
+			} else {
+				labels.favorite.SetResource(nil)
+				labels.favorite.Hide()
+			}
 			labels.model.SetText(nodeLine2Model(node))
 			labels.role.SetText(nodeLine2Role(node))
 			signal := nodeLine2Signal(node)
@@ -76,12 +91,13 @@ func DefaultNodeRowRenderer() NodeRowRenderer {
 }
 
 type nodeRowLabels struct {
-	name   *widget.Label
-	seen   *widget.Label
-	model  *widget.Label
-	role   *widget.Label
-	signal *canvas.Text
-	id     *widget.Label
+	name     *widget.Label
+	favorite *widget.Icon
+	seen     *widget.Label
+	model    *widget.Label
+	role     *widget.Label
+	signal   *canvas.Text
+	id       *widget.Label
 }
 
 type nodeRowItem struct {
@@ -239,7 +255,15 @@ func extractNodeRowLabels(obj fyne.CanvasObject) (nodeRowLabels, bool) {
 	if !ok {
 		return nodeRowLabels{}, false
 	}
-	seen, ok := line1.Objects[2].(*widget.Label)
+	line1RightBox, ok := line1.Objects[2].(*fyne.Container)
+	if !ok || len(line1RightBox.Objects) < 2 {
+		return nodeRowLabels{}, false
+	}
+	favorite, ok := line1RightBox.Objects[0].(*widget.Icon)
+	if !ok {
+		return nodeRowLabels{}, false
+	}
+	seen, ok := line1RightBox.Objects[1].(*widget.Label)
 	if !ok {
 		return nodeRowLabels{}, false
 	}
@@ -265,12 +289,13 @@ func extractNodeRowLabels(obj fyne.CanvasObject) (nodeRowLabels, bool) {
 	}
 
 	return nodeRowLabels{
-		name:   name,
-		seen:   seen,
-		model:  model,
-		role:   role,
-		signal: signal,
-		id:     id,
+		name:     name,
+		favorite: favorite,
+		seen:     seen,
+		model:    model,
+		role:     role,
+		signal:   signal,
+		id:       id,
 	}, true
 }
 
@@ -451,8 +476,16 @@ func newNodesTabWithActions(
 			if !ok {
 				return
 			}
-			renderer.Update(row.content, nodes[id])
-			if isLocalNode(nodes[id], localNodeIDValue(localNodeID)) {
+			node := nodes[id]
+			localID := localNodeIDValue(localNodeID)
+			renderer.Update(row.content, node)
+			if shouldHideFavoriteIcon(node, localID) {
+				if labels, ok := extractNodeRowLabels(row.content); ok {
+					labels.favorite.SetResource(nil)
+					labels.favorite.Hide()
+				}
+			}
+			if isLocalNode(node, localID) {
 				row.SetBackground(NodeRowBackground{
 					ThemeColorName: theme.ColorNameSelection,
 					Alpha:          0.24,
@@ -465,7 +498,6 @@ func newNodesTabWithActions(
 
 				return
 			}
-			node := nodes[id]
 			row.onSecondary = func(position fyne.Position) {
 				actions.OnNodeSecondaryTapped(node, position)
 			}
@@ -568,6 +600,10 @@ func isLocalNode(node domain.Node, localNodeID string) bool {
 	}
 
 	return strings.TrimSpace(node.NodeID) == localNodeID
+}
+
+func shouldHideFavoriteIcon(node domain.Node, localNodeID string) bool {
+	return isLocalNode(node, localNodeID)
 }
 
 func nodeCountLabelText(total int, visible int, rawFilter string) string {

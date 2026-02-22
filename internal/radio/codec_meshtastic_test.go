@@ -645,8 +645,9 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	raw, err := proto.Marshal(&generated.FromRadio{
 		PayloadVariant: &generated.FromRadio_NodeInfo{
 			NodeInfo: &generated.NodeInfo{
-				Num:       0x1234abcd,
-				LastHeard: 1_735_123_456,
+				Num:        0x1234abcd,
+				LastHeard:  1_735_123_456,
+				IsFavorite: true,
 				User: &generated.User{
 					LongName:  "Alpha",
 					ShortName: "ALPH",
@@ -673,6 +674,9 @@ func TestMeshtasticCodec_DecodeFromRadioNodeInfoIncludesStaticPosition(t *testin
 	}
 	if frame.NodeCoreUpdate.Type != domain.NodeUpdateTypeNodeInfoSnapshot {
 		t.Fatalf("unexpected node update type: %q", frame.NodeCoreUpdate.Type)
+	}
+	if frame.NodeCoreUpdate.Core.IsFavorite == nil || !*frame.NodeCoreUpdate.Core.IsFavorite {
+		t.Fatalf("expected favorite flag in node core update, got %v", frame.NodeCoreUpdate.Core.IsFavorite)
 	}
 	if frame.NodePositionUpdate == nil {
 		t.Fatalf("expected node position update")

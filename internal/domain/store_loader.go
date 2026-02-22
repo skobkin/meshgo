@@ -87,6 +87,7 @@ func nodeFromCore(core NodeCore) Node {
 		BoardModel:      core.BoardModel,
 		FirmwareVersion: core.FirmwareVersion,
 		Role:            core.Role,
+		IsFavorite:      core.IsFavorite,
 		IsUnmessageable: core.IsUnmessageable,
 		LastHeardAt:     core.LastHeardAt,
 		RSSI:            core.RSSI,

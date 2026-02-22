@@ -107,10 +107,12 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	obj := renderer.Create()
 	rssi := -114
 	snr := -6.9
+	isFavorite := true
 	renderer.Update(obj, domain.Node{
 		NodeID:     "!abcd1234",
 		BoardModel: "T-Echo",
 		Role:       "CLIENT",
+		IsFavorite: &isFavorite,
 		RSSI:       &rssi,
 		SNR:        &snr,
 		BatteryLevel: func() *uint32 {
@@ -127,6 +129,7 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	role := row.role
 	model := row.model
 	id := row.id
+	favorite := row.favorite
 	signal := row.signal
 
 	if model.Text != "T-Echo" {
@@ -140,6 +143,12 @@ func TestDefaultNodeRowRenderer_UsesMonospaceIDAndCenteredRole(t *testing.T) {
 	}
 	if role.Alignment != fyne.TextAlignCenter {
 		t.Fatalf("role label should be center aligned")
+	}
+	if !favorite.Visible() {
+		t.Fatalf("favorite icon should be visible")
+	}
+	if favorite.Resource == nil {
+		t.Fatalf("favorite icon resource should be set")
 	}
 	if !signal.Visible() {
 		t.Fatalf("signal should be visible")
@@ -282,6 +291,16 @@ func TestDisplayNodes(t *testing.T) {
 			t.Fatalf("expected filtered result to stay unchanged, got %+v", got)
 		}
 	})
+}
+
+func TestShouldHideFavoriteIcon(t *testing.T) {
+	node := domain.Node{NodeID: "!0000002a"}
+	if !shouldHideFavoriteIcon(node, "!0000002a") {
+		t.Fatalf("expected local node favorite icon to be hidden")
+	}
+	if shouldHideFavoriteIcon(node, "!0000002b") {
+		t.Fatalf("did not expect remote node favorite icon to be hidden")
+	}
 }
 
 func TestNodeRowItemBackgroundStyling(t *testing.T) {

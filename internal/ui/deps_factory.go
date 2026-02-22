@@ -63,6 +63,14 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 			rt.CurrentConnStatus,
 			overviewLoggerArg,
 		)
+		dep.Actions.NodeFavorite = meshapp.NewNodeFavoriteService(
+			rt.Connectivity.Radio,
+			rt.Domain.NodeStore,
+			rt.Domain.Bus,
+			rt.LocalNodeID,
+			rt.CurrentConnStatus,
+			overviewLoggerArg,
+		)
 		if rt.Core.LogManager != nil {
 			dep.Actions.NodeSettings = meshapp.NewNodeSettingsService(
 				rt.Domain.Bus,

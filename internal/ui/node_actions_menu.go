@@ -14,6 +14,7 @@ type NodeAction string
 
 const (
 	NodeActionDirectMessage NodeAction = "direct_message"
+	NodeActionFavorite      NodeAction = "favorite"
 	NodeActionTraceroute    NodeAction = "traceroute"
 	NodeActionInfo          NodeAction = "info"
 )
@@ -21,19 +22,27 @@ const (
 // NodeActionHandler handles selected node action menu item.
 type NodeActionHandler func(node domain.Node, action NodeAction)
 
-func newNodeContextMenu(node domain.Node, onAction NodeActionHandler) *fyne.Menu {
+func newNodeContextMenu(node domain.Node, isLocal bool, onAction NodeActionHandler) *fyne.Menu {
 	menuTitle := strings.TrimSpace(nodeDisplayName(node))
 	if menuTitle == "" {
 		menuTitle = "Node"
 	}
 
-	return fyne.NewMenu(
-		menuTitle,
+	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Direct message", func() {
 			if onAction != nil {
 				onAction(node, NodeActionDirectMessage)
 			}
 		}),
+	}
+	if !isLocal {
+		items = append(items, fyne.NewMenuItem(nodeFavoriteMenuLabel(node), func() {
+			if onAction != nil {
+				onAction(node, NodeActionFavorite)
+			}
+		}))
+	}
+	items = append(items,
 		fyne.NewMenuItem("Traceroute", func() {
 			if onAction != nil {
 				onAction(node, NodeActionTraceroute)
@@ -45,11 +54,27 @@ func newNodeContextMenu(node domain.Node, onAction NodeActionHandler) *fyne.Menu
 			}
 		}),
 	)
+
+	return fyne.NewMenu(menuTitle, items...)
 }
 
-func showNodeContextMenu(canvas fyne.Canvas, position fyne.Position, node domain.Node, onAction NodeActionHandler) {
+func showNodeContextMenu(
+	canvas fyne.Canvas,
+	position fyne.Position,
+	node domain.Node,
+	isLocal bool,
+	onAction NodeActionHandler,
+) {
 	if canvas == nil {
 		return
 	}
-	widget.ShowPopUpMenuAtPosition(newNodeContextMenu(node, onAction), canvas, position)
+	widget.ShowPopUpMenuAtPosition(newNodeContextMenu(node, isLocal, onAction), canvas, position)
+}
+
+func nodeFavoriteMenuLabel(node domain.Node) string {
+	if node.IsFavorite != nil && *node.IsFavorite {
+		return "Unfavorite"
+	}
+
+	return "Favorite"
 }
