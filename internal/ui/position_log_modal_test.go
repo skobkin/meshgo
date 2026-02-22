@@ -26,29 +26,26 @@ func TestPositionLogRow(t *testing.T) {
 		Altitude:   &altitude,
 		Precision:  &precision,
 	})
-	if got := row[0]; got == "unknown" {
-		t.Fatalf("expected observed time value")
-	}
-	if got := row[1]; got != string(domain.NodeUpdateTypePositionPacket) {
-		t.Fatalf("unexpected update type value: %q", got)
-	}
-	if got := row[2]; got != "yes" {
-		t.Fatalf("unexpected from packet value: %q", got)
-	}
-	if got := row[3]; got != "2" {
-		t.Fatalf("unexpected channel value: %q", got)
-	}
-	if got := row[4]; got != "12.345678" {
+	if got := row[0]; got != "12.345678" {
 		t.Fatalf("unexpected latitude value: %q", got)
 	}
-	if got := row[5]; got != "98.765432" {
+	if got := row[1]; got != "98.765432" {
 		t.Fatalf("unexpected longitude value: %q", got)
 	}
-	if got := row[6]; got != "123 m" {
+	if got := row[2]; got != "123 m" {
 		t.Fatalf("unexpected altitude value: %q", got)
 	}
-	if got := row[7]; !strings.Contains(got, "(13)") {
+	if got := row[3]; !strings.Contains(got, "(13)") {
 		t.Fatalf("unexpected precision value: %q", got)
+	}
+	if got := row[4]; got != "2" {
+		t.Fatalf("unexpected channel value: %q", got)
+	}
+	if got := row[5]; got != string(domain.NodeUpdateTypePositionPacket) {
+		t.Fatalf("unexpected update type value: %q", got)
+	}
+	if got := row[6]; got == "unknown" {
+		t.Fatalf("expected observed time value")
 	}
 }
 

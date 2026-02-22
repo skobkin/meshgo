@@ -62,9 +62,6 @@ func showTelemetryLogModal(window fyne.Window, dep RuntimeDependencies, node dom
 
 func newTelemetryLogTable(items []domain.NodeTelemetryHistoryEntry) fyne.CanvasObject {
 	headers := []string{
-		"Observed at",
-		"Update",
-		"From packet",
 		"Battery",
 		"Voltage",
 		"Uptime",
@@ -76,13 +73,17 @@ func newTelemetryLogTable(items []domain.NodeTelemetryHistoryEntry) fyne.CanvasO
 		"Soil T",
 		"Soil M",
 		"Gas R",
+		"AQI",
 		"Dew point",
 		"Light",
 		"UV light",
 		"Radiation",
-		"AQI",
 		"Power V",
 		"Power A",
+		"Channel",
+		"Update",
+		"Observed at",
+		// "From packet",
 	}
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {
@@ -120,12 +121,12 @@ func newTelemetryLogTable(items []domain.NodeTelemetryHistoryEntry) fyne.CanvasO
 			label.TextStyle = fyne.TextStyle{}
 		},
 	)
-	table.SetColumnWidth(0, 170)
-	table.SetColumnWidth(1, 100)
-	table.SetColumnWidth(2, 90)
-	for col := 3; col < len(headers); col++ {
+	for col := 0; col < len(headers)-3; col++ {
 		table.SetColumnWidth(col, 90)
 	}
+	table.SetColumnWidth(len(headers)-3, 90)  // Channel
+	table.SetColumnWidth(len(headers)-2, 100) // Update
+	table.SetColumnWidth(len(headers)-1, 170) // Observed at
 
 	return container.NewBorder(
 		container.NewVBox(
@@ -141,9 +142,6 @@ func newTelemetryLogTable(items []domain.NodeTelemetryHistoryEntry) fyne.CanvasO
 
 func telemetryLogRow(item domain.NodeTelemetryHistoryEntry) []string {
 	return []string{
-		telemetryLogTime(item.ObservedAt),
-		telemetryLogUpdateType(item.UpdateType),
-		yesNo(item.FromPacket),
 		formatUint32(item.BatteryLevel, "%d%%"),
 		formatFloat64(item.Voltage, "%.2f V"),
 		overviewUptime(item.UptimeSeconds),
@@ -155,13 +153,17 @@ func telemetryLogRow(item domain.NodeTelemetryHistoryEntry) []string {
 		formatFloat64(item.SoilTemperature, "%.1f C"),
 		formatUint32(item.SoilMoisture, "%d%%"),
 		formatFloat64(item.GasResistance, "%.2f MOhm"),
+		formatFloat64(item.AirQualityIndex, "%.1f"),
 		formatDewPoint(item.Temperature, item.Humidity),
 		formatFloat64(item.Lux, "%.1f lx"),
 		formatFloat64(item.UVLux, "%.1f UVlx"),
 		formatFloat64(item.Radiation, "%.2f uR/h"),
-		formatFloat64(item.AirQualityIndex, "%.1f"),
 		formatFloat64(item.PowerVoltage, "%.2f V"),
 		formatFloat64(item.PowerCurrent, "%.3f A"),
+		formatUint32(item.Channel, "%d"),
+		telemetryLogUpdateType(item.UpdateType),
+		telemetryLogTime(item.ObservedAt),
+		// yesNo(item.FromPacket),
 	}
 }
 
@@ -180,14 +182,6 @@ func telemetryLogUpdateType(value domain.NodeUpdateType) string {
 	}
 
 	return string(value)
-}
-
-func yesNo(value bool) string {
-	if value {
-		return "yes"
-	}
-
-	return "no"
 }
 
 func formatUint32(value *uint32, format string) string {

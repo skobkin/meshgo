@@ -19,35 +19,32 @@ func TestIdentityLogRow(t *testing.T) {
 		ShortName:  "SH",
 		PublicKey:  publicKey,
 	})
-	if got := row[0]; got == "unknown" {
-		t.Fatalf("expected observed time value")
-	}
-	if got := row[1]; got != string(domain.NodeUpdateTypeNodeInfoPacket) {
-		t.Fatalf("unexpected update type value: %q", got)
-	}
-	if got := row[2]; got != "yes" {
-		t.Fatalf("unexpected from packet value: %q", got)
-	}
-	if got := row[3]; got != "Long" {
+	if got := row[0]; got != "Long" {
 		t.Fatalf("unexpected long name value: %q", got)
 	}
-	if got := row[4]; got != "SH" {
+	if got := row[1]; got != "SH" {
 		t.Fatalf("unexpected short name value: %q", got)
 	}
-	if got := row[5]; got != base64.StdEncoding.EncodeToString(publicKey) {
+	if got := row[2]; got != base64.StdEncoding.EncodeToString(publicKey) {
 		t.Fatalf("unexpected public key value: %q", got)
+	}
+	if got := row[3]; got != string(domain.NodeUpdateTypeNodeInfoPacket) {
+		t.Fatalf("unexpected update type value: %q", got)
+	}
+	if got := row[4]; got == "unknown" {
+		t.Fatalf("expected observed time value")
 	}
 }
 
 func TestIdentityLogRowUnknownDefaults(t *testing.T) {
 	row := identityLogRow(domain.NodeIdentityHistoryEntry{})
-	if got := row[3]; got != "unknown" {
+	if got := row[0]; got != "unknown" {
 		t.Fatalf("unexpected long name fallback: %q", got)
 	}
-	if got := row[4]; got != "unknown" {
+	if got := row[1]; got != "unknown" {
 		t.Fatalf("unexpected short name fallback: %q", got)
 	}
-	if got := row[5]; got != "unknown" {
+	if got := row[2]; got != "unknown" {
 		t.Fatalf("unexpected public key fallback: %q", got)
 	}
 }

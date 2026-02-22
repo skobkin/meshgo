@@ -62,14 +62,14 @@ func showPositionLogModal(window fyne.Window, dep RuntimeDependencies, node doma
 
 func newPositionLogTable(items []domain.NodePositionHistoryEntry) fyne.CanvasObject {
 	headers := []string{
-		"Observed at",
-		"Update",
-		"From packet",
-		"Channel",
 		"Latitude",
 		"Longitude",
 		"Altitude",
 		"Precision",
+		"Channel",
+		"Update",
+		"Observed at",
+		// "From packet",
 	}
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {
@@ -107,12 +107,13 @@ func newPositionLogTable(items []domain.NodePositionHistoryEntry) fyne.CanvasObj
 			label.TextStyle = fyne.TextStyle{}
 		},
 	)
-	table.SetColumnWidth(0, 170)
-	table.SetColumnWidth(1, 100)
-	table.SetColumnWidth(2, 90)
-	for col := 3; col < len(headers); col++ {
-		table.SetColumnWidth(col, 110)
-	}
+	table.SetColumnWidth(0, 110)
+	table.SetColumnWidth(1, 110)
+	table.SetColumnWidth(2, 110)
+	table.SetColumnWidth(3, 110)
+	table.SetColumnWidth(4, 90)  // Channel
+	table.SetColumnWidth(5, 100) // Update
+	table.SetColumnWidth(6, 170) // Observed at
 
 	return container.NewBorder(
 		container.NewVBox(
@@ -128,14 +129,14 @@ func newPositionLogTable(items []domain.NodePositionHistoryEntry) fyne.CanvasObj
 
 func positionLogRow(item domain.NodePositionHistoryEntry) []string {
 	return []string{
-		telemetryLogTime(item.ObservedAt),
-		telemetryLogUpdateType(item.UpdateType),
-		yesNo(item.FromPacket),
-		formatUint32(item.Channel, "%d"),
 		formatFloat64(item.Latitude, "%.6f"),
 		formatFloat64(item.Longitude, "%.6f"),
 		formatInt32(item.Altitude, "%d m"),
 		formatPositionPrecision(item.Precision),
+		formatUint32(item.Channel, "%d"),
+		telemetryLogUpdateType(item.UpdateType),
+		telemetryLogTime(item.ObservedAt),
+		// yesNo(item.FromPacket),
 	}
 }
 

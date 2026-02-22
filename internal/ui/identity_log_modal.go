@@ -62,12 +62,12 @@ func showIdentityLogModal(window fyne.Window, dep RuntimeDependencies, node doma
 
 func newIdentityLogTable(items []domain.NodeIdentityHistoryEntry) fyne.CanvasObject {
 	headers := []string{
-		"Observed at",
-		"Update",
-		"From packet",
 		"Long name",
 		"Short name",
 		"Public key",
+		"Update",
+		"Observed at",
+		// "From packet",
 	}
 	rows := make([][]string, 0, len(items))
 	for _, item := range items {
@@ -105,12 +105,11 @@ func newIdentityLogTable(items []domain.NodeIdentityHistoryEntry) fyne.CanvasObj
 			label.TextStyle = fyne.TextStyle{}
 		},
 	)
-	table.SetColumnWidth(0, 170)
-	table.SetColumnWidth(1, 100)
-	table.SetColumnWidth(2, 90)
-	table.SetColumnWidth(3, 180)
-	table.SetColumnWidth(4, 120)
-	table.SetColumnWidth(5, 340)
+	table.SetColumnWidth(0, 180)
+	table.SetColumnWidth(1, 120)
+	table.SetColumnWidth(2, 340)
+	table.SetColumnWidth(3, 100)
+	table.SetColumnWidth(4, 170)
 
 	return container.NewBorder(
 		container.NewVBox(
@@ -126,11 +125,11 @@ func newIdentityLogTable(items []domain.NodeIdentityHistoryEntry) fyne.CanvasObj
 
 func identityLogRow(item domain.NodeIdentityHistoryEntry) []string {
 	return []string{
-		telemetryLogTime(item.ObservedAt),
-		telemetryLogUpdateType(item.UpdateType),
-		yesNo(item.FromPacket),
 		orUnknown(item.LongName),
 		orUnknown(item.ShortName),
 		orUnknown(encodeNodeSettingsKeyBase64(item.PublicKey)),
+		telemetryLogUpdateType(item.UpdateType),
+		telemetryLogTime(item.ObservedAt),
+		// yesNo(item.FromPacket),
 	}
 }

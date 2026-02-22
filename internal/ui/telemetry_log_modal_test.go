@@ -18,6 +18,7 @@ func TestTelemetryLogRow(t *testing.T) {
 	lux := 256.0
 	uvLux := 180.0
 	radiation := 0.14
+	aqi := 42.0
 	temperature := 20.0
 	humidity := 60.0
 	observed := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
@@ -37,42 +38,43 @@ func TestTelemetryLogRow(t *testing.T) {
 		Lux:                &lux,
 		UVLux:              &uvLux,
 		Radiation:          &radiation,
+		AirQualityIndex:    &aqi,
 	})
-	if got := row[0]; got == "unknown" {
-		t.Fatalf("expected observed time value")
-	}
-	if got := row[1]; got != string(domain.NodeUpdateTypeTelemetryPacket) {
-		t.Fatalf("unexpected update type value: %q", got)
-	}
-	if got := row[2]; got != "yes" {
-		t.Fatalf("unexpected from packet value: %q", got)
-	}
-	if got := row[3]; got != "77%" {
+	if got := row[0]; got != "77%" {
 		t.Fatalf("unexpected battery value: %q", got)
 	}
-	if got := row[5]; got == "unknown" {
+	if got := row[2]; got == "unknown" {
 		t.Fatalf("expected uptime to be formatted")
 	}
-	if got := row[11]; got == "unknown" {
+	if got := row[8]; got == "unknown" {
 		t.Fatalf("expected soil temperature to be formatted")
 	}
-	if got := row[12]; got == "unknown" {
+	if got := row[9]; got == "unknown" {
 		t.Fatalf("expected soil moisture to be formatted")
 	}
-	if got := row[13]; got == "unknown" {
+	if got := row[10]; got == "unknown" {
 		t.Fatalf("expected gas resistance to be formatted")
 	}
-	if got := row[14]; got == "unknown" {
+	if got := row[11]; got == "unknown" {
+		t.Fatalf("expected AQI to be formatted")
+	}
+	if got := row[12]; got == "unknown" {
 		t.Fatalf("expected dew point to be formatted")
 	}
-	if got := row[15]; got == "unknown" {
+	if got := row[13]; got == "unknown" {
 		t.Fatalf("expected lux to be formatted")
 	}
-	if got := row[16]; got == "unknown" {
+	if got := row[14]; got == "unknown" {
 		t.Fatalf("expected uv lux to be formatted")
 	}
-	if got := row[17]; got == "unknown" {
+	if got := row[15]; got == "unknown" {
 		t.Fatalf("expected radiation to be formatted")
+	}
+	if got := row[19]; got != string(domain.NodeUpdateTypeTelemetryPacket) {
+		t.Fatalf("unexpected update type value: %q", got)
+	}
+	if got := row[20]; got == "unknown" {
+		t.Fatalf("expected observed time value")
 	}
 }
 
