@@ -290,6 +290,34 @@ func TestAppConfigFillMissingDefaultsNormalizesMapDisplay(t *testing.T) {
 	}
 }
 
+func TestAppConfigFillMissingDefaultsKeepsKnownMapLinkProvider(t *testing.T) {
+	knownProviders := []MapLinkProvider{
+		MapLinkProviderOpenStreetMap,
+		MapLinkProviderKagi,
+		MapLinkProviderGoogle,
+		MapLinkProviderYandex,
+	}
+
+	for _, provider := range knownProviders {
+		t.Run(string(provider), func(t *testing.T) {
+			cfg := AppConfig{
+				UI: UIConfig{
+					MapDisplay: MapDisplayConfig{
+						ShowPrecisionCircles:            true,
+						ShowPrecisionCirclesOnlyOnHover: true,
+						MapLinkProvider:                 provider,
+					},
+				},
+			}
+
+			cfg.FillMissingDefaults()
+			if cfg.UI.MapDisplay.MapLinkProvider != provider {
+				t.Fatalf("expected provider %q to be preserved, got %q", provider, cfg.UI.MapDisplay.MapLinkProvider)
+			}
+		})
+	}
+}
+
 func TestAppConfigFillMissingDefaultsEnablesBluetoothTestingForBluetoothTransport(t *testing.T) {
 	cfg := AppConfig{
 		Connection: ConnectionConfig{

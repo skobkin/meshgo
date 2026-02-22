@@ -32,6 +32,9 @@ const (
 	AutostartModeBackground AutostartMode = "background"
 
 	MapLinkProviderOpenStreetMap MapLinkProvider = "openstreetmap"
+	MapLinkProviderKagi          MapLinkProvider = "kagi"
+	MapLinkProviderGoogle        MapLinkProvider = "google"
+	MapLinkProviderYandex        MapLinkProvider = "yandex"
 )
 
 // LoggingConfig defines runtime logging behavior.
@@ -235,7 +238,7 @@ func normalizeMapDisplay(display MapDisplayConfig) MapDisplayConfig {
 		display.MapLinkProvider = MapLinkProviderOpenStreetMap
 	}
 	switch display.MapLinkProvider {
-	case MapLinkProviderOpenStreetMap:
+	case MapLinkProviderOpenStreetMap, MapLinkProviderKagi, MapLinkProviderGoogle, MapLinkProviderYandex:
 	default:
 		display.MapLinkProvider = MapLinkProviderOpenStreetMap
 	}

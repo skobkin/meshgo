@@ -2,19 +2,16 @@ package ui
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 
 	"github.com/skobkin/meshgo/internal/config"
 )
 
 const (
-	openStreetMapURLTemplate       = "https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f#map=%d/%.6f/%.6f"
-	nodePositionLinkTargetRadiusPx = 90.0
-	nodePositionLinkPreciseZoom    = 19
-	nodePositionLinkUnknownZoom    = mapDefaultZoom
-	nodePositionLinkMinZoom        = 0
-	nodePositionLinkMaxZoom        = 19
+	openStreetMapURLTemplate = "https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f#map=%d/%.6f/%.6f"
+	kagiURLTemplate          = "https://kagi.com/maps?q=%.6f,%.6f&z=%d"
+	googleMapsURLTemplate    = "https://www.google.com/maps/@%.6f,%.6f,%dz"
+	yandexMapsURLTemplate    = "https://yandex.com/maps/?ll=%.6f%%2C%.6f&z=%d&pt=%.6f,%.6f"
 )
 
 type mapLinkProviderOption struct {
@@ -28,6 +25,21 @@ var mapLinkProviderOptions = []mapLinkProviderOption{
 		Provider: config.MapLinkProviderOpenStreetMap,
 		Label:    "OpenStreetMap",
 		URLFor:   nodePositionOpenStreetMapURL,
+	},
+	{
+		Provider: config.MapLinkProviderKagi,
+		Label:    "Kagi",
+		URLFor:   nodePositionKagiURL,
+	},
+	{
+		Provider: config.MapLinkProviderGoogle,
+		Label:    "Google",
+		URLFor:   nodePositionGoogleMapsURL,
+	},
+	{
+		Provider: config.MapLinkProviderYandex,
+		Label:    "Yandex",
+		URLFor:   nodePositionYandexMapsURL,
 	},
 }
 
@@ -93,27 +105,23 @@ func nodePositionOpenStreetMapURL(latitude, longitude float64, precisionBits *ui
 	return parseExternalURL(rawURL)
 }
 
-func nodePositionLinkZoomLevel(latitude float64, precisionBits *uint32) int {
-	if precisionBits == nil || *precisionBits == 0 {
-		return nodePositionLinkUnknownZoom
-	}
-	if *precisionBits >= 32 {
-		return nodePositionLinkPreciseZoom
-	}
+func nodePositionKagiURL(latitude, longitude float64, precisionBits *uint32) (*url.URL, error) {
+	zoom := nodePositionLinkZoomLevel(latitude, precisionBits)
+	rawURL := fmt.Sprintf(kagiURLTemplate, latitude, longitude, zoom)
 
-	radiusMeters, ok := precisionBitsToRadiusMeters(*precisionBits)
-	if !ok || radiusMeters <= 0 {
-		return nodePositionLinkUnknownZoom
-	}
+	return parseExternalURL(rawURL)
+}
 
-	lat := max(-mapMaxLatitudeMerc, min(mapMaxLatitudeMerc, latitude))
-	metersPerPixel := radiusMeters / nodePositionLinkTargetRadiusPx
-	zoom := math.Log2(
-		(math.Cos(lat*math.Pi/180) * mapEarthCircumferenceMeters) / (float64(mapTileSize) * metersPerPixel),
-	)
-	if math.IsNaN(zoom) || math.IsInf(zoom, 0) {
-		return nodePositionLinkUnknownZoom
-	}
+func nodePositionGoogleMapsURL(latitude, longitude float64, precisionBits *uint32) (*url.URL, error) {
+	zoom := nodePositionLinkZoomLevel(latitude, precisionBits)
+	rawURL := fmt.Sprintf(googleMapsURLTemplate, latitude, longitude, zoom)
 
-	return max(nodePositionLinkMinZoom, min(nodePositionLinkMaxZoom, int(math.Floor(zoom))))
+	return parseExternalURL(rawURL)
+}
+
+func nodePositionYandexMapsURL(latitude, longitude float64, precisionBits *uint32) (*url.URL, error) {
+	zoom := nodePositionLinkZoomLevel(latitude, precisionBits)
+	rawURL := fmt.Sprintf(yandexMapsURLTemplate, longitude, latitude, zoom, longitude, latitude)
+
+	return parseExternalURL(rawURL)
 }
