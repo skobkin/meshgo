@@ -9,7 +9,7 @@ import (
 
 const (
 	openStreetMapURLTemplate = "https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f#map=%d/%.6f/%.6f"
-	kagiURLTemplate          = "https://kagi.com/maps?q=%.6f,%.6f&z=%d"
+	kagiURLTemplate          = "https://kagi.com/maps?q=%.6f,%.6f#%d/%.6f/%.6f"
 	googleMapsURLTemplate    = "https://www.google.com/maps/@%.6f,%.6f,%dz"
 	yandexMapsURLTemplate    = "https://yandex.com/maps/?ll=%.6f%%2C%.6f&z=%d&pt=%.6f,%.6f"
 )
@@ -107,7 +107,7 @@ func nodePositionOpenStreetMapURL(latitude, longitude float64, precisionBits *ui
 
 func nodePositionKagiURL(latitude, longitude float64, precisionBits *uint32) (*url.URL, error) {
 	zoom := nodePositionLinkZoomLevel(latitude, precisionBits)
-	rawURL := fmt.Sprintf(kagiURLTemplate, latitude, longitude, zoom)
+	rawURL := fmt.Sprintf(kagiURLTemplate, latitude, longitude, zoom, latitude, longitude)
 
 	return parseExternalURL(rawURL)
 }

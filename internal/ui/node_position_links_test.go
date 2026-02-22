@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
@@ -91,5 +92,30 @@ func TestMapLinkProviderLabels_Order(t *testing.T) {
 	want := []string{"OpenStreetMap", "Kagi", "Google", "Yandex"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected provider labels order: got %v, want %v", got, want)
+	}
+}
+
+func TestNodePositionKagiURL_UsesComputedZoomAndCoordinates(t *testing.T) {
+	latitude := 51.5007
+	longitude := -0.1246
+	precision := uint32(14)
+	expectedZoom := nodePositionLinkZoomLevel(latitude, &precision)
+
+	parsed, err := nodePositionMapURL(config.MapLinkProviderKagi, latitude, longitude, &precision)
+	if err != nil {
+		t.Fatalf("build map URL: %v", err)
+	}
+	if parsed.Path != "/maps" {
+		t.Fatalf("unexpected kagi URL path: %q", parsed.Path)
+	}
+
+	wantFragmentPrefix := fmt.Sprintf("%d/", expectedZoom)
+	if !strings.HasPrefix(parsed.Fragment, wantFragmentPrefix) {
+		t.Fatalf("unexpected kagi map fragment %q, expected prefix %q", parsed.Fragment, wantFragmentPrefix)
+	}
+
+	query := parsed.Query().Get("q")
+	if query != fmt.Sprintf("%.6f,%.6f", latitude, longitude) {
+		t.Fatalf("unexpected kagi query coords: %q", query)
 	}
 }
