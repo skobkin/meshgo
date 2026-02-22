@@ -63,6 +63,19 @@ func TestNodePositionMapURL_UsesProviderImplementation(t *testing.T) {
 			name:     "google",
 			provider: config.MapLinkProviderGoogle,
 			host:     "www.google.com",
+			assert: func(t *testing.T, parsed *url.URL) {
+				t.Helper()
+				expectedCoords := fmt.Sprintf("%.6f,%.6f", latitude, longitude)
+				if query := parsed.Query().Get("q"); query != expectedCoords {
+					t.Fatalf("unexpected google query coords: %q", query)
+				}
+				if ll := parsed.Query().Get("ll"); ll != expectedCoords {
+					t.Fatalf("unexpected google center coords: %q", ll)
+				}
+				if zoom := parsed.Query().Get("z"); zoom != fmt.Sprintf("%d", nodePositionLinkZoomLevel(latitude, &precision)) {
+					t.Fatalf("unexpected google zoom: %q", zoom)
+				}
+			},
 		},
 		{
 			name:     "yandex",
