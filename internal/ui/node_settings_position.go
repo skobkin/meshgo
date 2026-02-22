@@ -928,13 +928,11 @@ func nodePositionParseGpsUpdateIntervalLabel(fieldName, selected string) (uint32
 }
 
 func enrichNodePositionSettingsWithLocalCoordinates(settings app.NodePositionSettings, dep RuntimeDependencies) app.NodePositionSettings {
-	if dep.Data.NodeStore == nil {
+	snapshot := localNodeSnapshot(dep)
+	if !snapshot.Present {
 		return settings
 	}
-	node, ok := localNodeSnapshot(dep.Data.NodeStore, dep.Data.LocalNodeID)
-	if !ok {
-		return settings
-	}
+	node := snapshot.Node
 	if node.Latitude != nil {
 		v := *node.Latitude
 		settings.FixedLatitude = &v

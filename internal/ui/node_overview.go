@@ -547,11 +547,7 @@ func newNodeOverviewSettingsPage(dep RuntimeDependencies) fyne.CanvasObject {
 		Title:     "Node overview",
 		NodeStore: dep.Data.NodeStore,
 		NodeID: func() string {
-			if dep.Data.LocalNodeID == nil {
-				return ""
-			}
-
-			return strings.TrimSpace(dep.Data.LocalNodeID())
+			return localNodeSnapshot(dep).ID
 		},
 		ShowActions:   true,
 		ModeLocalNode: true,

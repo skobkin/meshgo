@@ -120,13 +120,11 @@ func newNodeUserSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		next := app.NodeUserSettings{
 			NodeID: target.NodeID,
 		}
-		if dep.Data.NodeStore != nil {
-			node, known := localNodeSnapshot(dep.Data.NodeStore, dep.Data.LocalNodeID)
-			if known {
-				next.LongName = strings.TrimSpace(node.LongName)
-				next.ShortName = strings.TrimSpace(node.ShortName)
-				next.IsUnmessageable = node.IsUnmessageable != nil && *node.IsUnmessageable
-			}
+		snapshot := localNodeSnapshot(dep)
+		if snapshot.Present {
+			next.LongName = strings.TrimSpace(snapshot.Node.LongName)
+			next.ShortName = strings.TrimSpace(snapshot.Node.ShortName)
+			next.IsUnmessageable = snapshot.Node.IsUnmessageable != nil && *snapshot.Node.IsUnmessageable
 		}
 
 		shouldApply := false

@@ -50,27 +50,43 @@ func (g *nodeSettingsSaveGate) ActivePage() string {
 	return active
 }
 
-func localNodeSnapshot(store *domain.NodeStore, localNodeID func() string) (domain.Node, bool) {
-	if localNodeID == nil {
-		return domain.Node{}, false
-	}
-	id := strings.TrimSpace(localNodeID())
-	if id == "" {
-		return domain.Node{}, false
-	}
-	if store == nil {
-		return domain.Node{NodeID: id}, false
+func localNodeSnapshot(dep RuntimeDependencies) app.LocalNodeSnapshot {
+	if dep.Data.LocalNodeSnapshot != nil {
+		snapshot := dep.Data.LocalNodeSnapshot()
+		snapshot.ID = strings.TrimSpace(snapshot.ID)
+		if snapshot.ID != "" && strings.TrimSpace(snapshot.Node.NodeID) == "" {
+			snapshot.Node.NodeID = snapshot.ID
+		}
+
+		return snapshot
 	}
 
-	node, ok := store.Get(id)
+	if dep.Data.LocalNodeID == nil {
+		return app.LocalNodeSnapshot{}
+	}
+	id := strings.TrimSpace(dep.Data.LocalNodeID())
+	if id == "" {
+		return app.LocalNodeSnapshot{}
+	}
+
+	snapshot := app.LocalNodeSnapshot{
+		ID:   id,
+		Node: domain.Node{NodeID: id},
+	}
+	if dep.Data.NodeStore == nil {
+		return snapshot
+	}
+	node, ok := dep.Data.NodeStore.Get(id)
 	if !ok {
-		return domain.Node{NodeID: id}, false
+		return snapshot
 	}
 	if strings.TrimSpace(node.NodeID) == "" {
 		node.NodeID = id
 	}
+	snapshot.Node = node
+	snapshot.Present = true
 
-	return node, true
+	return snapshot
 }
 
 func isNodeSettingsConnected(dep RuntimeDependencies) bool {
@@ -86,10 +102,7 @@ func isNodeSettingsConnected(dep RuntimeDependencies) bool {
 }
 
 func localNodeSettingsTarget(dep RuntimeDependencies) (app.NodeSettingsTarget, bool) {
-	if dep.Data.LocalNodeID == nil {
-		return app.NodeSettingsTarget{}, false
-	}
-	nodeID := strings.TrimSpace(dep.Data.LocalNodeID())
+	nodeID := localNodeSnapshot(dep).ID
 	if nodeID == "" {
 		return app.NodeSettingsTarget{}, false
 	}

@@ -110,7 +110,7 @@ func buildMainView(
 		initialStatus,
 		initialVariant,
 		func() string {
-			return localNodeDisplayName(dep.Data.LocalNodeID, dep.Data.NodeStore)
+			return localNodeDisplayName(dep.Data.LocalNodeSnapshot)
 		},
 	)
 	sidebar := buildSidebarLayout(

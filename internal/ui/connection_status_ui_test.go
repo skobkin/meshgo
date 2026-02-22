@@ -82,31 +82,45 @@ func TestSidebarStatusIcon(t *testing.T) {
 }
 
 func TestLocalNodeDisplayName(t *testing.T) {
-	store := domain.NewNodeStore()
-	store.Upsert(domain.Node{NodeID: "!11111111", ShortName: "ABCD", LongName: "Alpha Bravo"})
-	store.Upsert(domain.Node{NodeID: "!22222222", ShortName: "EFGH"})
-	store.Upsert(domain.Node{NodeID: "!33333333"})
-
-	if got := localNodeDisplayName(func() string { return "!11111111" }, store); got != "Alpha Bravo" {
+	if got := localNodeDisplayName(func() meshapp.LocalNodeSnapshot {
+		return meshapp.LocalNodeSnapshot{
+			ID:   "!11111111",
+			Node: domain.Node{NodeID: "!11111111", ShortName: "ABCD", LongName: "Alpha Bravo"},
+		}
+	}); got != "Alpha Bravo" {
 		t.Fatalf("expected long name, got %q", got)
 	}
-	if got := localNodeDisplayName(func() string { return "!22222222" }, store); got != "EFGH" {
+	if got := localNodeDisplayName(func() meshapp.LocalNodeSnapshot {
+		return meshapp.LocalNodeSnapshot{
+			ID:   "!22222222",
+			Node: domain.Node{NodeID: "!22222222", ShortName: "EFGH"},
+		}
+	}); got != "EFGH" {
 		t.Fatalf("expected short name fallback, got %q", got)
 	}
-	if got := localNodeDisplayName(func() string { return "!33333333" }, store); got != "!33333333" {
+	if got := localNodeDisplayName(func() meshapp.LocalNodeSnapshot {
+		return meshapp.LocalNodeSnapshot{
+			ID:   "!33333333",
+			Node: domain.Node{NodeID: "!33333333"},
+		}
+	}); got != "!33333333" {
 		t.Fatalf("expected node id fallback, got %q", got)
 	}
-	if got := localNodeDisplayName(func() string { return "!44444444" }, store); got != "!44444444" {
+	if got := localNodeDisplayName(func() meshapp.LocalNodeSnapshot {
+		return meshapp.LocalNodeSnapshot{
+			ID:   "!44444444",
+			Node: domain.Node{NodeID: "!44444444"},
+		}
+	}); got != "!44444444" {
 		t.Fatalf("expected unknown node id fallback, got %q", got)
 	}
-	if got := localNodeDisplayName(func() string { return "" }, store); got != "" {
+	if got := localNodeDisplayName(func() meshapp.LocalNodeSnapshot {
+		return meshapp.LocalNodeSnapshot{}
+	}); got != "" {
 		t.Fatalf("expected empty for empty node id, got %q", got)
 	}
-	if got := localNodeDisplayName(nil, store); got != "" {
-		t.Fatalf("expected empty for nil localNodeID, got %q", got)
-	}
-	if got := localNodeDisplayName(func() string { return "!11111111" }, nil); got != "!11111111" {
-		t.Fatalf("expected node id fallback for nil store, got %q", got)
+	if got := localNodeDisplayName(nil); got != "" {
+		t.Fatalf("expected empty for nil local node snapshot provider, got %q", got)
 	}
 }
 

@@ -113,15 +113,12 @@ func newNodeLoRaSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		return localNodeSettingsTarget(dep)
 	}
 	localBoardModel := func() string {
-		if dep.Data.NodeStore == nil {
-			return ""
-		}
-		node, known := localNodeSnapshot(dep.Data.NodeStore, dep.Data.LocalNodeID)
-		if !known {
+		snapshot := localNodeSnapshot(dep)
+		if !snapshot.Present {
 			return ""
 		}
 
-		return strings.TrimSpace(node.BoardModel)
+		return strings.TrimSpace(snapshot.Node.BoardModel)
 	}
 	if title, ok := nodeLoRaPrimaryTitleFromChatStore(dep.Data.ChatStore); ok {
 		primaryChannelTitle = title

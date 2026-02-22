@@ -153,14 +153,15 @@ func sidebarStatusIcon(status busmsg.ConnectionStatus) resources.UIIcon {
 	return resources.UIIconDisconnected
 }
 
-func localNodeDisplayName(localNodeID func() string, store *domain.NodeStore) string {
-	if localNodeID == nil {
+func localNodeDisplayName(localNodeSnapshot func() meshapp.LocalNodeSnapshot) string {
+	if localNodeSnapshot == nil {
 		return ""
 	}
-	nodeID := strings.TrimSpace(localNodeID())
+	snapshot := localNodeSnapshot()
+	nodeID := strings.TrimSpace(snapshot.ID)
 	if nodeID == "" {
 		return ""
 	}
 
-	return domain.NodeDisplayNameByID(store, nodeID)
+	return domain.NodeDisplayName(snapshot.Node)
 }
