@@ -7,13 +7,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/skobkin/meshgo/internal/config"
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
-
-const defaultNodeOverviewTelemetryHistoryLimit = 200
 
 type nodeOverviewRadioSender interface {
 	SendNodeInfoRequest(to uint32, channel uint32, requester *generated.User) (string, error)
@@ -25,6 +24,8 @@ type NodeOverviewService struct {
 	radio         nodeOverviewRadioSender
 	nodeStore     *domain.NodeStore
 	telemetryRepo domain.NodeTelemetryRepository
+	positionRepo  domain.NodePositionRepository
+	identityRepo  domain.NodeIdentityHistoryRepository
 	connStatus    func() (busmsg.ConnectionStatus, bool)
 	logger        *slog.Logger
 }
@@ -33,6 +34,8 @@ func NewNodeOverviewService(
 	radio nodeOverviewRadioSender,
 	nodeStore *domain.NodeStore,
 	telemetryRepo domain.NodeTelemetryRepository,
+	positionRepo domain.NodePositionRepository,
+	identityRepo domain.NodeIdentityHistoryRepository,
 	connStatus func() (busmsg.ConnectionStatus, bool),
 	logger *slog.Logger,
 ) *NodeOverviewService {
@@ -44,6 +47,8 @@ func NewNodeOverviewService(
 		radio:         radio,
 		nodeStore:     nodeStore,
 		telemetryRepo: telemetryRepo,
+		positionRepo:  positionRepo,
+		identityRepo:  identityRepo,
 		connStatus:    connStatus,
 		logger:        logger,
 	}
@@ -117,10 +122,48 @@ func (s *NodeOverviewService) ListTelemetryHistory(ctx context.Context, nodeID s
 		return nil, fmt.Errorf("node id is required")
 	}
 	if limit <= 0 {
-		limit = defaultNodeOverviewTelemetryHistoryLimit
+		limit = config.DefaultTelemetryHistoryLimit
 	}
 
 	return s.telemetryRepo.ListHistoryByNodeID(ctx, domain.NodeHistoryQuery{
+		NodeID: nodeID,
+		Limit:  limit,
+		Order:  domain.SortDescending,
+	})
+}
+
+func (s *NodeOverviewService) ListPositionHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodePositionHistoryEntry, error) {
+	if s == nil || s.positionRepo == nil {
+		return nil, fmt.Errorf("node overview position repository is not initialized")
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return nil, fmt.Errorf("node id is required")
+	}
+	if limit <= 0 {
+		limit = config.DefaultPositionHistoryLimit
+	}
+
+	return s.positionRepo.ListHistoryByNodeID(ctx, domain.NodeHistoryQuery{
+		NodeID: nodeID,
+		Limit:  limit,
+		Order:  domain.SortDescending,
+	})
+}
+
+func (s *NodeOverviewService) ListIdentityHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodeIdentityHistoryEntry, error) {
+	if s == nil || s.identityRepo == nil {
+		return nil, fmt.Errorf("node overview identity repository is not initialized")
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return nil, fmt.Errorf("node id is required")
+	}
+	if limit <= 0 {
+		limit = config.DefaultIdentityHistoryLimit
+	}
+
+	return s.identityRepo.ListHistoryByNodeID(ctx, domain.NodeHistoryQuery{
 		NodeID: nodeID,
 		Limit:  limit,
 		Order:  domain.SortDescending,

@@ -61,6 +61,9 @@ func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 		ModeLocalNode:   false,
 		OnDirectMessage: func(domain.Node) {},
 		OnTraceroute:    func(domain.Node) {},
+		OnTelemetryLog:  func(domain.Node) {},
+		OnPositionLog:   func(domain.Node) {},
+		OnIdentityLog:   func(domain.Node) {},
 	})
 	defer stop()
 	_ = fynetest.NewTempWindow(t, content)
@@ -72,6 +75,18 @@ func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 	trace := mustFindOverviewButtonByText(t, content, "Traceroute")
 	if trace.Disabled() {
 		t.Fatalf("expected traceroute action enabled for remote node")
+	}
+	telemetryLog := mustFindOverviewButtonByText(t, content, "Telemetry log")
+	if telemetryLog.Disabled() {
+		t.Fatalf("expected telemetry log action enabled")
+	}
+	positionLog := mustFindOverviewButtonByText(t, content, "Position log")
+	if positionLog.Disabled() {
+		t.Fatalf("expected position log action enabled")
+	}
+	identityLog := mustFindOverviewButtonByText(t, content, "Identity log")
+	if identityLog.Disabled() {
+		t.Fatalf("expected identity log action enabled")
 	}
 	if hasLabelText(content, "Uptime") {
 		t.Fatalf("did not expect uptime field when uptime is unknown")

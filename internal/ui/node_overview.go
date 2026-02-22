@@ -26,6 +26,8 @@ type nodeOverviewOptions struct {
 	OnRequestUserInfo  func(domain.Node)
 	OnRequestTelemetry func(domain.Node, radio.TelemetryRequestKind)
 	OnTelemetryLog     func(domain.Node)
+	OnPositionLog      func(domain.Node)
+	OnIdentityLog      func(domain.Node)
 	ShowCloseButton    bool
 	OnClose            func()
 	ShowActions        bool
@@ -131,13 +133,17 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	chatButton := widget.NewButton("Chat", nil)
 	tracerouteButton := widget.NewButton("Traceroute", nil)
 	telemetryLogButton := widget.NewButton("Telemetry log", nil)
+	positionLogButton := widget.NewButton("Position log", nil)
+	identityLogButton := widget.NewButton("Identity log", nil)
 	tracerouteLogButton := widget.NewButton("Traceroute log", nil)
 	telemetryLogButton.Disable()
+	positionLogButton.Disable()
+	identityLogButton.Disable()
 	tracerouteLogButton.Disable()
 
 	actionsContent := container.NewVBox(
 		container.NewGridWithColumns(2, chatButton, tracerouteButton),
-		container.NewGridWithColumns(2, telemetryLogButton, tracerouteLogButton),
+		container.NewGridWithColumns(4, telemetryLogButton, positionLogButton, identityLogButton, tracerouteLogButton),
 	)
 	actionsCard := overviewCard("Actions", actionsContent)
 	if !opts.ShowActions {
@@ -224,6 +230,8 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			chatButton.Disable()
 			tracerouteButton.Disable()
 			telemetryLogButton.Disable()
+			positionLogButton.Disable()
+			identityLogButton.Disable()
 			setBodyCards([]fyne.CanvasObject{
 				identityCard,
 				adminCard,
@@ -274,6 +282,18 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			telemetryLogButton.OnTapped = func() { opts.OnTelemetryLog(node) }
 		} else {
 			telemetryLogButton.Disable()
+		}
+		if opts.OnPositionLog != nil {
+			positionLogButton.Enable()
+			positionLogButton.OnTapped = func() { opts.OnPositionLog(node) }
+		} else {
+			positionLogButton.Disable()
+		}
+		if opts.OnIdentityLog != nil {
+			identityLogButton.Enable()
+			identityLogButton.OnTapped = func() { opts.OnIdentityLog(node) }
+		} else {
+			identityLogButton.Disable()
 		}
 		if requestIdentityButton != nil && opts.OnRequestUserInfo != nil {
 			requestIdentityButton.Enable()
@@ -712,6 +732,12 @@ func showNodeOverviewModal(
 		OnTelemetryLog: func(target domain.Node) {
 			handleNodeTelemetryLogAction(window, dep, target)
 		},
+		OnPositionLog: func(target domain.Node) {
+			handleNodePositionLogAction(window, dep, target)
+		},
+		OnIdentityLog: func(target domain.Node) {
+			handleNodeIdentityLogAction(window, dep, target)
+		},
 	}
 	var modal *widget.PopUp
 	var stop func()
@@ -742,6 +768,12 @@ func newNodeOverviewSettingsPage(dep RuntimeDependencies) fyne.CanvasObject {
 		ModeLocalNode: true,
 		OnTelemetryLog: func(target domain.Node) {
 			handleNodeTelemetryLogAction(currentRuntimeWindow(dep), dep, target)
+		},
+		OnPositionLog: func(target domain.Node) {
+			handleNodePositionLogAction(currentRuntimeWindow(dep), dep, target)
+		},
+		OnIdentityLog: func(target domain.Node) {
+			handleNodeIdentityLogAction(currentRuntimeWindow(dep), dep, target)
 		},
 	})
 

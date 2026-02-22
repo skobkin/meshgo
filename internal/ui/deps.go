@@ -54,6 +54,8 @@ type NodeOverviewAction interface {
 	RequestUserInfo(ctx context.Context, targetNodeID string, requester app.LocalNodeSnapshot) error
 	RequestTelemetry(ctx context.Context, targetNodeID string, kind radio.TelemetryRequestKind) error
 	ListTelemetryHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodeTelemetryHistoryEntry, error)
+	ListPositionHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodePositionHistoryEntry, error)
+	ListIdentityHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodeIdentityHistoryEntry, error)
 }
 
 // DataDependencies contains read-only state consumed by UI tabs.

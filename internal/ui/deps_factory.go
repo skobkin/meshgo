@@ -58,6 +58,8 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 			rt.Connectivity.Radio,
 			rt.Domain.NodeStore,
 			rt.Persistence.NodeTelemetryRepo,
+			rt.Persistence.NodePositionRepo,
+			rt.Persistence.NodeIdentityHistory,
 			rt.CurrentConnStatus,
 			overviewLoggerArg,
 		)
