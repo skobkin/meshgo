@@ -155,6 +155,10 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		firmwareCard,
 		actionsCard,
 	)
+	setBodyCards := func(cards []fyne.CanvasObject) {
+		body.Objects = cards
+		body.Refresh()
+	}
 	scroll := container.NewVScroll(body)
 	scroll.SetMinSize(fyne.NewSize(700, 520))
 	content := container.NewBorder(
@@ -212,20 +216,20 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			if requestOtherButton != nil {
 				requestOtherButton.Disable()
 			}
-			powerCard.Hide()
-			environmentCard.Hide()
-			airQualityCard.Hide()
-			otherCard.Hide()
-			positionCard.Hide()
 			setOverviewSectionMetricRows(firmwareSection, [][]overviewMetric{{
 				{Label: "Firmware", Value: "unknown"},
 				{Label: "Board", Value: "unknown"},
 				{Label: "Image", Value: "unavailable (placeholder)"},
 			}})
-			firmwareCard.Show()
 			chatButton.Disable()
 			tracerouteButton.Disable()
 			telemetryLogButton.Disable()
+			setBodyCards([]fyne.CanvasObject{
+				identityCard,
+				adminCard,
+				firmwareCard,
+				actionsCard,
+			})
 
 			return
 		}
@@ -294,42 +298,27 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		}
 
 		powerMetrics := overviewPowerTelemetryMetrics(node)
-		if len(powerMetrics) == 0 {
-			powerCard.Hide()
-		} else {
+		if len(powerMetrics) > 0 {
 			setOverviewSectionMetrics(powerSection, powerMetrics)
-			powerCard.Show()
 		}
 
 		envMetrics := overviewEnvironmentTelemetryMetrics(node)
-		if len(envMetrics) == 0 {
-			environmentCard.Hide()
-		} else {
+		if len(envMetrics) > 0 {
 			setOverviewSectionMetrics(environmentSection, envMetrics)
-			environmentCard.Show()
 		}
 		airQualityMetrics := overviewAirQualityTelemetryMetrics(node)
-		if len(airQualityMetrics) == 0 {
-			airQualityCard.Hide()
-		} else {
+		if len(airQualityMetrics) > 0 {
 			setOverviewSectionMetrics(airQualitySection, airQualityMetrics)
-			airQualityCard.Show()
 		}
 
 		otherMetrics := overviewOtherTelemetryMetrics(node)
-		if len(otherMetrics) == 0 {
-			otherCard.Hide()
-		} else {
+		if len(otherMetrics) > 0 {
 			setOverviewSectionMetrics(otherSection, otherMetrics)
-			otherCard.Show()
 		}
 
 		positionMetrics := overviewPositionMetrics(node)
-		if len(positionMetrics) == 0 {
-			positionCard.Hide()
-		} else {
+		if len(positionMetrics) > 0 {
 			setOverviewSectionMetricRows(positionSection, [][]overviewMetric{positionMetrics})
-			positionCard.Show()
 		}
 
 		setOverviewSectionMetricRows(firmwareSection, [][]overviewMetric{{
@@ -337,6 +326,26 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			{Label: "Board", Value: orUnknown(node.BoardModel)},
 			{Label: "Image", Value: "unavailable (placeholder)"},
 		}})
+
+		cards := make([]fyne.CanvasObject, 0, 9)
+		cards = append(cards, identityCard)
+		if len(powerMetrics) > 0 {
+			cards = append(cards, powerCard)
+		}
+		if len(envMetrics) > 0 {
+			cards = append(cards, environmentCard)
+		}
+		if len(airQualityMetrics) > 0 {
+			cards = append(cards, airQualityCard)
+		}
+		if len(otherMetrics) > 0 {
+			cards = append(cards, otherCard)
+		}
+		if len(positionMetrics) > 0 {
+			cards = append(cards, positionCard)
+		}
+		cards = append(cards, adminCard, firmwareCard, actionsCard)
+		setBodyCards(cards)
 	}
 
 	render()

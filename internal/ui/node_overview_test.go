@@ -117,6 +117,39 @@ func TestNewNodeOverviewContent_LocalNodeHidesRefreshActions(t *testing.T) {
 	}
 }
 
+func TestNewNodeOverviewContent_HidesTelemetrySectionsWithoutData(t *testing.T) {
+	store := domain.NewNodeStore()
+	store.Upsert(domain.Node{
+		NodeID:      "!00000001",
+		LongName:    "Alpha",
+		LastHeardAt: time.Now(),
+	})
+
+	content, stop := newNodeOverviewContent(nodeOverviewOptions{
+		Title:     "Node",
+		NodeStore: store,
+		NodeID: func() string {
+			return "!00000001"
+		},
+		ShowActions: true,
+	})
+	defer stop()
+	_ = fynetest.NewTempWindow(t, content)
+
+	if hasVisibleLabelText(content, "Telemetry: Power") {
+		t.Fatalf("expected power telemetry section hidden when no telemetry data")
+	}
+	if hasVisibleLabelText(content, "Telemetry: Environmental") {
+		t.Fatalf("expected environmental telemetry section hidden when no telemetry data")
+	}
+	if hasVisibleLabelText(content, "Telemetry: Air Quality") {
+		t.Fatalf("expected air quality telemetry section hidden when no telemetry data")
+	}
+	if hasVisibleLabelText(content, "Telemetry: Other") {
+		t.Fatalf("expected other telemetry section hidden when no telemetry data")
+	}
+}
+
 func TestNewNodeOverviewContent_PublicKeyCopyEnabledWhenKeyIsKnown(t *testing.T) {
 	store := domain.NewNodeStore()
 	store.Upsert(domain.Node{
@@ -254,4 +287,22 @@ func countOverviewRefreshButtons(root fyne.CanvasObject) int {
 	}
 
 	return count
+}
+
+func hasVisibleLabelText(root fyne.CanvasObject, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	for _, object := range fynetest.LaidOutObjects(root) {
+		label, ok := object.(*widget.Label)
+		if !ok {
+			continue
+		}
+		if !label.Visible() {
+			continue
+		}
+		if strings.TrimSpace(label.Text) == expected {
+			return true
+		}
+	}
+
+	return false
 }
