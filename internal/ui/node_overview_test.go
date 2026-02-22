@@ -37,10 +37,18 @@ func TestNewNodeOverviewContent_UnavailableNodeShowsFallback(t *testing.T) {
 
 func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 	store := domain.NewNodeStore()
+	battery := uint32(90)
+	temperature := 21.5
+	aqi := 42.0
+	channelUtil := 3.5
 	store.Upsert(domain.Node{
-		NodeID:      "!00000001",
-		LongName:    "Alpha",
-		LastHeardAt: time.Now(),
+		NodeID:             "!00000001",
+		LongName:           "Alpha",
+		LastHeardAt:        time.Now(),
+		BatteryLevel:       &battery,
+		Temperature:        &temperature,
+		AirQualityIndex:    &aqi,
+		ChannelUtilization: &channelUtil,
 	})
 
 	content, stop := newNodeOverviewContent(nodeOverviewOptions{
@@ -70,6 +78,42 @@ func TestNewNodeOverviewContent_RemoteActionsEnabled(t *testing.T) {
 	}
 	if copy := mustFindOverviewButtonByText(t, content, "Copy"); !copy.Disabled() {
 		t.Fatalf("expected public key copy action disabled when key is unknown")
+	}
+	if got := countOverviewRefreshButtons(content); got < 5 {
+		t.Fatalf("expected refresh action buttons for remote node, got %d", got)
+	}
+}
+
+func TestNewNodeOverviewContent_LocalNodeHidesRefreshActions(t *testing.T) {
+	store := domain.NewNodeStore()
+	battery := uint32(90)
+	temperature := 21.5
+	aqi := 42.0
+	channelUtil := 3.5
+	store.Upsert(domain.Node{
+		NodeID:             "!00000001",
+		LongName:           "Alpha",
+		LastHeardAt:        time.Now(),
+		BatteryLevel:       &battery,
+		Temperature:        &temperature,
+		AirQualityIndex:    &aqi,
+		ChannelUtilization: &channelUtil,
+	})
+
+	content, stop := newNodeOverviewContent(nodeOverviewOptions{
+		Title:     "Node",
+		NodeStore: store,
+		NodeID: func() string {
+			return "!00000001"
+		},
+		ShowActions:   true,
+		ModeLocalNode: true,
+	})
+	defer stop()
+	_ = fynetest.NewTempWindow(t, content)
+
+	if got := countOverviewRefreshButtons(content); got != 0 {
+		t.Fatalf("expected no refresh action buttons for local node, got %d", got)
 	}
 }
 
@@ -195,4 +239,19 @@ func mustFindOverviewButtonByText(t *testing.T, root fyne.CanvasObject, text str
 	t.Fatalf("button %q not found", text)
 
 	return nil
+}
+
+func countOverviewRefreshButtons(root fyne.CanvasObject) int {
+	count := 0
+	for _, object := range fynetest.LaidOutObjects(root) {
+		button, ok := object.(*widget.Button)
+		if !ok {
+			continue
+		}
+		if button.Icon != nil && strings.Contains(strings.ToLower(button.Icon.Name()), "refresh") {
+			count++
+		}
+	}
+
+	return count
 }

@@ -74,22 +74,50 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	positionSection := container.NewVBox()
 	firmwareSection := container.NewVBox()
 
-	requestIdentityButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
-	requestPowerButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
-	requestEnvironmentButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
-	requestAirQualityButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
-	requestOtherButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
-	requestIdentityButton.Disable()
-	requestPowerButton.Disable()
-	requestEnvironmentButton.Disable()
-	requestAirQualityButton.Disable()
-	requestOtherButton.Disable()
+	var requestIdentityButton *widget.Button
+	var requestPowerButton *widget.Button
+	var requestEnvironmentButton *widget.Button
+	var requestAirQualityButton *widget.Button
+	var requestOtherButton *widget.Button
+	if !opts.ModeLocalNode {
+		requestIdentityButton = widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+		requestPowerButton = widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+		requestEnvironmentButton = widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+		requestAirQualityButton = widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+		requestOtherButton = widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+		requestIdentityButton.Disable()
+		requestPowerButton.Disable()
+		requestEnvironmentButton.Disable()
+		requestAirQualityButton.Disable()
+		requestOtherButton.Disable()
+	}
 
-	identityCard := overviewCard("Identity", identity, requestIdentityButton)
-	powerCard := overviewCard("Telemetry: Power", powerSection, requestPowerButton)
-	environmentCard := overviewCard("Telemetry: Environmental", environmentSection, requestEnvironmentButton)
-	airQualityCard := overviewCard("Telemetry: Air Quality", airQualitySection, requestAirQualityButton)
-	otherCard := overviewCard("Telemetry: Other", otherSection, requestOtherButton)
+	identityCardActions := make([]fyne.CanvasObject, 0, 1)
+	if requestIdentityButton != nil {
+		identityCardActions = append(identityCardActions, requestIdentityButton)
+	}
+	powerCardActions := make([]fyne.CanvasObject, 0, 1)
+	if requestPowerButton != nil {
+		powerCardActions = append(powerCardActions, requestPowerButton)
+	}
+	environmentCardActions := make([]fyne.CanvasObject, 0, 1)
+	if requestEnvironmentButton != nil {
+		environmentCardActions = append(environmentCardActions, requestEnvironmentButton)
+	}
+	airQualityCardActions := make([]fyne.CanvasObject, 0, 1)
+	if requestAirQualityButton != nil {
+		airQualityCardActions = append(airQualityCardActions, requestAirQualityButton)
+	}
+	otherCardActions := make([]fyne.CanvasObject, 0, 1)
+	if requestOtherButton != nil {
+		otherCardActions = append(otherCardActions, requestOtherButton)
+	}
+
+	identityCard := overviewCard("Identity", identity, identityCardActions...)
+	powerCard := overviewCard("Telemetry: Power", powerSection, powerCardActions...)
+	environmentCard := overviewCard("Telemetry: Environmental", environmentSection, environmentCardActions...)
+	airQualityCard := overviewCard("Telemetry: Air Quality", airQualitySection, airQualityCardActions...)
+	otherCard := overviewCard("Telemetry: Other", otherSection, otherCardActions...)
 	positionCard := overviewCard("Position", positionSection)
 	firmwareCard := overviewCard("Firmware and Board", firmwareSection)
 
@@ -169,11 +197,21 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			})
 			publicKeyEntry.SetText("")
 			publicKeyCopyButton.Disable()
-			requestIdentityButton.Disable()
-			requestPowerButton.Disable()
-			requestEnvironmentButton.Disable()
-			requestAirQualityButton.Disable()
-			requestOtherButton.Disable()
+			if requestIdentityButton != nil {
+				requestIdentityButton.Disable()
+			}
+			if requestPowerButton != nil {
+				requestPowerButton.Disable()
+			}
+			if requestEnvironmentButton != nil {
+				requestEnvironmentButton.Disable()
+			}
+			if requestAirQualityButton != nil {
+				requestAirQualityButton.Disable()
+			}
+			if requestOtherButton != nil {
+				requestOtherButton.Disable()
+			}
 			powerCard.Hide()
 			environmentCard.Hide()
 			airQualityCard.Hide()
@@ -233,13 +271,13 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		} else {
 			telemetryLogButton.Disable()
 		}
-		if opts.OnRequestUserInfo != nil && !opts.ModeLocalNode {
+		if requestIdentityButton != nil && opts.OnRequestUserInfo != nil {
 			requestIdentityButton.Enable()
 			requestIdentityButton.OnTapped = func() { opts.OnRequestUserInfo(node) }
-		} else {
+		} else if requestIdentityButton != nil {
 			requestIdentityButton.Disable()
 		}
-		if opts.OnRequestTelemetry != nil && !opts.ModeLocalNode {
+		if requestPowerButton != nil && requestEnvironmentButton != nil && requestAirQualityButton != nil && requestOtherButton != nil && opts.OnRequestTelemetry != nil {
 			requestPowerButton.Enable()
 			requestPowerButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestPower) }
 			requestEnvironmentButton.Enable()
@@ -248,7 +286,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			requestAirQualityButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestAirQuality) }
 			requestOtherButton.Enable()
 			requestOtherButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestDevice) }
-		} else {
+		} else if requestPowerButton != nil && requestEnvironmentButton != nil && requestAirQualityButton != nil && requestOtherButton != nil {
 			requestPowerButton.Disable()
 			requestEnvironmentButton.Disable()
 			requestAirQualityButton.Disable()
