@@ -291,6 +291,7 @@ func ReadMarkdownImageBytes(source fyne.URI) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		// #nosec G704 -- remote markdown images are an intentional feature; only http/https URIs are allowed.
 		response, err := MarkdownImageHTTPClient.Do(request)
 		if err != nil {
 			return nil, err
@@ -365,6 +366,7 @@ func RemoteMarkdownImageTooLarge(rawURL string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// #nosec G704 -- remote markdown images are an intentional feature; only http/https URIs are allowed.
 	response, err := MarkdownImageHTTPClient.Do(request)
 	if err != nil {
 		return false, err

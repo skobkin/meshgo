@@ -553,9 +553,10 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 }
 
 type nodeMQTTSettingsFormValues struct {
-	Enabled                       bool
-	Address                       string
-	Username                      string
+	Enabled  bool
+	Address  string
+	Username string
+	//nolint:gosec // Password is required in editable MQTT form state.
 	Password                      string
 	EncryptionEnabled             bool
 	JSONEnabled                   bool

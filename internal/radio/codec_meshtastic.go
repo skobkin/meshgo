@@ -167,6 +167,86 @@ func (c *MeshtasticCodec) EncodeTraceroute(to uint32, channel uint32) (EncodedTr
 	}, nil
 }
 
+func (c *MeshtasticCodec) EncodeNodeInfoRequest(to uint32, channel uint32, requester *generated.User) (EncodedNodeInfoRequest, error) {
+	if requester == nil {
+		return EncodedNodeInfoRequest{}, fmt.Errorf("requester is required")
+	}
+	encodedUser, err := proto.Marshal(requester)
+	if err != nil {
+		return EncodedNodeInfoRequest{}, fmt.Errorf("marshal node info request payload: %w", err)
+	}
+	packetID := c.nextNonZeroID()
+	packet := &generated.MeshPacket{
+		To:      to,
+		Channel: channel,
+		Id:      packetID,
+		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+			Portnum:      generated.PortNum_NODEINFO_APP,
+			Payload:      encodedUser,
+			WantResponse: true,
+		}},
+	}
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
+	encoded, err := proto.Marshal(wire)
+	if err != nil {
+		return EncodedNodeInfoRequest{}, fmt.Errorf("marshal node info request packet: %w", err)
+	}
+
+	return EncodedNodeInfoRequest{
+		Payload:         encoded,
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+	}, nil
+}
+
+func (c *MeshtasticCodec) EncodeTelemetryRequest(to uint32, channel uint32, kind TelemetryRequestKind) (EncodedTelemetryRequest, error) {
+	var payload *generated.Telemetry
+	switch kind {
+	case TelemetryRequestDevice:
+		payload = &generated.Telemetry{
+			Variant: &generated.Telemetry_DeviceMetrics{DeviceMetrics: &generated.DeviceMetrics{}},
+		}
+	case TelemetryRequestEnvironment:
+		payload = &generated.Telemetry{
+			Variant: &generated.Telemetry_EnvironmentMetrics{EnvironmentMetrics: &generated.EnvironmentMetrics{}},
+		}
+	case TelemetryRequestAirQuality:
+		payload = &generated.Telemetry{
+			Variant: &generated.Telemetry_AirQualityMetrics{AirQualityMetrics: &generated.AirQualityMetrics{}},
+		}
+	case TelemetryRequestPower:
+		payload = &generated.Telemetry{
+			Variant: &generated.Telemetry_PowerMetrics{PowerMetrics: &generated.PowerMetrics{}},
+		}
+	default:
+		return EncodedTelemetryRequest{}, fmt.Errorf("unsupported telemetry request kind: %q", kind)
+	}
+	encodedTelemetry, err := proto.Marshal(payload)
+	if err != nil {
+		return EncodedTelemetryRequest{}, fmt.Errorf("marshal telemetry request payload: %w", err)
+	}
+	packetID := c.nextNonZeroID()
+	packet := &generated.MeshPacket{
+		To:      to,
+		Channel: channel,
+		Id:      packetID,
+		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+			Portnum:      generated.PortNum_TELEMETRY_APP,
+			Payload:      encodedTelemetry,
+			WantResponse: true,
+		}},
+	}
+	wire := &generated.ToRadio{PayloadVariant: &generated.ToRadio_Packet{Packet: packet}}
+	encoded, err := proto.Marshal(wire)
+	if err != nil {
+		return EncodedTelemetryRequest{}, fmt.Errorf("marshal telemetry request packet: %w", err)
+	}
+
+	return EncodedTelemetryRequest{
+		Payload:         encoded,
+		DeviceMessageID: strconv.FormatUint(uint64(packetID), 10),
+	}, nil
+}
+
 func (c *MeshtasticCodec) DecodeFromRadio(payload []byte) (DecodedFrame, error) {
 	out := DecodedFrame{Raw: payload}
 
@@ -377,6 +457,12 @@ func splitNodeTelemetryUpdate(update domain.NodeUpdate) (domain.NodeTelemetryUpd
 		node.Temperature == nil &&
 		node.Humidity == nil &&
 		node.Pressure == nil &&
+		node.SoilTemperature == nil &&
+		node.SoilMoisture == nil &&
+		node.GasResistance == nil &&
+		node.Lux == nil &&
+		node.UVLux == nil &&
+		node.Radiation == nil &&
 		node.AirQualityIndex == nil &&
 		node.PowerVoltage == nil &&
 		node.PowerCurrent == nil {
@@ -399,6 +485,12 @@ func splitNodeTelemetryUpdate(update domain.NodeUpdate) (domain.NodeTelemetryUpd
 			Temperature:        node.Temperature,
 			Humidity:           node.Humidity,
 			Pressure:           node.Pressure,
+			SoilTemperature:    node.SoilTemperature,
+			SoilMoisture:       node.SoilMoisture,
+			GasResistance:      node.GasResistance,
+			Lux:                node.Lux,
+			UVLux:              node.UVLux,
+			Radiation:          node.Radiation,
 			AirQualityIndex:    node.AirQualityIndex,
 			PowerVoltage:       node.PowerVoltage,
 			PowerCurrent:       node.PowerCurrent,
@@ -871,6 +963,30 @@ func applyEnvironmentMetrics(node *domain.Node, env *generated.EnvironmentMetric
 	if env.BarometricPressure != nil {
 		v := float64(env.GetBarometricPressure())
 		node.Pressure = &v
+	}
+	if env.SoilTemperature != nil {
+		v := float64(env.GetSoilTemperature())
+		node.SoilTemperature = &v
+	}
+	if env.SoilMoisture != nil {
+		v := env.GetSoilMoisture()
+		node.SoilMoisture = &v
+	}
+	if env.GasResistance != nil {
+		v := float64(env.GetGasResistance())
+		node.GasResistance = &v
+	}
+	if env.Lux != nil {
+		v := float64(env.GetLux())
+		node.Lux = &v
+	}
+	if env.UvLux != nil {
+		v := float64(env.GetUvLux())
+		node.UVLux = &v
+	}
+	if env.Radiation != nil {
+		v := float64(env.GetRadiation())
+		node.Radiation = &v
 	}
 	if env.Iaq != nil {
 		v := float64(env.GetIaq())

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"log/slog"
+
 	meshapp "github.com/skobkin/meshgo/internal/app"
 	"github.com/skobkin/meshgo/internal/platform"
 )
@@ -48,6 +50,17 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 
 	if rt.Connectivity.Radio != nil {
 		dep.Actions.Sender = rt.Connectivity.Radio
+		var overviewLoggerArg = (*slog.Logger)(nil)
+		if rt.Core.LogManager != nil {
+			overviewLoggerArg = rt.Core.LogManager.Logger("ui.node_overview")
+		}
+		dep.Actions.NodeOverview = meshapp.NewNodeOverviewService(
+			rt.Connectivity.Radio,
+			rt.Domain.NodeStore,
+			rt.Persistence.NodeTelemetryRepo,
+			rt.CurrentConnStatus,
+			overviewLoggerArg,
+		)
 		if rt.Core.LogManager != nil {
 			dep.Actions.NodeSettings = meshapp.NewNodeSettingsService(
 				rt.Domain.Bus,

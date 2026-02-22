@@ -49,6 +49,13 @@ type NodeSettingsAction interface {
 	SaveChannelSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeChannelSettingsList) error
 }
 
+// NodeOverviewAction handles node overview requests and history reads.
+type NodeOverviewAction interface {
+	RequestUserInfo(ctx context.Context, targetNodeID string, requester app.LocalNodeSnapshot) error
+	RequestTelemetry(ctx context.Context, targetNodeID string, kind radio.TelemetryRequestKind) error
+	ListTelemetryHistory(ctx context.Context, nodeID string, limit int) ([]domain.NodeTelemetryHistoryEntry, error)
+}
+
 // DataDependencies contains read-only state consumed by UI tabs.
 type DataDependencies struct {
 	Config            config.AppConfig
@@ -76,6 +83,7 @@ type ActionDependencies struct {
 	OnStartUpdateChecker      func()
 	OnQuit                    func()
 	NodeSettings              NodeSettingsAction
+	NodeOverview              NodeOverviewAction
 }
 
 // PlatformDependencies contains OS-specific helpers used by UI actions.

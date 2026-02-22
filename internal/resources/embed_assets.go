@@ -56,6 +56,9 @@ var uiDarkSpeakerMute []byte
 //go:embed ui/dark/badge_primary.svg
 var uiDarkBadgePrimary []byte
 
+//go:embed ui/dark/refresh.svg
+var uiDarkRefresh []byte
+
 //go:embed ui/light/chats.svg
 var uiLightChats []byte
 
@@ -106,6 +109,9 @@ var uiLightSpeakerMute []byte
 
 //go:embed ui/light/badge_primary.svg
 var uiLightBadgePrimary []byte
+
+//go:embed ui/light/refresh.svg
+var uiLightRefresh []byte
 
 //go:embed ui/dark/icon_32.png
 var uiDarkIcon32 []byte

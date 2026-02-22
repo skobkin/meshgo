@@ -74,6 +74,7 @@ func bluetoothSettingsCommandsForOS(goos string) ([]commandSpec, error) {
 }
 
 func startCommandDetached(name string, args ...string) error {
+	// #nosec G204 -- command specs are selected from static per-OS allowlisted command tables.
 	cmd := exec.Command(name, args...)
 
 	return cmd.Start()

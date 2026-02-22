@@ -86,7 +86,7 @@ func TestAcquireInstanceLock_ReleasesOnProcessExit(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
 	appID := "meshgo-crash-test-" + strconv.Itoa(os.Getpid())
 
-	// #nosec G204 -- test launches the current test binary with fixed arguments.
+	// #nosec G204,G702 -- test launches the current test binary with fixed arguments.
 	cmd := exec.Command(os.Args[0], "-test.run", "^TestAcquireInstanceLock_ReleasesOnProcessExit$")
 	cmd.Env = append(
 		os.Environ(),

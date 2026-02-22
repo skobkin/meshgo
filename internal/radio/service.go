@@ -326,6 +326,38 @@ func (s *Service) SendTraceroute(to uint32, channel uint32) (string, error) {
 	return encoded.DeviceMessageID, nil
 }
 
+func (s *Service) SendNodeInfoRequest(to uint32, channel uint32, requester *generated.User) (string, error) {
+	encoded, err := s.codec.EncodeNodeInfoRequest(to, channel, requester)
+	if err != nil {
+		return "", fmt.Errorf("encode node info request: %w", err)
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	err = s.transport.WriteFrame(writeCtx, encoded.Payload)
+	cancel()
+	if err != nil {
+		return "", fmt.Errorf("send node info request frame: %w", err)
+	}
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+
+	return encoded.DeviceMessageID, nil
+}
+
+func (s *Service) SendTelemetryRequest(to uint32, channel uint32, kind TelemetryRequestKind) (string, error) {
+	encoded, err := s.codec.EncodeTelemetryRequest(to, channel, kind)
+	if err != nil {
+		return "", fmt.Errorf("encode telemetry request: %w", err)
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	err = s.transport.WriteFrame(writeCtx, encoded.Payload)
+	cancel()
+	if err != nil {
+		return "", fmt.Errorf("send telemetry request frame: %w", err)
+	}
+	s.bus.Publish(bus.TopicRawFrameOut, busmsg.RawFrame{Hex: strings.ToUpper(hex.EncodeToString(encoded.Payload)), Len: len(encoded.Payload)})
+
+	return encoded.DeviceMessageID, nil
+}
+
 func (s *Service) publishConnStatus(state busmsg.ConnectionState, err error) {
 	status := busmsg.ConnectionStatus{
 		State:         state,

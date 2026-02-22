@@ -1381,6 +1381,7 @@ func prefetchMapTileURL(parent context.Context, client *http.Client, rawURL stri
 	}
 	req.Header.Set("User-Agent", "meshgo map warmup")
 	req.Header.Set(mapwidgets.MapTileFetchModeHeader, mapwidgets.MapTileFetchModeSync)
+	// #nosec G704 -- warmup fetches map tiles from the configured tile source URL by design.
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request tile: %w", err)

@@ -273,8 +273,8 @@ func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 12 {
-		t.Fatalf("expected schema version 12, got %d", version)
+	if version != 13 {
+		t.Fatalf("expected schema version 13, got %d", version)
 	}
 
 	if hasColumn(t, migrated, "nodes", "latitude") {
@@ -293,6 +293,14 @@ func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	} {
 		if !hasTable(t, migrated, table) {
 			t.Fatalf("expected table %s after migration", table)
+		}
+	}
+	for _, column := range []string{"gas_resistance", "lux", "soil_temperature", "soil_moisture", "uv_lux", "radiation"} {
+		if !hasColumn(t, migrated, "node_telemetry_latest", column) {
+			t.Fatalf("node_telemetry_latest should include %s after migration", column)
+		}
+		if !hasColumn(t, migrated, "node_telemetry_history", column) {
+			t.Fatalf("node_telemetry_history should include %s after migration", column)
 		}
 	}
 
@@ -452,8 +460,8 @@ func TestOpenMigratesV4ToV12(t *testing.T) {
 	if err := migrated.QueryRowContext(ctx, `PRAGMA user_version;`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 12 {
-		t.Fatalf("expected schema version 12, got %d", version)
+	if version != 13 {
+		t.Fatalf("expected schema version 13, got %d", version)
 	}
 }
 

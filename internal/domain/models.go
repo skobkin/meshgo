@@ -109,6 +109,12 @@ type Node struct {
 	Temperature           *float64
 	Humidity              *float64
 	Pressure              *float64
+	SoilTemperature       *float64
+	SoilMoisture          *uint32
+	GasResistance         *float64
+	Lux                   *float64
+	UVLux                 *float64
+	Radiation             *float64
 	AirQualityIndex       *float64
 	PowerVoltage          *float64
 	PowerCurrent          *float64
@@ -165,6 +171,12 @@ type NodeTelemetry struct {
 	Temperature        *float64
 	Humidity           *float64
 	Pressure           *float64
+	SoilTemperature    *float64
+	SoilMoisture       *uint32
+	GasResistance      *float64
+	Lux                *float64
+	UVLux              *float64
+	Radiation          *float64
 	AirQualityIndex    *float64
 	PowerVoltage       *float64
 	PowerCurrent       *float64
@@ -249,6 +261,12 @@ type NodeTelemetryHistoryEntry struct {
 	Temperature        *float64
 	Humidity           *float64
 	Pressure           *float64
+	SoilTemperature    *float64
+	SoilMoisture       *uint32
+	GasResistance      *float64
+	Lux                *float64
+	UVLux              *float64
+	Radiation          *float64
 	AirQualityIndex    *float64
 	PowerVoltage       *float64
 	PowerCurrent       *float64

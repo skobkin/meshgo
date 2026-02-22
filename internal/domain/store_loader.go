@@ -128,6 +128,12 @@ func applyNodeTelemetry(node *Node, telemetry NodeTelemetry) {
 	node.Temperature = telemetry.Temperature
 	node.Humidity = telemetry.Humidity
 	node.Pressure = telemetry.Pressure
+	node.SoilTemperature = telemetry.SoilTemperature
+	node.SoilMoisture = telemetry.SoilMoisture
+	node.GasResistance = telemetry.GasResistance
+	node.Lux = telemetry.Lux
+	node.UVLux = telemetry.UVLux
+	node.Radiation = telemetry.Radiation
 	node.AirQualityIndex = telemetry.AirQualityIndex
 	node.PowerVoltage = telemetry.PowerVoltage
 	node.PowerCurrent = telemetry.PowerCurrent

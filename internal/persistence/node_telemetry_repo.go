@@ -69,8 +69,8 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO node_telemetry_latest(node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO node_telemetry_latest(node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(node_id) DO UPDATE SET
 			channel = COALESCE(excluded.channel, node_telemetry_latest.channel),
 			battery_level = COALESCE(excluded.battery_level, node_telemetry_latest.battery_level),
@@ -81,6 +81,12 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 			temperature = COALESCE(excluded.temperature, node_telemetry_latest.temperature),
 			humidity = COALESCE(excluded.humidity, node_telemetry_latest.humidity),
 			pressure = COALESCE(excluded.pressure, node_telemetry_latest.pressure),
+			soil_temperature = COALESCE(excluded.soil_temperature, node_telemetry_latest.soil_temperature),
+			soil_moisture = COALESCE(excluded.soil_moisture, node_telemetry_latest.soil_moisture),
+			gas_resistance = COALESCE(excluded.gas_resistance, node_telemetry_latest.gas_resistance),
+			lux = COALESCE(excluded.lux, node_telemetry_latest.lux),
+			uv_lux = COALESCE(excluded.uv_lux, node_telemetry_latest.uv_lux),
+			radiation = COALESCE(excluded.radiation, node_telemetry_latest.radiation),
 			air_quality_index = COALESCE(excluded.air_quality_index, node_telemetry_latest.air_quality_index),
 			power_voltage = COALESCE(excluded.power_voltage, node_telemetry_latest.power_voltage),
 			power_current = COALESCE(excluded.power_current, node_telemetry_latest.power_current),
@@ -99,6 +105,12 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 		nullableFloat64(next.Temperature),
 		nullableFloat64(next.Humidity),
 		nullableFloat64(next.Pressure),
+		nullableFloat64(next.SoilTemperature),
+		nullableUint32(next.SoilMoisture),
+		nullableFloat64(next.GasResistance),
+		nullableFloat64(next.Lux),
+		nullableFloat64(next.UVLux),
+		nullableFloat64(next.Radiation),
 		nullableFloat64(next.AirQualityIndex),
 		nullableFloat64(next.PowerVoltage),
 		nullableFloat64(next.PowerCurrent),
@@ -113,9 +125,9 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 
 	if hasTelemetryData(next) && (!found || !nodeTelemetryEqual(existing, next)) {
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO node_telemetry_history(node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`,
+				INSERT INTO node_telemetry_history(node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`,
 			nodeID,
 			nullableUint32(next.Channel),
 			nullableUint32(next.BatteryLevel),
@@ -126,6 +138,12 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 			nullableFloat64(next.Temperature),
 			nullableFloat64(next.Humidity),
 			nullableFloat64(next.Pressure),
+			nullableFloat64(next.SoilTemperature),
+			nullableUint32(next.SoilMoisture),
+			nullableFloat64(next.GasResistance),
+			nullableFloat64(next.Lux),
+			nullableFloat64(next.UVLux),
+			nullableFloat64(next.Radiation),
 			nullableFloat64(next.AirQualityIndex),
 			nullableFloat64(next.PowerVoltage),
 			nullableFloat64(next.PowerCurrent),
@@ -151,7 +169,7 @@ func (r *NodeTelemetryRepo) Upsert(ctx context.Context, update domain.NodeTeleme
 
 func (r *NodeTelemetryRepo) ListLatest(ctx context.Context) ([]domain.NodeTelemetry, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at
+		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at
 		FROM node_telemetry_latest
 	`)
 	if err != nil {
@@ -178,7 +196,7 @@ func (r *NodeTelemetryRepo) ListLatest(ctx context.Context) ([]domain.NodeTeleme
 
 func (r *NodeTelemetryRepo) GetLatestByNodeID(ctx context.Context, nodeID string) (domain.NodeTelemetry, bool, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at
+		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at
 		FROM node_telemetry_latest
 		WHERE node_id = ?
 		LIMIT 1
@@ -211,7 +229,7 @@ func (r *NodeTelemetryRepo) ListHistoryByNodeID(ctx context.Context, query domai
 	where, args = applyHistoryCursor(where, query, args)
 	limit := historyLimitValue(query.Limit)
 	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
-		SELECT id, node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet
+		SELECT id, node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at, update_type, from_packet
 		FROM node_telemetry_history
 		%s
 		ORDER BY observed_at %s, id %s
@@ -241,7 +259,7 @@ func (r *NodeTelemetryRepo) ListHistoryByNodeID(ctx context.Context, query domai
 
 func fetchNodeTelemetryLatest(ctx context.Context, tx *sql.Tx, nodeID string) (domain.NodeTelemetry, bool, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, air_quality_index, power_voltage, power_current, observed_at, written_at
+		SELECT node_id, channel, battery_level, voltage, uptime_seconds, channel_utilization, air_util_tx, temperature, humidity, pressure, soil_temperature, soil_moisture, gas_resistance, lux, uv_lux, radiation, air_quality_index, power_voltage, power_current, observed_at, written_at
 		FROM node_telemetry_latest
 		WHERE node_id = ?
 		LIMIT 1
@@ -265,23 +283,29 @@ func fetchNodeTelemetryLatest(ctx context.Context, tx *sql.Tx, nodeID string) (d
 
 func scanNodeTelemetryLatest(scanner interface{ Scan(dest ...any) error }) (domain.NodeTelemetry, error) {
 	var (
-		item         domain.NodeTelemetry
-		channel      sql.NullInt64
-		battery      sql.NullInt64
-		voltage      sql.NullFloat64
-		uptime       sql.NullInt64
-		channelUtil  sql.NullFloat64
-		airUtilTx    sql.NullFloat64
-		temperature  sql.NullFloat64
-		humidity     sql.NullFloat64
-		pressure     sql.NullFloat64
-		aqi          sql.NullFloat64
-		powerVoltage sql.NullFloat64
-		powerCurrent sql.NullFloat64
-		observedMS   int64
-		writtenMS    int64
+		item          domain.NodeTelemetry
+		channel       sql.NullInt64
+		battery       sql.NullInt64
+		voltage       sql.NullFloat64
+		uptime        sql.NullInt64
+		channelUtil   sql.NullFloat64
+		airUtilTx     sql.NullFloat64
+		temperature   sql.NullFloat64
+		humidity      sql.NullFloat64
+		pressure      sql.NullFloat64
+		soilTemp      sql.NullFloat64
+		soilMoisture  sql.NullInt64
+		gasResistance sql.NullFloat64
+		lux           sql.NullFloat64
+		uvLux         sql.NullFloat64
+		radiation     sql.NullFloat64
+		aqi           sql.NullFloat64
+		powerVoltage  sql.NullFloat64
+		powerCurrent  sql.NullFloat64
+		observedMS    int64
+		writtenMS     int64
 	)
-	if err := scanner.Scan(&item.NodeID, &channel, &battery, &voltage, &uptime, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &observedMS, &writtenMS); err != nil {
+	if err := scanner.Scan(&item.NodeID, &channel, &battery, &voltage, &uptime, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &soilTemp, &soilMoisture, &gasResistance, &lux, &uvLux, &radiation, &aqi, &powerVoltage, &powerCurrent, &observedMS, &writtenMS); err != nil {
 		return domain.NodeTelemetry{}, fmt.Errorf("scan node telemetry latest row: %w", err)
 	}
 	if channel.Valid {
@@ -323,6 +347,31 @@ func scanNodeTelemetryLatest(scanner interface{ Scan(dest ...any) error }) (doma
 		v := pressure.Float64
 		item.Pressure = &v
 	}
+	if soilTemp.Valid {
+		v := soilTemp.Float64
+		item.SoilTemperature = &v
+	}
+	if soilMoisture.Valid {
+		if v, ok := int64ToUint32(soilMoisture.Int64); ok {
+			item.SoilMoisture = &v
+		}
+	}
+	if gasResistance.Valid {
+		v := gasResistance.Float64
+		item.GasResistance = &v
+	}
+	if lux.Valid {
+		v := lux.Float64
+		item.Lux = &v
+	}
+	if uvLux.Valid {
+		v := uvLux.Float64
+		item.UVLux = &v
+	}
+	if radiation.Valid {
+		v := radiation.Float64
+		item.Radiation = &v
+	}
 	if aqi.Valid {
 		v := aqi.Float64
 		item.AirQualityIndex = &v
@@ -343,25 +392,31 @@ func scanNodeTelemetryLatest(scanner interface{ Scan(dest ...any) error }) (doma
 
 func scanNodeTelemetryHistory(scanner interface{ Scan(dest ...any) error }) (domain.NodeTelemetryHistoryEntry, error) {
 	var (
-		item         domain.NodeTelemetryHistoryEntry
-		channel      sql.NullInt64
-		battery      sql.NullInt64
-		voltage      sql.NullFloat64
-		uptime       sql.NullInt64
-		channelUtil  sql.NullFloat64
-		airUtilTx    sql.NullFloat64
-		temperature  sql.NullFloat64
-		humidity     sql.NullFloat64
-		pressure     sql.NullFloat64
-		aqi          sql.NullFloat64
-		powerVoltage sql.NullFloat64
-		powerCurrent sql.NullFloat64
-		observedMS   int64
-		writtenMS    int64
-		updateType   string
-		fromPacket   int64
+		item          domain.NodeTelemetryHistoryEntry
+		channel       sql.NullInt64
+		battery       sql.NullInt64
+		voltage       sql.NullFloat64
+		uptime        sql.NullInt64
+		channelUtil   sql.NullFloat64
+		airUtilTx     sql.NullFloat64
+		temperature   sql.NullFloat64
+		humidity      sql.NullFloat64
+		pressure      sql.NullFloat64
+		soilTemp      sql.NullFloat64
+		soilMoisture  sql.NullInt64
+		gasResistance sql.NullFloat64
+		lux           sql.NullFloat64
+		uvLux         sql.NullFloat64
+		radiation     sql.NullFloat64
+		aqi           sql.NullFloat64
+		powerVoltage  sql.NullFloat64
+		powerCurrent  sql.NullFloat64
+		observedMS    int64
+		writtenMS     int64
+		updateType    string
+		fromPacket    int64
 	)
-	if err := scanner.Scan(&item.RowID, &item.NodeID, &channel, &battery, &voltage, &uptime, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &aqi, &powerVoltage, &powerCurrent, &observedMS, &writtenMS, &updateType, &fromPacket); err != nil {
+	if err := scanner.Scan(&item.RowID, &item.NodeID, &channel, &battery, &voltage, &uptime, &channelUtil, &airUtilTx, &temperature, &humidity, &pressure, &soilTemp, &soilMoisture, &gasResistance, &lux, &uvLux, &radiation, &aqi, &powerVoltage, &powerCurrent, &observedMS, &writtenMS, &updateType, &fromPacket); err != nil {
 		return domain.NodeTelemetryHistoryEntry{}, fmt.Errorf("scan node telemetry history row: %w", err)
 	}
 	if channel.Valid {
@@ -402,6 +457,31 @@ func scanNodeTelemetryHistory(scanner interface{ Scan(dest ...any) error }) (dom
 	if pressure.Valid {
 		v := pressure.Float64
 		item.Pressure = &v
+	}
+	if soilTemp.Valid {
+		v := soilTemp.Float64
+		item.SoilTemperature = &v
+	}
+	if soilMoisture.Valid {
+		if v, ok := int64ToUint32(soilMoisture.Int64); ok {
+			item.SoilMoisture = &v
+		}
+	}
+	if gasResistance.Valid {
+		v := gasResistance.Float64
+		item.GasResistance = &v
+	}
+	if lux.Valid {
+		v := lux.Float64
+		item.Lux = &v
+	}
+	if uvLux.Valid {
+		v := uvLux.Float64
+		item.UVLux = &v
+	}
+	if radiation.Valid {
+		v := radiation.Float64
+		item.Radiation = &v
 	}
 	if aqi.Valid {
 		v := aqi.Float64
@@ -455,6 +535,24 @@ func mergeNodeTelemetry(existing, incoming domain.NodeTelemetry) domain.NodeTele
 	if incoming.Pressure != nil {
 		next.Pressure = incoming.Pressure
 	}
+	if incoming.SoilTemperature != nil {
+		next.SoilTemperature = incoming.SoilTemperature
+	}
+	if incoming.SoilMoisture != nil {
+		next.SoilMoisture = incoming.SoilMoisture
+	}
+	if incoming.GasResistance != nil {
+		next.GasResistance = incoming.GasResistance
+	}
+	if incoming.Lux != nil {
+		next.Lux = incoming.Lux
+	}
+	if incoming.UVLux != nil {
+		next.UVLux = incoming.UVLux
+	}
+	if incoming.Radiation != nil {
+		next.Radiation = incoming.Radiation
+	}
 	if incoming.AirQualityIndex != nil {
 		next.AirQualityIndex = incoming.AirQualityIndex
 	}
@@ -483,6 +581,12 @@ func hasTelemetryData(value domain.NodeTelemetry) bool {
 		value.Temperature != nil ||
 		value.Humidity != nil ||
 		value.Pressure != nil ||
+		value.SoilTemperature != nil ||
+		value.SoilMoisture != nil ||
+		value.GasResistance != nil ||
+		value.Lux != nil ||
+		value.UVLux != nil ||
+		value.Radiation != nil ||
 		value.AirQualityIndex != nil ||
 		value.PowerVoltage != nil ||
 		value.PowerCurrent != nil
@@ -498,6 +602,12 @@ func nodeTelemetryEqual(left, right domain.NodeTelemetry) bool {
 		nullableFloat64Equal(left.Temperature, right.Temperature) &&
 		nullableFloat64Equal(left.Humidity, right.Humidity) &&
 		nullableFloat64Equal(left.Pressure, right.Pressure) &&
+		nullableFloat64Equal(left.SoilTemperature, right.SoilTemperature) &&
+		nullableUint32Equal(left.SoilMoisture, right.SoilMoisture) &&
+		nullableFloat64Equal(left.GasResistance, right.GasResistance) &&
+		nullableFloat64Equal(left.Lux, right.Lux) &&
+		nullableFloat64Equal(left.UVLux, right.UVLux) &&
+		nullableFloat64Equal(left.Radiation, right.Radiation) &&
 		nullableFloat64Equal(left.AirQualityIndex, right.AirQualityIndex) &&
 		nullableFloat64Equal(left.PowerVoltage, right.PowerVoltage) &&
 		nullableFloat64Equal(left.PowerCurrent, right.PowerCurrent)

@@ -224,6 +224,7 @@ func (c *UpdateChecker) fetchReleases(ctx context.Context) ([]ReleaseInfo, error
 	}
 	req.Header.Set("Accept", "application/json")
 
+	// #nosec G704 -- endpoint is configured by the app; this request is expected behavior for update checks.
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request releases: %w", err)

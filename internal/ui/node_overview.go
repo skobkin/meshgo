@@ -2,27 +2,34 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/domain"
+	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/resources"
 )
 
 type nodeOverviewOptions struct {
-	Title           string
-	NodeStore       *domain.NodeStore
-	NodeID          func() string
-	OnDirectMessage func(domain.Node)
-	OnTraceroute    func(domain.Node)
-	ShowCloseButton bool
-	OnClose         func()
-	ShowActions     bool
-	ModeLocalNode   bool
+	Title              string
+	NodeStore          *domain.NodeStore
+	NodeID             func() string
+	OnDirectMessage    func(domain.Node)
+	OnTraceroute       func(domain.Node)
+	OnRequestUserInfo  func(domain.Node)
+	OnRequestTelemetry func(domain.Node, radio.TelemetryRequestKind)
+	OnTelemetryLog     func(domain.Node)
+	ShowCloseButton    bool
+	OnClose            func()
+	ShowActions        bool
+	ModeLocalNode      bool
 }
 
 type overviewMetric struct {
@@ -62,13 +69,27 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 
 	powerSection := container.NewVBox()
 	environmentSection := container.NewVBox()
+	airQualitySection := container.NewVBox()
 	otherSection := container.NewVBox()
 	positionSection := container.NewVBox()
 	firmwareSection := container.NewVBox()
 
-	powerCard := overviewCard("Telemetry: Power", powerSection)
-	environmentCard := overviewCard("Telemetry: Environmental and Air", environmentSection)
-	otherCard := overviewCard("Telemetry: Other", otherSection)
+	requestIdentityButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+	requestPowerButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+	requestEnvironmentButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+	requestAirQualityButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+	requestOtherButton := widget.NewButtonWithIcon("", overviewRefreshIconResource(), nil)
+	requestIdentityButton.Disable()
+	requestPowerButton.Disable()
+	requestEnvironmentButton.Disable()
+	requestAirQualityButton.Disable()
+	requestOtherButton.Disable()
+
+	identityCard := overviewCard("Identity", identity, requestIdentityButton)
+	powerCard := overviewCard("Telemetry: Power", powerSection, requestPowerButton)
+	environmentCard := overviewCard("Telemetry: Environmental", environmentSection, requestEnvironmentButton)
+	airQualityCard := overviewCard("Telemetry: Air Quality", airQualitySection, requestAirQualityButton)
+	otherCard := overviewCard("Telemetry: Other", otherSection, requestOtherButton)
 	positionCard := overviewCard("Position", positionSection)
 	firmwareCard := overviewCard("Firmware and Board", firmwareSection)
 
@@ -81,18 +102,13 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 
 	chatButton := widget.NewButton("Chat", nil)
 	tracerouteButton := widget.NewButton("Traceroute", nil)
-	requestUserInfoButton := widget.NewButton("Request user info", nil)
-	requestTelemetryButton := widget.NewButton("Request telemetry", nil)
 	telemetryLogButton := widget.NewButton("Telemetry log", nil)
 	tracerouteLogButton := widget.NewButton("Traceroute log", nil)
-	requestUserInfoButton.Disable()
-	requestTelemetryButton.Disable()
 	telemetryLogButton.Disable()
 	tracerouteLogButton.Disable()
 
 	actionsContent := container.NewVBox(
 		container.NewGridWithColumns(2, chatButton, tracerouteButton),
-		container.NewGridWithColumns(2, requestUserInfoButton, requestTelemetryButton),
 		container.NewGridWithColumns(2, telemetryLogButton, tracerouteLogButton),
 	)
 	actionsCard := overviewCard("Actions", actionsContent)
@@ -101,9 +117,10 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	}
 
 	body := container.NewVBox(
-		overviewCard("Identity", identity),
+		identityCard,
 		powerCard,
 		environmentCard,
+		airQualityCard,
 		otherCard,
 		positionCard,
 		adminCard,
@@ -152,8 +169,14 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			})
 			publicKeyEntry.SetText("")
 			publicKeyCopyButton.Disable()
+			requestIdentityButton.Disable()
+			requestPowerButton.Disable()
+			requestEnvironmentButton.Disable()
+			requestAirQualityButton.Disable()
+			requestOtherButton.Disable()
 			powerCard.Hide()
 			environmentCard.Hide()
+			airQualityCard.Hide()
 			otherCard.Hide()
 			positionCard.Hide()
 			setOverviewSectionMetricRows(firmwareSection, [][]overviewMetric{{
@@ -164,6 +187,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 			firmwareCard.Show()
 			chatButton.Disable()
 			tracerouteButton.Disable()
+			telemetryLogButton.Disable()
 
 			return
 		}
@@ -203,6 +227,33 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		} else {
 			tracerouteButton.Disable()
 		}
+		if opts.OnTelemetryLog != nil {
+			telemetryLogButton.Enable()
+			telemetryLogButton.OnTapped = func() { opts.OnTelemetryLog(node) }
+		} else {
+			telemetryLogButton.Disable()
+		}
+		if opts.OnRequestUserInfo != nil && !opts.ModeLocalNode {
+			requestIdentityButton.Enable()
+			requestIdentityButton.OnTapped = func() { opts.OnRequestUserInfo(node) }
+		} else {
+			requestIdentityButton.Disable()
+		}
+		if opts.OnRequestTelemetry != nil && !opts.ModeLocalNode {
+			requestPowerButton.Enable()
+			requestPowerButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestPower) }
+			requestEnvironmentButton.Enable()
+			requestEnvironmentButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestEnvironment) }
+			requestAirQualityButton.Enable()
+			requestAirQualityButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestAirQuality) }
+			requestOtherButton.Enable()
+			requestOtherButton.OnTapped = func() { opts.OnRequestTelemetry(node, radio.TelemetryRequestDevice) }
+		} else {
+			requestPowerButton.Disable()
+			requestEnvironmentButton.Disable()
+			requestAirQualityButton.Disable()
+			requestOtherButton.Disable()
+		}
 
 		powerMetrics := overviewPowerTelemetryMetrics(node)
 		if len(powerMetrics) == 0 {
@@ -218,6 +269,13 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		} else {
 			setOverviewSectionMetrics(environmentSection, envMetrics)
 			environmentCard.Show()
+		}
+		airQualityMetrics := overviewAirQualityTelemetryMetrics(node)
+		if len(airQualityMetrics) == 0 {
+			airQualityCard.Hide()
+		} else {
+			setOverviewSectionMetrics(airQualitySection, airQualityMetrics)
+			airQualityCard.Show()
 		}
 
 		otherMetrics := overviewOtherTelemetryMetrics(node)
@@ -243,7 +301,7 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 		}})
 	}
 
-	fyne.DoAndWait(render)
+	render()
 
 	if opts.NodeStore != nil {
 		changes := opts.NodeStore.Changes()
@@ -278,11 +336,39 @@ func newNodeOverviewContent(opts nodeOverviewOptions) (fyne.CanvasObject, func()
 	return content, stop
 }
 
-func overviewCard(title string, body fyne.CanvasObject) *fyne.Container {
+func overviewCard(title string, body fyne.CanvasObject, actions ...fyne.CanvasObject) *fyne.Container {
+	titleLabel := widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	if len(actions) == 0 {
+		return container.NewVBox(titleLabel, body)
+	}
+	filtered := make([]fyne.CanvasObject, 0, len(actions))
+	for _, action := range actions {
+		if action != nil {
+			filtered = append(filtered, action)
+		}
+	}
+	if len(filtered) == 0 {
+		return container.NewVBox(titleLabel, body)
+	}
+
 	return container.NewVBox(
-		widget.NewLabelWithStyle(title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		container.NewHBox(titleLabel, layout.NewSpacer(), container.NewHBox(filtered...)),
 		body,
 	)
+}
+
+func overviewRefreshIconResource() fyne.Resource {
+	app := fyne.CurrentApp()
+	if app != nil {
+		if res := resources.UIIconResource(resources.UIIconRefresh, app.Settings().ThemeVariant()); res != nil {
+			return res
+		}
+	}
+	if fallback := resources.UIIconResource(resources.UIIconRefresh, theme.VariantDark); fallback != nil {
+		return fallback
+	}
+
+	return theme.ViewRefreshIcon()
 }
 
 func setOverviewSectionMetrics(section *fyne.Container, metrics []overviewMetric) {
@@ -428,7 +514,7 @@ func overviewEnvironmentTelemetry(node domain.Node) string {
 }
 
 func overviewEnvironmentTelemetryMetrics(node domain.Node) []overviewMetric {
-	metrics := make([]overviewMetric, 0, 5)
+	metrics := make([]overviewMetric, 0, 10)
 	if node.Temperature != nil {
 		metrics = append(metrics, overviewMetric{Label: "Temperature", Value: fmt.Sprintf("%.1f C", *node.Temperature)})
 	}
@@ -438,6 +524,53 @@ func overviewEnvironmentTelemetryMetrics(node domain.Node) []overviewMetric {
 	if node.Pressure != nil {
 		metrics = append(metrics, overviewMetric{Label: "Pressure", Value: fmt.Sprintf("%.1f hPa", *node.Pressure)})
 	}
+	if node.SoilTemperature != nil {
+		metrics = append(metrics, overviewMetric{Label: "Soil temperature", Value: fmt.Sprintf("%.1f C", *node.SoilTemperature)})
+	}
+	if node.SoilMoisture != nil {
+		metrics = append(metrics, overviewMetric{Label: "Soil moisture", Value: fmt.Sprintf("%d%%", *node.SoilMoisture)})
+	}
+	if dewPoint, ok := calculateDewPointCelsius(node.Temperature, node.Humidity); ok {
+		metrics = append(metrics, overviewMetric{Label: "Dew point", Value: fmt.Sprintf("%.1f C", dewPoint)})
+	}
+	if node.GasResistance != nil {
+		metrics = append(metrics, overviewMetric{Label: "Gas resistance", Value: fmt.Sprintf("%.2f MOhm", *node.GasResistance)})
+	}
+	if node.Lux != nil {
+		metrics = append(metrics, overviewMetric{Label: "Light", Value: fmt.Sprintf("%.1f lx", *node.Lux)})
+	}
+	if node.UVLux != nil {
+		metrics = append(metrics, overviewMetric{Label: "UV light", Value: fmt.Sprintf("%.1f UVlx", *node.UVLux)})
+	}
+	if node.Radiation != nil {
+		metrics = append(metrics, overviewMetric{Label: "Radiation", Value: fmt.Sprintf("%.2f uR/h", *node.Radiation)})
+	}
+
+	return metrics
+}
+
+func calculateDewPointCelsius(temperature, humidity *float64) (float64, bool) {
+	if temperature == nil || humidity == nil || *humidity <= 0 {
+		return 0, false
+	}
+	const (
+		a = 17.27
+		b = 237.7
+	)
+	alpha := (a * *temperature / (b + *temperature)) + math.Log(*humidity/100.0)
+	if math.IsNaN(alpha) || math.IsInf(alpha, 0) {
+		return 0, false
+	}
+	dewPoint := (b * alpha) / (a - alpha)
+	if math.IsNaN(dewPoint) || math.IsInf(dewPoint, 0) {
+		return 0, false
+	}
+
+	return dewPoint, true
+}
+
+func overviewAirQualityTelemetryMetrics(node domain.Node) []overviewMetric {
+	metrics := make([]overviewMetric, 0, 1)
 	if node.AirQualityIndex != nil {
 		metrics = append(metrics, overviewMetric{Label: "Air quality index", Value: fmt.Sprintf("%.1f", *node.AirQualityIndex)})
 	}
@@ -523,6 +656,15 @@ func showNodeOverviewModal(
 		OnTraceroute: func(target domain.Node) {
 			handleNodeTracerouteAction(window, dep, target)
 		},
+		OnRequestUserInfo: func(target domain.Node) {
+			handleNodeRequestUserInfoAction(dep, target)
+		},
+		OnRequestTelemetry: func(target domain.Node, kind radio.TelemetryRequestKind) {
+			handleNodeRequestTelemetryAction(dep, target, kind)
+		},
+		OnTelemetryLog: func(target domain.Node) {
+			handleNodeTelemetryLogAction(window, dep, target)
+		},
 	}
 	var modal *widget.PopUp
 	var stop func()
@@ -551,6 +693,9 @@ func newNodeOverviewSettingsPage(dep RuntimeDependencies) fyne.CanvasObject {
 		},
 		ShowActions:   true,
 		ModeLocalNode: true,
+		OnTelemetryLog: func(target domain.Node) {
+			handleNodeTelemetryLogAction(currentRuntimeWindow(dep), dep, target)
+		},
 	})
 
 	return content

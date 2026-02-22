@@ -18,8 +18,9 @@ type NodeUserSettings struct {
 
 // NodeSecuritySettings contains editable security config settings.
 type NodeSecuritySettings struct {
-	NodeID              string
-	PublicKey           []byte
+	NodeID    string
+	PublicKey []byte
+	//nolint:gosec // Private key bytes are intentionally modeled for device settings read/write.
 	PrivateKey          []byte
 	AdminKeys           [][]byte
 	IsManaged           bool
@@ -126,10 +127,11 @@ type NodeBluetoothSettings struct {
 
 // NodeMQTTSettings contains editable MQTT module settings.
 type NodeMQTTSettings struct {
-	NodeID                        string
-	Enabled                       bool
-	Address                       string
-	Username                      string
+	NodeID   string
+	Enabled  bool
+	Address  string
+	Username string
+	//nolint:gosec // Password is intentionally modeled for MQTT settings read/write.
 	Password                      string
 	EncryptionEnabled             bool
 	JSONEnabled                   bool

@@ -126,6 +126,161 @@ func TestMeshtasticCodec_EncodeTraceroutePacket(t *testing.T) {
 	}
 }
 
+func TestMeshtasticCodec_EncodeNodeInfoRequestPacket(t *testing.T) {
+	codec := mustNewMeshtasticCodec(t)
+
+	requester := &generated.User{
+		LongName:  "Requester",
+		ShortName: "REQ",
+	}
+	encoded, err := codec.EncodeNodeInfoRequest(0x1234abcd, 3, requester)
+	if err != nil {
+		t.Fatalf("encode node info request: %v", err)
+	}
+	if encoded.DeviceMessageID == "" {
+		t.Fatalf("expected non-empty device message id")
+	}
+
+	var wire generated.ToRadio
+	if err := proto.Unmarshal(encoded.Payload, &wire); err != nil {
+		t.Fatalf("unmarshal toradio: %v", err)
+	}
+	packet := wire.GetPacket()
+	if packet == nil {
+		t.Fatalf("expected packet payload variant")
+	}
+	if packet.GetTo() != 0x1234abcd {
+		t.Fatalf("unexpected destination: %d", packet.GetTo())
+	}
+	if packet.GetChannel() != 3 {
+		t.Fatalf("unexpected channel: %d", packet.GetChannel())
+	}
+	decoded := packet.GetDecoded()
+	if decoded == nil {
+		t.Fatalf("expected decoded data")
+	}
+	if decoded.GetPortnum() != generated.PortNum_NODEINFO_APP {
+		t.Fatalf("unexpected portnum: %s", decoded.GetPortnum())
+	}
+	if !decoded.GetWantResponse() {
+		t.Fatalf("expected want_response=true")
+	}
+	var gotRequester generated.User
+	if err := proto.Unmarshal(decoded.GetPayload(), &gotRequester); err != nil {
+		t.Fatalf("unmarshal requester payload: %v", err)
+	}
+	if gotRequester.GetLongName() != requester.GetLongName() {
+		t.Fatalf("unexpected requester long name: %q", gotRequester.GetLongName())
+	}
+	if gotRequester.GetShortName() != requester.GetShortName() {
+		t.Fatalf("unexpected requester short name: %q", gotRequester.GetShortName())
+	}
+}
+
+func TestMeshtasticCodec_EncodeTelemetryRequestPacket(t *testing.T) {
+	tests := []struct {
+		name      string
+		kind      TelemetryRequestKind
+		assertReq func(t *testing.T, telemetry *generated.Telemetry)
+	}{
+		{
+			name: "device",
+			kind: TelemetryRequestDevice,
+			assertReq: func(t *testing.T, telemetry *generated.Telemetry) {
+				t.Helper()
+				if telemetry.GetDeviceMetrics() == nil {
+					t.Fatalf("expected device_metrics payload")
+				}
+				if telemetry.GetEnvironmentMetrics() != nil || telemetry.GetAirQualityMetrics() != nil || telemetry.GetPowerMetrics() != nil {
+					t.Fatalf("expected only device_metrics payload")
+				}
+			},
+		},
+		{
+			name: "environment",
+			kind: TelemetryRequestEnvironment,
+			assertReq: func(t *testing.T, telemetry *generated.Telemetry) {
+				t.Helper()
+				if telemetry.GetEnvironmentMetrics() == nil {
+					t.Fatalf("expected environment_metrics payload")
+				}
+				if telemetry.GetDeviceMetrics() != nil || telemetry.GetAirQualityMetrics() != nil || telemetry.GetPowerMetrics() != nil {
+					t.Fatalf("expected only environment_metrics payload")
+				}
+			},
+		},
+		{
+			name: "air_quality",
+			kind: TelemetryRequestAirQuality,
+			assertReq: func(t *testing.T, telemetry *generated.Telemetry) {
+				t.Helper()
+				if telemetry.GetAirQualityMetrics() == nil {
+					t.Fatalf("expected air_quality_metrics payload")
+				}
+				if telemetry.GetDeviceMetrics() != nil || telemetry.GetEnvironmentMetrics() != nil || telemetry.GetPowerMetrics() != nil {
+					t.Fatalf("expected only air_quality_metrics payload")
+				}
+			},
+		},
+		{
+			name: "power",
+			kind: TelemetryRequestPower,
+			assertReq: func(t *testing.T, telemetry *generated.Telemetry) {
+				t.Helper()
+				if telemetry.GetPowerMetrics() == nil {
+					t.Fatalf("expected power_metrics payload")
+				}
+				if telemetry.GetDeviceMetrics() != nil || telemetry.GetEnvironmentMetrics() != nil || telemetry.GetAirQualityMetrics() != nil {
+					t.Fatalf("expected only power_metrics payload")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			codec := mustNewMeshtasticCodec(t)
+			encoded, err := codec.EncodeTelemetryRequest(0x1234abcd, 3, tt.kind)
+			if err != nil {
+				t.Fatalf("encode telemetry request: %v", err)
+			}
+			if encoded.DeviceMessageID == "" {
+				t.Fatalf("expected non-empty device message id")
+			}
+
+			var wire generated.ToRadio
+			if err := proto.Unmarshal(encoded.Payload, &wire); err != nil {
+				t.Fatalf("unmarshal toradio: %v", err)
+			}
+			packet := wire.GetPacket()
+			if packet == nil {
+				t.Fatalf("expected packet payload variant")
+			}
+			if packet.GetTo() != 0x1234abcd {
+				t.Fatalf("unexpected destination: %d", packet.GetTo())
+			}
+			if packet.GetChannel() != 3 {
+				t.Fatalf("unexpected channel: %d", packet.GetChannel())
+			}
+			decoded := packet.GetDecoded()
+			if decoded == nil {
+				t.Fatalf("expected decoded data")
+			}
+			if decoded.GetPortnum() != generated.PortNum_TELEMETRY_APP {
+				t.Fatalf("unexpected portnum: %s", decoded.GetPortnum())
+			}
+			if !decoded.GetWantResponse() {
+				t.Fatalf("expected want_response=true")
+			}
+			var telemetry generated.Telemetry
+			if err := proto.Unmarshal(decoded.GetPayload(), &telemetry); err != nil {
+				t.Fatalf("unmarshal telemetry payload: %v", err)
+			}
+			tt.assertReq(t, &telemetry)
+		})
+	}
+}
+
 func TestMeshtasticCodec_DecodeFromRadioTraceroutePacket(t *testing.T) {
 	codec := mustNewMeshtasticCodec(t)
 
@@ -234,6 +389,12 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 				Temperature:        proto.Float32(22.7),
 				RelativeHumidity:   proto.Float32(47.3),
 				BarometricPressure: proto.Float32(1008.6),
+				SoilTemperature:    proto.Float32(19.5),
+				SoilMoisture:       proto.Uint32(34),
+				GasResistance:      proto.Float32(0.87),
+				Lux:                proto.Float32(123.0),
+				UvLux:              proto.Float32(456.0),
+				Radiation:          proto.Float32(0.15),
 				Iaq:                proto.Uint32(92),
 				Voltage:            proto.Float32(4.12),
 				Current:            proto.Float32(0.137),
@@ -282,6 +443,12 @@ func TestMeshtasticCodec_DecodeFromRadioTelemetryEnvironmentPacket(t *testing.T)
 	assertFloatPtr(t, node.Temperature, 22.7, "temperature")
 	assertFloatPtr(t, node.Humidity, 47.3, "humidity")
 	assertFloatPtr(t, node.Pressure, 1008.6, "pressure")
+	assertFloatPtr(t, node.SoilTemperature, 19.5, "soil temperature")
+	assertUint32Ptr(t, node.SoilMoisture, 34, "soil moisture")
+	assertFloatPtr(t, node.GasResistance, 0.87, "gas resistance")
+	assertFloatPtr(t, node.Lux, 123.0, "lux")
+	assertFloatPtr(t, node.UVLux, 456.0, "uv lux")
+	assertFloatPtr(t, node.Radiation, 0.15, "radiation")
 	assertFloatPtr(t, node.AirQualityIndex, 92.0, "air quality index")
 	assertFloatPtr(t, node.PowerVoltage, 4.12, "power voltage")
 	assertFloatPtr(t, node.PowerCurrent, 0.137, "power current")

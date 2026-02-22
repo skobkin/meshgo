@@ -48,6 +48,28 @@ type EncodedTraceroute struct {
 	DeviceMessageID string
 }
 
+// EncodedNodeInfoRequest contains an outbound node info request frame and tracking metadata.
+type EncodedNodeInfoRequest struct {
+	Payload         []byte
+	DeviceMessageID string
+}
+
+// TelemetryRequestKind identifies telemetry payload group to request from a node.
+type TelemetryRequestKind string
+
+const (
+	TelemetryRequestDevice      TelemetryRequestKind = "device"
+	TelemetryRequestEnvironment TelemetryRequestKind = "environment"
+	TelemetryRequestAirQuality  TelemetryRequestKind = "air_quality"
+	TelemetryRequestPower       TelemetryRequestKind = "power"
+)
+
+// EncodedTelemetryRequest contains an outbound telemetry request frame and tracking metadata.
+type EncodedTelemetryRequest struct {
+	Payload         []byte
+	DeviceMessageID string
+}
+
 // Codec translates between transport frames and domain events.
 type Codec interface {
 	EncodeWantConfig() ([]byte, error)
@@ -55,5 +77,7 @@ type Codec interface {
 	EncodeText(chatKey, text string, opts TextSendOptions) (EncodedText, error)
 	EncodeAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (EncodedAdmin, error)
 	EncodeTraceroute(to uint32, channel uint32) (EncodedTraceroute, error)
+	EncodeNodeInfoRequest(to uint32, channel uint32, requester *generated.User) (EncodedNodeInfoRequest, error)
+	EncodeTelemetryRequest(to uint32, channel uint32, kind TelemetryRequestKind) (EncodedTelemetryRequest, error)
 	DecodeFromRadio(payload []byte) (DecodedFrame, error)
 }

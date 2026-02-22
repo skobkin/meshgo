@@ -131,8 +131,26 @@ func (s *NodeStore) Upsert(node Node) {
 		if node.Pressure == nil {
 			node.Pressure = existing.Pressure
 		}
+		if node.SoilTemperature == nil {
+			node.SoilTemperature = existing.SoilTemperature
+		}
+		if node.SoilMoisture == nil {
+			node.SoilMoisture = existing.SoilMoisture
+		}
 		if node.AirQualityIndex == nil {
 			node.AirQualityIndex = existing.AirQualityIndex
+		}
+		if node.GasResistance == nil {
+			node.GasResistance = existing.GasResistance
+		}
+		if node.Lux == nil {
+			node.Lux = existing.Lux
+		}
+		if node.UVLux == nil {
+			node.UVLux = existing.UVLux
+		}
+		if node.Radiation == nil {
+			node.Radiation = existing.Radiation
 		}
 		if node.PowerVoltage == nil {
 			node.PowerVoltage = existing.PowerVoltage
@@ -211,6 +229,12 @@ func nodeFromTelemetry(telemetry NodeTelemetry) Node {
 		Temperature:        telemetry.Temperature,
 		Humidity:           telemetry.Humidity,
 		Pressure:           telemetry.Pressure,
+		SoilTemperature:    telemetry.SoilTemperature,
+		SoilMoisture:       telemetry.SoilMoisture,
+		GasResistance:      telemetry.GasResistance,
+		Lux:                telemetry.Lux,
+		UVLux:              telemetry.UVLux,
+		Radiation:          telemetry.Radiation,
 		AirQualityIndex:    telemetry.AirQualityIndex,
 		PowerVoltage:       telemetry.PowerVoltage,
 		PowerCurrent:       telemetry.PowerCurrent,

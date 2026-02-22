@@ -19,6 +19,7 @@ func TestUIIconResource_AllIconsMappedForBothVariants(t *testing.T) {
 		UIIconMapNodeMarker,
 		UIIconUpdateAvailable,
 		UIIconBadgePrimary,
+		UIIconRefresh,
 	}
 
 	variants := []struct {

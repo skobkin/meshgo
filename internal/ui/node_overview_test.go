@@ -105,6 +105,12 @@ func TestOverviewTelemetryHelpers(t *testing.T) {
 	temperature := 22.4
 	humidity := 40.5
 	pressure := 1010.0
+	soilTemperature := 18.7
+	soilMoisture := uint32(43)
+	gasResistance := 0.77
+	lux := 123.0
+	uvLux := 321.0
+	radiation := 0.16
 	aqi := 80.0
 	voltage := 4.01
 	latitude := 1.1
@@ -118,6 +124,12 @@ func TestOverviewTelemetryHelpers(t *testing.T) {
 		Temperature:           &temperature,
 		Humidity:              &humidity,
 		Pressure:              &pressure,
+		SoilTemperature:       &soilTemperature,
+		SoilMoisture:          &soilMoisture,
+		GasResistance:         &gasResistance,
+		Lux:                   &lux,
+		UVLux:                 &uvLux,
+		Radiation:             &radiation,
 		AirQualityIndex:       &aqi,
 		Voltage:               &voltage,
 		LastHeardAt:           time.Now(),
@@ -135,6 +147,8 @@ func TestOverviewTelemetryHelpers(t *testing.T) {
 	}
 	if got := overviewEnvironmentTelemetry(node); got == "" {
 		t.Fatalf("expected environment telemetry text")
+	} else if !strings.Contains(got, "Gas resistance") || !strings.Contains(got, "Dew point") || !strings.Contains(got, "Light") || !strings.Contains(got, "Soil temperature") || !strings.Contains(got, "Soil moisture") || !strings.Contains(got, "UV light") || !strings.Contains(got, "Radiation") {
+		t.Fatalf("expected extended environment metrics in output, got %q", got)
 	}
 	if got := overviewOtherTelemetry(node); got == "" {
 		t.Fatalf("expected other telemetry text")

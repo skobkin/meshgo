@@ -113,6 +113,7 @@ func writeFileAtomically(path string, data []byte, mode os.FileMode) error {
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("close temp file: %w", err)
 	}
+	// #nosec G304,G703 -- path is computed from XDG config dir and fixed file name.
 	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
