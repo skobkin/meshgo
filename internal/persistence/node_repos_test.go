@@ -305,6 +305,49 @@ func TestNodeCoreRepo_ListSortedByLastHeard_IgnoresOutOfRangeRSSI(t *testing.T) 
 	}
 }
 
+func TestNodeCoreRepo_ListSortedByLastHeard_AllowsNullIdentityColumns(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	now := time.Now().UTC()
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO nodes(node_id, long_name, short_name, last_heard_at, updated_at)
+		VALUES(?, ?, ?, ?, ?)
+	`, "!nullid", nil, nil, now.UnixMilli(), now.UnixMilli()); err != nil {
+		t.Fatalf("seed node row: %v", err)
+	}
+
+	repo := NewNodeCoreRepo(db)
+	items, err := repo.ListSortedByLastHeard(ctx)
+	if err != nil {
+		t.Fatalf("list node core: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one core row, got %d", len(items))
+	}
+	if items[0].LongName != "" {
+		t.Fatalf("expected empty long name from NULL, got %q", items[0].LongName)
+	}
+	if items[0].ShortName != "" {
+		t.Fatalf("expected empty short name from NULL, got %q", items[0].ShortName)
+	}
+
+	if err := repo.Upsert(ctx, domain.NodeCoreUpdate{
+		Core: domain.NodeCore{
+			NodeID:      "!nullid",
+			LastHeardAt: now.Add(time.Second),
+			UpdatedAt:   now.Add(time.Second),
+		},
+		Type: domain.NodeUpdateTypeNodeInfoSnapshot,
+	}, 10); err != nil {
+		t.Fatalf("upsert node core with null identity snapshot: %v", err)
+	}
+}
+
 func TestOpenMigratesV11ToV12AndBackfillsSplitTables(t *testing.T) {
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "app.db")

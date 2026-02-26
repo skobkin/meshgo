@@ -246,6 +246,8 @@ func (r *NodeCoreRepo) GetByNodeID(ctx context.Context, nodeID string) (domain.N
 func scanNodeCore(scanner interface{ Scan(dest ...any) error }) (domain.NodeCore, error) {
 	var (
 		item          domain.NodeCore
+		longName      sql.NullString
+		shortName     sql.NullString
 		publicKey     []byte
 		channel       sql.NullInt64
 		board         sql.NullString
@@ -258,8 +260,14 @@ func scanNodeCore(scanner interface{ Scan(dest ...any) error }) (domain.NodeCore
 		snr           sql.NullFloat64
 		updatedMS     int64
 	)
-	if err := scanner.Scan(&item.NodeID, &item.LongName, &item.ShortName, &publicKey, &channel, &board, &firmware, &role, &favorite, &unmessageable, &heardMS, &rssi, &snr, &updatedMS); err != nil {
+	if err := scanner.Scan(&item.NodeID, &longName, &shortName, &publicKey, &channel, &board, &firmware, &role, &favorite, &unmessageable, &heardMS, &rssi, &snr, &updatedMS); err != nil {
 		return domain.NodeCore{}, fmt.Errorf("scan node core row: %w", err)
+	}
+	if longName.Valid {
+		item.LongName = longName.String
+	}
+	if shortName.Valid {
+		item.ShortName = shortName.String
 	}
 	if len(publicKey) > 0 {
 		item.PublicKey = append(make([]byte, 0, len(publicKey)), publicKey...)
@@ -312,6 +320,8 @@ type nodeIdentitySnapshot struct {
 func fetchNodeIdentitySnapshot(ctx context.Context, tx *sql.Tx, nodeID string) (nodeIdentitySnapshot, bool, error) {
 	var (
 		value     nodeIdentitySnapshot
+		longName  sql.NullString
+		shortName sql.NullString
 		publicKey []byte
 	)
 	err := tx.QueryRowContext(ctx, `
@@ -319,13 +329,19 @@ func fetchNodeIdentitySnapshot(ctx context.Context, tx *sql.Tx, nodeID string) (
 		FROM nodes
 		WHERE node_id = ?
 		LIMIT 1
-	`, nodeID).Scan(&value.LongName, &value.ShortName, &publicKey)
+	`, nodeID).Scan(&longName, &shortName, &publicKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nodeIdentitySnapshot{}, false, nil
 		}
 
 		return nodeIdentitySnapshot{}, false, fmt.Errorf("query node identity snapshot: %w", err)
+	}
+	if longName.Valid {
+		value.LongName = longName.String
+	}
+	if shortName.Valid {
+		value.ShortName = shortName.String
 	}
 	if len(publicKey) > 0 {
 		value.PublicKey = append([]byte(nil), publicKey...)
