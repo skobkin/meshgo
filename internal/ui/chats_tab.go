@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -31,6 +32,7 @@ var chatsLogger = slog.With("component", "ui.chats")
 const messageRowMeasureEpsilon float32 = 0.5
 
 func newChatsTab(
+	window fyne.Window,
 	store *domain.ChatStore,
 	sender MessageSender,
 	nodeNameByID func(string) string,
@@ -40,6 +42,7 @@ func newChatsTab(
 	initialSelectedKey string,
 	openRequests <-chan string,
 	onChatSelected func(string),
+	onDeleteDMChat func(string) error,
 ) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
@@ -77,8 +80,10 @@ func newChatsTab(
 	pendingRequestedChatKey := ""
 	messageItemHeightByID := make(map[widget.ListItemID]float32)
 	messageItemWidthByID := make(map[widget.ListItemID]float32)
+	clearSelectionOnRefresh := false
 
-	chatList := widget.NewList(
+	var chatList *widget.List
+	chatList = widget.NewList(
 		func() int { return len(chats) },
 		func() fyne.CanvasObject {
 			unreadLabel := widget.NewLabel("●")
@@ -87,17 +92,60 @@ func newChatsTab(
 			typeLabel := widget.NewLabel("type")
 			previewLabel := widget.NewLabel("preview")
 
-			return container.NewVBox(
+			return newChatRowItem(container.NewVBox(
 				container.NewHBox(unreadLabel, titleLabel, layout.NewSpacer(), typeLabel),
 				previewLabel,
-			)
+			))
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			if id < 0 || id >= len(chats) {
 				return
 			}
 			chat := chats[id]
-			root := obj.(*fyne.Container)
+			rowItem, ok := obj.(*chatRowItem)
+			if !ok {
+				return
+			}
+			rowItem.onPrimaryTap = func() {
+				chatList.Select(id)
+			}
+			rowItem.onSecondary = func(position fyne.Position) {
+				showChatListContextMenu(canvasForObject(rowItem), position, chat, func(selected domain.Chat, action chatListAction) {
+					if action != chatListActionDelete || !domain.IsDMChat(selected) || onDeleteDMChat == nil {
+						return
+					}
+					if window == nil {
+						chatsLogger.Warn("delete dm chat failed: active window unavailable", "chat_key", selected.Key)
+
+						return
+					}
+					title := chatDisplayTitle(selected, nodeNameByID)
+					if strings.TrimSpace(title) == "" {
+						title = selected.Key
+					}
+					dialog.ShowConfirm(
+						"Delete DM chat?",
+						fmt.Sprintf("Delete local DM history for %s from this desktop app?", title),
+						func(ok bool) {
+							if !ok {
+								return
+							}
+							if selected.Key == selectedKey {
+								clearSelectionOnRefresh = true
+							}
+							if err := onDeleteDMChat(selected.Key); err != nil {
+								if selected.Key == selectedKey {
+									clearSelectionOnRefresh = false
+								}
+								chatsLogger.Warn("delete dm chat failed", "chat_key", selected.Key, "error", err)
+								dialog.ShowError(err, window)
+							}
+						},
+						window,
+					)
+				})
+			}
+			root := rowItem.content.(*fyne.Container)
 			line1 := root.Objects[0].(*fyne.Container)
 			unreadLabel := line1.Objects[0].(*widget.Label)
 			titleLabel := line1.Objects[1].(*widget.Label)
@@ -429,16 +477,22 @@ func newChatsTab(
 		counterLabel.SetText(fmt.Sprintf("%d/200 bytes", count))
 	}
 	entry.OnChanged = updateCounter
+	isSending := false
 
-	setSending := func(inFlight bool) {
-		if inFlight {
+	applyComposerState := func() {
+		canSend := !isSending && selectedKey != "" && sender != nil
+		if canSend {
+			entry.Enable()
+			sendButton.Enable()
+		} else {
 			entry.Disable()
 			sendButton.Disable()
-
-			return
 		}
-		entry.Enable()
-		sendButton.Enable()
+	}
+
+	setSending := func(inFlight bool) {
+		isSending = inFlight
+		applyComposerState()
 	}
 
 	sendCurrent := func() {
@@ -537,18 +591,23 @@ func newChatsTab(
 		updatedChats := store.ChatListSorted()
 		nextSelectedKey := selectedKey
 		requestedChatKey := strings.TrimSpace(pendingRequestedChatKey)
-		if requestedChatKey != "" && hasChat(updatedChats, requestedChatKey) {
+		switch {
+		case requestedChatKey != "" && hasChat(updatedChats, requestedChatKey):
 			nextSelectedKey = requestedChatKey
 			pendingRequestedChatKey = ""
-		}
-		if nextSelectedKey == "" && len(updatedChats) > 0 {
+		case clearSelectionOnRefresh:
+			nextSelectedKey = ""
+			clearSelectionOnRefresh = false
+		case nextSelectedKey == "" && len(updatedChats) > 0:
 			nextSelectedKey = updatedChats[0].Key
 		}
 		if nextSelectedKey != "" && !hasChat(updatedChats, nextSelectedKey) {
+			wasSelectedDM := domain.IsDMKey(nextSelectedKey)
 			nextSelectedKey = ""
-			if len(updatedChats) > 0 {
+			if len(updatedChats) > 0 && !clearSelectionOnRefresh && !wasSelectedDM {
 				nextSelectedKey = updatedChats[0].Key
 			}
+			clearSelectionOnRefresh = false
 		}
 		updatedView := buildChatMessageView(store.Messages(nextSelectedKey), nodeNameByID, localNodeID)
 		if slices.Equal(chats, updatedChats) &&
@@ -579,13 +638,22 @@ func newChatsTab(
 		clear(messageItemWidthByID)
 		markChatRead(store, readIncomingUpToByKey, selectedKey)
 		unreadByKey = chatUnreadByKey(store, chats, readIncomingUpToByKey)
-		chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
+		if selectedKey == "" {
+			chatTitle.SetText("No chat selected")
+			entry.SetText("")
+			sendStatusLabel.SetText("")
+			pendingScrollChatKey = ""
+			pendingScrollMinCount = 0
+		} else {
+			chatTitle.SetText(chatTitleByKey(chats, selectedKey, nodeNameByID))
+		}
 		if replyToDeviceMessageID != "" {
 			if _, ok := messageView.ByDeviceID[replyToDeviceMessageID]; !ok {
 				replyToDeviceMessageID = ""
 			}
 		}
 		refreshReplyIndicator()
+		applyComposerState()
 		chatList.Refresh()
 		messageList.Refresh()
 		ensureReplyShortcut()
@@ -612,6 +680,7 @@ func newChatsTab(
 		chatList.Select(selectedIndex)
 		fyne.Do(func() {
 			refreshReplyIndicator()
+			applyComposerState()
 			ensureReplyShortcut()
 			messageList.Refresh()
 		})
@@ -619,7 +688,14 @@ func newChatsTab(
 		chatList.Select(0)
 		fyne.Do(func() {
 			refreshReplyIndicator()
+			applyComposerState()
 			ensureReplyShortcut()
+			messageList.Refresh()
+		})
+	} else {
+		fyne.Do(func() {
+			applyComposerState()
+			refreshReplyIndicator()
 			messageList.Refresh()
 		})
 	}

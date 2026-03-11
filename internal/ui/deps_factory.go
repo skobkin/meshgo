@@ -43,6 +43,7 @@ func BuildRuntimeDependencies(rt *meshapp.Runtime, launch LaunchOptions, onQuit 
 
 	dep.Actions.OnSave = rt.SaveAndApplyConfig
 	dep.Actions.OnChatSelected = rt.RememberSelectedChat
+	dep.Actions.OnDeleteDMChat = rt.DeleteDMChat
 	dep.Actions.OnMapViewportChanged = rt.RememberMapViewport
 	dep.Actions.OnClearDB = rt.ClearDatabase
 	dep.Actions.OnClearCache = rt.ClearCache

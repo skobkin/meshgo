@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/skobkin/meshgo/internal/domain"
 )
@@ -15,6 +16,19 @@ type ChatRepo struct {
 
 func NewChatRepo(db *sql.DB) *ChatRepo {
 	return &ChatRepo{db: db}
+}
+
+func (r *ChatRepo) Delete(ctx context.Context, chatKey string) error {
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM chats WHERE chat_key = ?`, chatKey); err != nil {
+		return fmt.Errorf("delete chat: %w", err)
+	}
+
+	return nil
 }
 
 func (r *ChatRepo) Upsert(ctx context.Context, c domain.Chat) error {

@@ -374,6 +374,73 @@ func (r *Runtime) RememberMapViewport(zoom, x, y int) {
 	r.mu.Unlock()
 }
 
+func (r *Runtime) DeleteDMChat(chatKey string) error {
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return fmt.Errorf("chat key is required")
+	}
+	if !domain.IsDMKey(chatKey) {
+		return fmt.Errorf("delete dm chat: chat %q is not a DM", chatKey)
+	}
+	if r.Persistence.DB == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tx, err := r.Persistence.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete dm chat transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE chat_key = ?`, chatKey); err != nil {
+		return fmt.Errorf("delete dm chat messages: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chats WHERE chat_key = ?`, chatKey); err != nil {
+		return fmt.Errorf("delete dm chat metadata: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete dm chat: %w", err)
+	}
+	committed = true
+
+	if r.Domain.ChatStore != nil {
+		r.Domain.ChatStore.DeleteChat(chatKey)
+	}
+	if err := r.clearLastSelectedChat(chatKey); err != nil {
+		return err
+	}
+
+	slog.Info("dm chat deleted", "trigger", "user_action", "chat_key", chatKey)
+
+	return nil
+}
+
+func (r *Runtime) clearLastSelectedChat(chatKey string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if strings.TrimSpace(r.Core.Config.UI.LastSelectedChat) != chatKey {
+		return nil
+	}
+
+	cfg := r.Core.Config
+	cfg.UI.LastSelectedChat = ""
+	if err := config.Save(r.Core.Paths.ConfigFile, cfg); err != nil {
+		return fmt.Errorf("clear last selected chat: %w", err)
+	}
+	r.Core.Config = cfg
+
+	return nil
+}
+
 func (r *Runtime) ClearDatabase() error {
 	if r.Persistence.DB == nil {
 		return fmt.Errorf("database is not initialized")

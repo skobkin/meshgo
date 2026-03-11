@@ -83,6 +83,7 @@ type ActionDependencies struct {
 	Traceroute                TracerouteAction
 	OnSave                    func(cfg config.AppConfig) error
 	OnChatSelected            func(chatKey string)
+	OnDeleteDMChat            func(chatKey string) error
 	OnMapViewportChanged      func(zoom, x, y int)
 	OnMapDisplayConfigChanged func(cfg config.MapDisplayConfig)
 	OnClearDB                 func() error

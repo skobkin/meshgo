@@ -329,6 +329,29 @@ func (s *ChatStore) Reset() {
 	s.notify()
 }
 
+func (s *ChatStore) DeleteChat(chatKey string) {
+	if s == nil {
+		return
+	}
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, chatExists := s.chats[chatKey]
+	_, messagesExist := s.messages[chatKey]
+	if !chatExists && !messagesExist {
+		return
+	}
+
+	delete(s.chats, chatKey)
+	delete(s.messages, chatKey)
+	s.notify()
+}
+
 func (s *ChatStore) notify() {
 	select {
 	case s.changes <- struct{}{}:

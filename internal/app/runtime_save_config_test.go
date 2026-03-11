@@ -198,6 +198,122 @@ func TestRuntimeCurrentConfigReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestRuntimeDeleteDMChat_RemovesPersistenceAndState(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(ctx, filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	now := time.Now()
+	nowUnixMillis := now.UnixMilli()
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO chats(chat_key, type, title, last_sent_by_me_at, updated_at)
+		VALUES(?, ?, ?, ?, ?), (?, ?, ?, ?, ?)
+	`,
+		domain.ChatKeyForDM("!12345678"), int(domain.ChatTypeDM), "Alice", nowUnixMillis, nowUnixMillis,
+		domain.ChatKeyForChannel(0), int(domain.ChatTypeChannel), "General", nowUnixMillis, nowUnixMillis,
+	); err != nil {
+		t.Fatalf("seed chats: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO messages(chat_key, device_message_id, reply_to_device_message_id, emoji, direction, body, status, at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		domain.ChatKeyForDM("!12345678"), "100", "99", 1, int(domain.MessageDirectionIn), "hello", int(domain.MessageStatusSent), nowUnixMillis,
+		domain.ChatKeyForChannel(0), "101", nil, 0, int(domain.MessageDirectionIn), "world", int(domain.MessageStatusSent), nowUnixMillis,
+	); err != nil {
+		t.Fatalf("seed messages: %v", err)
+	}
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.Default()
+	cfg.Connection.Transport = config.TransportIP
+	cfg.Connection.Host = "192.168.1.10"
+	cfg.UI.LastSelectedChat = domain.ChatKeyForDM("!12345678")
+	if err := config.Save(configPath, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	chatStore := domain.NewChatStore()
+	chatStore.Load(
+		[]domain.Chat{
+			{Key: domain.ChatKeyForDM("!12345678"), Title: "Alice", Type: domain.ChatTypeDM, UpdatedAt: now},
+			{Key: domain.ChatKeyForChannel(0), Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: now},
+		},
+		map[string][]domain.ChatMessage{
+			domain.ChatKeyForDM("!12345678"): {
+				{ChatKey: domain.ChatKeyForDM("!12345678"), DeviceMessageID: "100", Body: "hello", Direction: domain.MessageDirectionIn, Status: domain.MessageStatusSent, At: now},
+			},
+			domain.ChatKeyForChannel(0): {
+				{ChatKey: domain.ChatKeyForChannel(0), DeviceMessageID: "101", Body: "world", Direction: domain.MessageDirectionIn, Status: domain.MessageStatusSent, At: now},
+			},
+		},
+	)
+
+	rt := &Runtime{
+		Core: RuntimeCore{
+			Config: cfg,
+			Paths: Paths{
+				ConfigFile: configPath,
+			},
+		},
+		Persistence: RuntimePersistence{
+			DB: db,
+		},
+		Domain: RuntimeDomain{
+			ChatStore: chatStore,
+		},
+	}
+
+	if err := rt.DeleteDMChat(domain.ChatKeyForDM("!12345678")); err != nil {
+		t.Fatalf("delete dm chat: %v", err)
+	}
+
+	var chatCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chats WHERE chat_key = ?`, domain.ChatKeyForDM("!12345678")).Scan(&chatCount); err != nil {
+		t.Fatalf("count dm chats: %v", err)
+	}
+	if chatCount != 0 {
+		t.Fatalf("expected dm chat row to be removed, got %d", chatCount)
+	}
+	var messageCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE chat_key = ?`, domain.ChatKeyForDM("!12345678")).Scan(&messageCount); err != nil {
+		t.Fatalf("count dm messages: %v", err)
+	}
+	if messageCount != 0 {
+		t.Fatalf("expected dm messages to be removed, got %d", messageCount)
+	}
+	if _, ok := chatStore.ChatByKey(domain.ChatKeyForDM("!12345678")); ok {
+		t.Fatalf("expected dm chat to be removed from store")
+	}
+	if got := len(chatStore.Messages(domain.ChatKeyForDM("!12345678"))); got != 0 {
+		t.Fatalf("expected dm chat messages to be removed from store, got %d", got)
+	}
+	if rt.Core.Config.UI.LastSelectedChat != "" {
+		t.Fatalf("expected last selected chat to be cleared, got %q", rt.Core.Config.UI.LastSelectedChat)
+	}
+	loadedCfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if loadedCfg.UI.LastSelectedChat != "" {
+		t.Fatalf("expected persisted last selected chat to be cleared, got %q", loadedCfg.UI.LastSelectedChat)
+	}
+}
+
+func TestRuntimeDeleteDMChat_RejectsNonDMChat(t *testing.T) {
+	rt := &Runtime{}
+
+	err := rt.DeleteDMChat(domain.ChatKeyForChannel(0))
+	if err == nil {
+		t.Fatalf("expected non-dm delete to fail")
+	}
+}
+
 func newRuntimeForSaveConfigTests(t *testing.T) *Runtime {
 	t.Helper()
 

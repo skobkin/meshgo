@@ -86,6 +86,9 @@ func TestBuildRuntimeDependencies_MapsRuntimeAndLaunch(t *testing.T) {
 	if dep.Actions.OnChatSelected == nil {
 		t.Fatalf("expected chat selected action to be mapped")
 	}
+	if dep.Actions.OnDeleteDMChat == nil {
+		t.Fatalf("expected delete dm chat action to be mapped")
+	}
 	if dep.Actions.OnMapViewportChanged == nil {
 		t.Fatalf("expected map viewport action to be mapped")
 	}
@@ -134,6 +137,9 @@ func TestBuildRuntimeDependencies_NilRuntimeStillMapsLaunchAndQuit(t *testing.T)
 	}
 	if dep.Actions.Traceroute != nil {
 		t.Fatalf("expected traceroute action to stay nil for nil runtime")
+	}
+	if dep.Actions.OnDeleteDMChat != nil {
+		t.Fatalf("expected delete dm chat action to stay nil for nil runtime")
 	}
 	if dep.Actions.OnMapViewportChanged != nil {
 		t.Fatalf("expected map viewport action to stay nil for nil runtime")

@@ -39,6 +39,7 @@ func buildMainView(
 	}
 
 	chatsTab := newChatsTab(
+		window,
 		dep.Data.ChatStore,
 		dep.Actions.Sender,
 		resolveNodeDisplayName(dep.Data.NodeStore),
@@ -48,6 +49,7 @@ func buildMainView(
 		dep.Data.LastSelectedChat,
 		dmOpenRequests,
 		dep.Actions.OnChatSelected,
+		dep.Actions.OnDeleteDMChat,
 	)
 	nodeActionHandler := func(node domain.Node, action NodeAction) {
 		switch action {

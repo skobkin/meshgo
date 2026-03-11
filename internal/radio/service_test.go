@@ -205,6 +205,14 @@ func (c *stubCodec) EncodeTraceroute(uint32, uint32) (EncodedTraceroute, error) 
 	return EncodedTraceroute{}, nil
 }
 
+func (c *stubCodec) EncodeNodeInfoRequest(uint32, uint32, *generated.User) (EncodedNodeInfoRequest, error) {
+	return EncodedNodeInfoRequest{}, nil
+}
+
+func (c *stubCodec) EncodeTelemetryRequest(uint32, uint32, TelemetryRequestKind) (EncodedTelemetryRequest, error) {
+	return EncodedTelemetryRequest{}, nil
+}
+
 func (c *stubCodec) DecodeFromRadio([]byte) (DecodedFrame, error) {
 	c.mu.Lock()
 	c.decodeCalls++

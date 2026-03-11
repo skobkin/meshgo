@@ -794,6 +794,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 	)
 
 	tab := newChatsTab(
+		nil,
 		store,
 		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			result := make(chan radio.SendResult, 1)
@@ -807,6 +808,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 		nil,
 	)
@@ -846,6 +848,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 
 	sendAttempt := 0
 	tab := newChatsTab(
+		nil,
 		store,
 		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			sendAttempt++
@@ -864,6 +867,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 		nil,
 	)
@@ -916,6 +920,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 	)
 
 	tab := newChatsTab(
+		nil,
 		store,
 		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			result := make(chan radio.SendResult, 1)
@@ -929,6 +934,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 		nil,
 	)
@@ -958,6 +964,7 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 	var selectedKeysMu sync.Mutex
 	selectedKeys := make([]string, 0, 2)
 	tab := newChatsTab(
+		nil,
 		store,
 		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
 			result := make(chan radio.SendResult, 1)
@@ -977,6 +984,7 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 			selectedKeys = append(selectedKeys, chatKey)
 			selectedKeysMu.Unlock()
 		},
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -990,6 +998,79 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 		}
 
 		return selectedKeys[len(selectedKeys)-1] == "dm:!0000002a"
+	})
+}
+
+func TestChatListContextMenuDeleteDisabledForChannel(t *testing.T) {
+	menu := newChatListContextMenu(domain.Chat{Key: "channel:0", Title: "General", Type: domain.ChatTypeChannel}, nil)
+	if len(menu.Items) != 1 {
+		t.Fatalf("expected one menu item, got %d", len(menu.Items))
+	}
+	if !menu.Items[0].Disabled {
+		t.Fatalf("expected delete action to be disabled for channel chat")
+	}
+}
+
+func TestChatListContextMenuDeleteEnabledForDM(t *testing.T) {
+	menu := newChatListContextMenu(domain.Chat{Key: "dm:!12345678", Title: "Alice", Type: domain.ChatTypeDM}, nil)
+	if len(menu.Items) != 1 {
+		t.Fatalf("expected one menu item, got %d", len(menu.Items))
+	}
+	if menu.Items[0].Disabled {
+		t.Fatalf("expected delete action to be enabled for dm chat")
+	}
+}
+
+func TestChatsTabStoreDeleteSelectedDMClearsSelectionAndDisablesComposer(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	store := domain.NewChatStore()
+	base := time.Now()
+	store.Load(
+		[]domain.Chat{
+			{Key: "channel:0", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: base.Add(1 * time.Hour)},
+			{Key: "dm:!0000002a", Title: "dm:!0000002a", Type: domain.ChatTypeDM, UpdatedAt: base},
+		},
+		map[string][]domain.ChatMessage{
+			"dm:!0000002a": {
+				{ChatKey: "dm:!0000002a", Body: "hello", Direction: domain.MessageDirectionIn, Status: domain.MessageStatusSent, At: base},
+			},
+		},
+	)
+
+	tab := newChatsTab(
+		nil,
+		store,
+		sendTextFunc(func(_ string, _ string, _ radio.TextSendOptions) <-chan radio.SendResult {
+			result := make(chan radio.SendResult, 1)
+			result <- radio.SendResult{}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		nil,
+		"dm:!0000002a",
+		nil,
+		nil,
+		nil,
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	fyne.DoAndWait(func() {
+		store.DeleteChat("dm:!0000002a")
+	})
+
+	entry := mustFindEntryByPlaceholder(t, tab, "Type message (max 200 bytes)")
+	sendButton := mustFindButtonByText(t, tab, "Send")
+	waitForCondition(t, func() bool {
+		title := findLabelByPrefix(tab, "No chat selected")
+
+		return title != nil && entry.Disabled() && sendButton.Disabled()
 	})
 }
 

@@ -18,6 +18,19 @@ func NewMessageRepo(db *sql.DB) *MessageRepo {
 	return &MessageRepo{db: db}
 }
 
+func (r *MessageRepo) DeleteByChat(ctx context.Context, chatKey string) error {
+	chatKey = strings.TrimSpace(chatKey)
+	if chatKey == "" {
+		return nil
+	}
+
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM messages WHERE chat_key = ?`, chatKey); err != nil {
+		return fmt.Errorf("delete messages by chat: %w", err)
+	}
+
+	return nil
+}
+
 func (r *MessageRepo) Insert(ctx context.Context, m domain.ChatMessage) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO messages(chat_key, device_message_id, reply_to_device_message_id, emoji, direction, body, status, at, meta_json)

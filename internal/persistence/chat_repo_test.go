@@ -53,3 +53,38 @@ func TestChatRepoUpsert_PreservesNamedChannelTitleOnKeyFallbackUpdate(t *testing
 		t.Fatalf("expected title to remain LongFast, got %q", chats[0].Title)
 	}
 }
+
+func TestChatRepoDelete_RemovesOnlyTargetChat(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "app.db")
+
+	db, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := NewChatRepo(db)
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := repo.Upsert(ctx, domain.Chat{Key: "dm:!1234abcd", Type: domain.ChatTypeDM, Title: "Alice", UpdatedAt: now}); err != nil {
+		t.Fatalf("upsert dm chat: %v", err)
+	}
+	if err := repo.Upsert(ctx, domain.Chat{Key: "channel:0", Type: domain.ChatTypeChannel, Title: "General", UpdatedAt: now}); err != nil {
+		t.Fatalf("upsert channel chat: %v", err)
+	}
+
+	if err := repo.Delete(ctx, "dm:!1234abcd"); err != nil {
+		t.Fatalf("delete chat: %v", err)
+	}
+
+	chats, err := repo.ListSortedByLastSentByMe(ctx)
+	if err != nil {
+		t.Fatalf("list chats: %v", err)
+	}
+	if len(chats) != 1 {
+		t.Fatalf("expected one chat after delete, got %d", len(chats))
+	}
+	if chats[0].Key != "channel:0" {
+		t.Fatalf("expected remaining chat to be channel:0, got %q", chats[0].Key)
+	}
+}
