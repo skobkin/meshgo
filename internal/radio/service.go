@@ -157,6 +157,14 @@ func (s *Service) runReader(ctx context.Context) error {
 		payload, err := s.transport.ReadFrame(readCtx)
 		cancel()
 		if err != nil {
+			// Treat idle read deadlines as a non-fatal "no frame yet" condition.
+			// This is correct for the current serial transport, but the policy is
+			// transport-specific and is a likely refactoring target if transports
+			// need distinct idle-timeout semantics.
+			if isIdleReadTimeout(err) {
+				continue
+			}
+
 			return err
 		}
 
@@ -198,6 +206,10 @@ func (s *Service) runReader(ctx context.Context) error {
 			s.bus.Publish(bus.TopicMessageStatus, status)
 		}
 	}
+}
+
+func isIdleReadTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func (s *Service) runKeepAlive(ctx context.Context) {
