@@ -12,6 +12,7 @@ import (
 type chatListAction string
 
 const (
+	chatListActionShare  chatListAction = "share"
 	chatListActionDelete chatListAction = "delete"
 )
 
@@ -23,6 +24,15 @@ func newChatListContextMenu(chat domain.Chat, onAction chatListActionHandler) *f
 		title = "Chat"
 	}
 
+	items := make([]*fyne.MenuItem, 0, 2)
+	if !domain.IsDMChat(chat) {
+		items = append(items, fyne.NewMenuItem("Share", func() {
+			if onAction != nil {
+				onAction(chat, chatListActionShare)
+			}
+		}))
+	}
+
 	deleteItem := fyne.NewMenuItem("Delete chat", func() {
 		if onAction != nil {
 			onAction(chat, chatListActionDelete)
@@ -31,8 +41,9 @@ func newChatListContextMenu(chat domain.Chat, onAction chatListActionHandler) *f
 	if !domain.IsDMChat(chat) {
 		deleteItem.Disabled = true
 	}
+	items = append(items, deleteItem)
 
-	return fyne.NewMenu(title, deleteItem)
+	return fyne.NewMenu(title, items...)
 }
 
 func showChatListContextMenu(

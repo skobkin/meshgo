@@ -50,11 +50,16 @@ func buildMainView(
 		dmOpenRequests,
 		dep.Actions.OnChatSelected,
 		dep.Actions.OnDeleteDMChat,
+		func(chat domain.Chat) {
+			handleChannelShareAction(window, dep, chat)
+		},
 	)
 	nodeActionHandler := func(node domain.Node, action NodeAction) {
 		switch action {
 		case NodeActionDirectMessage:
 			handleNodeDirectMessageAction(dep, switchToChats, openDMChat, node)
+		case NodeActionShare:
+			handleNodeShareContactAction(window, dep, node)
 		case NodeActionFavorite:
 			handleNodeFavoriteAction(window, dep, node, node.IsFavorite == nil || !*node.IsFavorite)
 		case NodeActionTraceroute:

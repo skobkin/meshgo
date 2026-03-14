@@ -14,6 +14,7 @@ type NodeAction string
 
 const (
 	NodeActionDirectMessage NodeAction = "direct_message"
+	NodeActionShare         NodeAction = "share"
 	NodeActionFavorite      NodeAction = "favorite"
 	NodeActionTraceroute    NodeAction = "traceroute"
 	NodeActionInfo          NodeAction = "info"
@@ -32,6 +33,11 @@ func newNodeContextMenu(node domain.Node, isLocal bool, onAction NodeActionHandl
 		fyne.NewMenuItem("Direct message", func() {
 			if onAction != nil {
 				onAction(node, NodeActionDirectMessage)
+			}
+		}),
+		fyne.NewMenuItem("Share", func() {
+			if onAction != nil {
+				onAction(node, NodeActionShare)
 			}
 		}),
 	}

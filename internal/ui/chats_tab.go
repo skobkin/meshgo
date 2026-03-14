@@ -43,6 +43,7 @@ func newChatsTab(
 	openRequests <-chan string,
 	onChatSelected func(string),
 	onDeleteDMChat func(string) error,
+	onShareChannel func(domain.Chat),
 ) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
@@ -111,38 +112,45 @@ func newChatsTab(
 			}
 			rowItem.onSecondary = func(position fyne.Position) {
 				showChatListContextMenu(canvasForObject(rowItem), position, chat, func(selected domain.Chat, action chatListAction) {
-					if action != chatListActionDelete || !domain.IsDMChat(selected) || onDeleteDMChat == nil {
-						return
-					}
-					if window == nil {
-						chatsLogger.Warn("delete dm chat failed: active window unavailable", "chat_key", selected.Key)
+					switch action {
+					case chatListActionShare:
+						if onShareChannel != nil {
+							onShareChannel(selected)
+						}
+					case chatListActionDelete:
+						if !domain.IsDMChat(selected) || onDeleteDMChat == nil {
+							return
+						}
+						if window == nil {
+							chatsLogger.Warn("delete dm chat failed: active window unavailable", "chat_key", selected.Key)
 
-						return
-					}
-					title := chatDisplayTitle(selected, nodeNameByID)
-					if strings.TrimSpace(title) == "" {
-						title = selected.Key
-					}
-					dialog.ShowConfirm(
-						"Delete DM chat?",
-						fmt.Sprintf("Delete local DM history for %s from this desktop app?", title),
-						func(ok bool) {
-							if !ok {
-								return
-							}
-							if selected.Key == selectedKey {
-								clearSelectionOnRefresh = true
-							}
-							if err := onDeleteDMChat(selected.Key); err != nil {
-								if selected.Key == selectedKey {
-									clearSelectionOnRefresh = false
+							return
+						}
+						title := chatDisplayTitle(selected, nodeNameByID)
+						if strings.TrimSpace(title) == "" {
+							title = selected.Key
+						}
+						dialog.ShowConfirm(
+							"Delete DM chat?",
+							fmt.Sprintf("Delete local DM history for %s from this desktop app?", title),
+							func(ok bool) {
+								if !ok {
+									return
 								}
-								chatsLogger.Warn("delete dm chat failed", "chat_key", selected.Key, "error", err)
-								dialog.ShowError(err, window)
-							}
-						},
-						window,
-					)
+								if selected.Key == selectedKey {
+									clearSelectionOnRefresh = true
+								}
+								if err := onDeleteDMChat(selected.Key); err != nil {
+									if selected.Key == selectedKey {
+										clearSelectionOnRefresh = false
+									}
+									chatsLogger.Warn("delete dm chat failed", "chat_key", selected.Key, "error", err)
+									dialog.ShowError(err, window)
+								}
+							},
+							window,
+						)
+					}
 				})
 			}
 			root := rowItem.content.(*fyne.Container)

@@ -811,6 +811,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -867,6 +868,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 		nil,
 		nil,
@@ -937,6 +939,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -985,6 +988,7 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 			selectedKeysMu.Unlock()
 		},
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -1003,10 +1007,16 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 
 func TestChatListContextMenuDeleteDisabledForChannel(t *testing.T) {
 	menu := newChatListContextMenu(domain.Chat{Key: "channel:0", Title: "General", Type: domain.ChatTypeChannel}, nil)
-	if len(menu.Items) != 1 {
-		t.Fatalf("expected one menu item, got %d", len(menu.Items))
+	if len(menu.Items) != 2 {
+		t.Fatalf("expected two menu items, got %d", len(menu.Items))
 	}
-	if !menu.Items[0].Disabled {
+	if menu.Items[0].Label != "Share" {
+		t.Fatalf("unexpected first menu item label: %q", menu.Items[0].Label)
+	}
+	if menu.Items[1].Label != "Delete chat" {
+		t.Fatalf("unexpected second menu item label: %q", menu.Items[1].Label)
+	}
+	if !menu.Items[1].Disabled {
 		t.Fatalf("expected delete action to be disabled for channel chat")
 	}
 }
@@ -1015,6 +1025,9 @@ func TestChatListContextMenuDeleteEnabledForDM(t *testing.T) {
 	menu := newChatListContextMenu(domain.Chat{Key: "dm:!12345678", Title: "Alice", Type: domain.ChatTypeDM}, nil)
 	if len(menu.Items) != 1 {
 		t.Fatalf("expected one menu item, got %d", len(menu.Items))
+	}
+	if menu.Items[0].Label != "Delete chat" {
+		t.Fatalf("unexpected item label: %q", menu.Items[0].Label)
 	}
 	if menu.Items[0].Disabled {
 		t.Fatalf("expected delete action to be enabled for dm chat")
@@ -1055,6 +1068,7 @@ func TestChatsTabStoreDeleteSelectedDMClearsSelectionAndDisablesComposer(t *test
 		nil,
 		nil,
 		"dm:!0000002a",
+		nil,
 		nil,
 		nil,
 		nil,
