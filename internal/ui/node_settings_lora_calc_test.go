@@ -40,7 +40,7 @@ func TestNodeLoRaPrimaryTitleFromChatStore(t *testing.T) {
 func TestNodeLoRaPrimaryChannelTitleFallback(t *testing.T) {
 	settings := app.NodeLoRaSettings{
 		UsePreset:   true,
-		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		ModemPreset: app.LoRaModemPresetLongFast,
 	}
 	if got := nodeLoRaPrimaryChannelTitle(settings, ""); got != "LongFast" {
 		t.Fatalf("expected LongFast, got %q", got)
@@ -53,7 +53,7 @@ func TestNodeLoRaPrimaryChannelTitleFallback(t *testing.T) {
 func TestNodeLoRaNumChannelsUsesAndroidRules(t *testing.T) {
 	settings := app.NodeLoRaSettings{
 		UsePreset:   true,
-		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		ModemPreset: app.LoRaModemPresetLongFast,
 		Region:      int32(generated.Config_LoRaConfig_EU_868),
 	}
 	if got := nodeLoRaNumChannels(settings); got != 1 {
@@ -69,10 +69,14 @@ func TestNodeLoRaNumChannelsUsesAndroidRules(t *testing.T) {
 func TestNodeLoRaEffectiveChannelNum(t *testing.T) {
 	settings := app.NodeLoRaSettings{
 		UsePreset:   true,
-		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		ModemPreset: app.LoRaModemPresetLongFast,
 		Region:      int32(generated.Config_LoRaConfig_US),
 	}
-	expected := (nodeLoRaDJB2("Primary") % nodeLoRaNumChannels(settings)) + 1
+	expected := app.LoRaEffectiveChannelNum(app.NodeLoRaSettings{
+		UsePreset:   true,
+		ModemPreset: app.LoRaModemPresetLongFast,
+		Region:      int32(generated.Config_LoRaConfig_US),
+	}, "Primary")
 	if got := nodeLoRaEffectiveChannelNum(settings, "Primary"); got != expected {
 		t.Fatalf("expected %d, got %d", expected, got)
 	}
@@ -86,7 +90,7 @@ func TestNodeLoRaEffectiveChannelNum(t *testing.T) {
 func TestNodeLoRaEffectiveRadioFreq(t *testing.T) {
 	settings := app.NodeLoRaSettings{
 		UsePreset:   true,
-		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		ModemPreset: app.LoRaModemPresetLongFast,
 		Region:      int32(generated.Config_LoRaConfig_US),
 		ChannelNum:  1,
 	}
@@ -105,15 +109,17 @@ func TestNodeLoRaEffectiveRadioFreq(t *testing.T) {
 func TestNodeLoRaBandwidthMHz(t *testing.T) {
 	settings := app.NodeLoRaSettings{
 		UsePreset:   true,
-		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		ModemPreset: app.LoRaModemPresetLongFast,
+		Region:      int32(generated.Config_LoRaConfig_LORA_24),
 	}
-	if got := nodeLoRaBandwidthMHz(settings, nodeLoRaRegionInfo{WideLoRa: true}); got != float32(0.8125) {
+	if got := nodeLoRaBandwidthMHz(settings); got != float32(0.8125) {
 		t.Fatalf("expected 0.8125 for wide LoRa LONG_FAST, got %v", got)
 	}
 
 	settings.UsePreset = false
 	settings.Bandwidth = 200
-	if got := nodeLoRaBandwidthMHz(settings, nodeLoRaRegionInfo{}); got != float32(0.203125) {
+	settings.Region = int32(generated.Config_LoRaConfig_US)
+	if got := nodeLoRaBandwidthMHz(settings); got != float32(0.203125) {
 		t.Fatalf("expected 0.203125 for bandwidth code 200, got %v", got)
 	}
 }

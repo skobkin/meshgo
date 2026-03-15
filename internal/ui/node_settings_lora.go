@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -818,70 +817,19 @@ var nodeLoRaRegionOptions = []nodeLoRaEnumOption{
 }
 
 var nodeLoRaModemPresetOptions = []nodeLoRaEnumOption{
-	{Label: "Long Fast", Value: int32(generated.Config_LoRaConfig_LONG_FAST)},
-	// Value 1 and 2 are preserved for firmware compatibility; upstream enum names are deprecated.
-	{Label: "Long Slow", Value: 1},
-	{Label: "Very Long Slow", Value: 2},
-	{Label: "Medium Slow", Value: int32(generated.Config_LoRaConfig_MEDIUM_SLOW)},
-	{Label: "Medium Fast", Value: int32(generated.Config_LoRaConfig_MEDIUM_FAST)},
-	{Label: "Short Slow", Value: int32(generated.Config_LoRaConfig_SHORT_SLOW)},
-	{Label: "Short Fast", Value: int32(generated.Config_LoRaConfig_SHORT_FAST)},
-	{Label: "Long Moderate", Value: int32(generated.Config_LoRaConfig_LONG_MODERATE)},
-	{Label: "Short Turbo", Value: int32(generated.Config_LoRaConfig_SHORT_TURBO)},
-	{Label: "Long Turbo", Value: int32(generated.Config_LoRaConfig_LONG_TURBO)},
+	{Label: "Long Fast", Value: app.LoRaModemPresetLongFast},
+	{Label: "Long Slow", Value: app.LoRaModemPresetLongSlow},
+	{Label: "Very Long Slow", Value: app.LoRaModemPresetVeryLongSlow},
+	{Label: "Medium Slow", Value: app.LoRaModemPresetMediumSlow},
+	{Label: "Medium Fast", Value: app.LoRaModemPresetMediumFast},
+	{Label: "Short Slow", Value: app.LoRaModemPresetShortSlow},
+	{Label: "Short Fast", Value: app.LoRaModemPresetShortFast},
+	{Label: "Long Moderate", Value: app.LoRaModemPresetLongModerate},
+	{Label: "Short Turbo", Value: app.LoRaModemPresetShortTurbo},
+	{Label: "Long Turbo", Value: app.LoRaModemPresetLongTurbo},
 }
 
 var nodeLoRaHopLimitOptions = []string{"0", "1", "2", "3", "4", "5", "6", "7"}
-
-type nodeLoRaRegionInfo struct {
-	StartMHz float32
-	EndMHz   float32
-	WideLoRa bool
-}
-
-var nodeLoRaRegionInfoByCode = map[int32]nodeLoRaRegionInfo{
-	int32(generated.Config_LoRaConfig_UNSET):   {StartMHz: 902.0, EndMHz: 928.0},
-	int32(generated.Config_LoRaConfig_US):      {StartMHz: 902.0, EndMHz: 928.0},
-	int32(generated.Config_LoRaConfig_EU_433):  {StartMHz: 433.0, EndMHz: 434.0},
-	int32(generated.Config_LoRaConfig_EU_868):  {StartMHz: 869.4, EndMHz: 869.65},
-	int32(generated.Config_LoRaConfig_CN):      {StartMHz: 470.0, EndMHz: 510.0},
-	int32(generated.Config_LoRaConfig_JP):      {StartMHz: 920.5, EndMHz: 923.5},
-	int32(generated.Config_LoRaConfig_ANZ):     {StartMHz: 915.0, EndMHz: 928.0},
-	int32(generated.Config_LoRaConfig_KR):      {StartMHz: 920.0, EndMHz: 923.0},
-	int32(generated.Config_LoRaConfig_TW):      {StartMHz: 920.0, EndMHz: 925.0},
-	int32(generated.Config_LoRaConfig_RU):      {StartMHz: 868.7, EndMHz: 869.2},
-	int32(generated.Config_LoRaConfig_IN):      {StartMHz: 865.0, EndMHz: 867.0},
-	int32(generated.Config_LoRaConfig_NZ_865):  {StartMHz: 864.0, EndMHz: 868.0},
-	int32(generated.Config_LoRaConfig_TH):      {StartMHz: 920.0, EndMHz: 925.0},
-	int32(generated.Config_LoRaConfig_LORA_24): {StartMHz: 2400.0, EndMHz: 2483.5, WideLoRa: true},
-	int32(generated.Config_LoRaConfig_UA_433):  {StartMHz: 433.0, EndMHz: 434.7},
-	int32(generated.Config_LoRaConfig_UA_868):  {StartMHz: 868.0, EndMHz: 868.6},
-	int32(generated.Config_LoRaConfig_MY_433):  {StartMHz: 433.0, EndMHz: 435.0},
-	int32(generated.Config_LoRaConfig_MY_919):  {StartMHz: 919.0, EndMHz: 924.0},
-	int32(generated.Config_LoRaConfig_SG_923):  {StartMHz: 917.0, EndMHz: 925.0},
-	int32(generated.Config_LoRaConfig_PH_433):  {StartMHz: 433.0, EndMHz: 434.7},
-	int32(generated.Config_LoRaConfig_PH_868):  {StartMHz: 868.0, EndMHz: 869.4},
-	int32(generated.Config_LoRaConfig_PH_915):  {StartMHz: 915.0, EndMHz: 918.0},
-	int32(generated.Config_LoRaConfig_ANZ_433): {StartMHz: 433.05, EndMHz: 434.79},
-	int32(generated.Config_LoRaConfig_KZ_433):  {StartMHz: 433.075, EndMHz: 434.775},
-	int32(generated.Config_LoRaConfig_KZ_863):  {StartMHz: 863.0, EndMHz: 868.0, WideLoRa: true},
-	int32(generated.Config_LoRaConfig_NP_865):  {StartMHz: 865.0, EndMHz: 868.0},
-	int32(generated.Config_LoRaConfig_BR_902):  {StartMHz: 902.0, EndMHz: 907.5},
-}
-
-var nodeLoRaBandwidthByPresetMHz = map[int32]float32{
-	// Values 1 and 2 are preserved for firmware compatibility; upstream enum names are deprecated.
-	2: 0.0625,
-	int32(generated.Config_LoRaConfig_LONG_TURBO):    0.5,
-	int32(generated.Config_LoRaConfig_LONG_FAST):     0.25,
-	int32(generated.Config_LoRaConfig_LONG_MODERATE): 0.125,
-	1: 0.125,
-	int32(generated.Config_LoRaConfig_MEDIUM_FAST): 0.25,
-	int32(generated.Config_LoRaConfig_MEDIUM_SLOW): 0.25,
-	int32(generated.Config_LoRaConfig_SHORT_FAST):  0.25,
-	int32(generated.Config_LoRaConfig_SHORT_SLOW):  0.25,
-	int32(generated.Config_LoRaConfig_SHORT_TURBO): 0.5,
-}
 
 func nodeLoRaPrimaryTitleFromChannels(channels domain.ChannelList) (string, bool) {
 	for _, item := range channels.Items {
@@ -909,123 +857,23 @@ func nodeLoRaPrimaryTitleFromChatStore(store *domain.ChatStore) (string, bool) {
 }
 
 func nodeLoRaPrimaryChannelTitle(settings app.NodeLoRaSettings, knownTitle string) string {
-	if title := strings.TrimSpace(knownTitle); title != "" {
-		return title
-	}
-	if !settings.UsePreset {
-		return "Custom"
-	}
-
-	switch settings.ModemPreset {
-	case int32(generated.Config_LoRaConfig_SHORT_TURBO):
-		return "ShortTurbo"
-	case int32(generated.Config_LoRaConfig_SHORT_FAST):
-		return "ShortFast"
-	case int32(generated.Config_LoRaConfig_SHORT_SLOW):
-		return "ShortSlow"
-	case int32(generated.Config_LoRaConfig_MEDIUM_FAST):
-		return "MediumFast"
-	case int32(generated.Config_LoRaConfig_MEDIUM_SLOW):
-		return "MediumSlow"
-	case int32(generated.Config_LoRaConfig_LONG_FAST):
-		return "LongFast"
-	case 1:
-		return "LongSlow"
-	case int32(generated.Config_LoRaConfig_LONG_MODERATE):
-		return "LongMod"
-	case 2:
-		return "VLongSlow"
-	case int32(generated.Config_LoRaConfig_LONG_TURBO):
-		return "LongTurbo"
-	default:
-		return "Invalid"
-	}
+	return app.LoRaPrimaryChannelTitle(settings, knownTitle)
 }
 
 func nodeLoRaNumChannels(settings app.NodeLoRaSettings) uint32 {
-	region, ok := nodeLoRaRegionInfoByCode[settings.Region]
-	if !ok {
-		return 0
-	}
-	bandwidthMHz := nodeLoRaBandwidthMHz(settings, region)
-	if bandwidthMHz <= 0 {
-		return 1
-	}
-	channelCount := math.Floor(float64((region.EndMHz - region.StartMHz) / bandwidthMHz))
-	if channelCount > 0 && channelCount <= float64(^uint32(0)) {
-		return uint32(channelCount)
-	}
-
-	return 1
+	return app.LoRaNumChannels(settings)
 }
 
 func nodeLoRaEffectiveChannelNum(settings app.NodeLoRaSettings, primaryChannelTitle string) uint32 {
-	if settings.ChannelNum != 0 {
-		return settings.ChannelNum
-	}
-	channelCount := nodeLoRaNumChannels(settings)
-	if channelCount == 0 {
-		return 0
-	}
-	hash := nodeLoRaDJB2(primaryChannelTitle)
-
-	return (hash % channelCount) + 1
+	return app.LoRaEffectiveChannelNum(settings, primaryChannelTitle)
 }
 
 func nodeLoRaEffectiveRadioFreq(settings app.NodeLoRaSettings, primaryChannelTitle string) float32 {
-	if settings.OverrideFrequency != 0 {
-		return settings.OverrideFrequency + settings.FrequencyOffset
-	}
-	region, ok := nodeLoRaRegionInfoByCode[settings.Region]
-	if !ok {
-		return 0
-	}
-	bandwidthMHz := nodeLoRaBandwidthMHz(settings, region)
-	channelNum := nodeLoRaEffectiveChannelNum(settings, primaryChannelTitle)
-	if bandwidthMHz <= 0 || channelNum == 0 {
-		return 0
-	}
-
-	return (region.StartMHz + bandwidthMHz/2) + (float32(channelNum)-1)*bandwidthMHz
+	return app.LoRaEffectiveRadioFreq(settings, primaryChannelTitle)
 }
 
-func nodeLoRaBandwidthMHz(settings app.NodeLoRaSettings, region nodeLoRaRegionInfo) float32 {
-	if settings.UsePreset {
-		presetBandwidth, ok := nodeLoRaBandwidthByPresetMHz[settings.ModemPreset]
-		if !ok {
-			return 0
-		}
-		if region.WideLoRa {
-			return presetBandwidth * 3.25
-		}
-
-		return presetBandwidth
-	}
-	switch settings.Bandwidth {
-	case 31:
-		return 0.03125
-	case 62:
-		return 0.0625
-	case 200:
-		return 0.203125
-	case 400:
-		return 0.40625
-	case 800:
-		return 0.8125
-	case 1600:
-		return 1.625
-	default:
-		return float32(settings.Bandwidth) / 1000.0
-	}
-}
-
-func nodeLoRaDJB2(name string) uint32 {
-	hash := uint32(5381)
-	for _, ch := range name {
-		hash += (hash << 5) + uint32(ch)
-	}
-
-	return hash
+func nodeLoRaBandwidthMHz(settings app.NodeLoRaSettings) float32 {
+	return app.LoRaBandwidthMHz(settings)
 }
 
 func nodeLoRaHasPaFan(boardModel string) bool {

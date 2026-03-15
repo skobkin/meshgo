@@ -55,8 +55,56 @@ func TestBuildChannelShareURLReplace(t *testing.T) {
 	}
 }
 
+func TestBuildChannelShareURLMatchesAndroidPresetPayload(t *testing.T) {
+	rawURL, err := BuildChannelShareURL([]NodeChannelSettings{
+		{
+			PSK:             []byte{0x01},
+			UplinkEnabled:   true,
+			DownlinkEnabled: true,
+		},
+	}, NodeLoRaSettings{
+		UsePreset:           true,
+		ModemPreset:         int32(generated.Config_LoRaConfig_LONG_FAST),
+		Bandwidth:           250,
+		SpreadFactor:        11,
+		CodingRate:          5,
+		Region:              int32(generated.Config_LoRaConfig_RU),
+		HopLimit:            7,
+		TxEnabled:           true,
+		TxPower:             20,
+		Sx126XRxBoostedGain: true,
+		ConfigOkToMqtt:      true,
+	}, false)
+	if err != nil {
+		t.Fatalf("build Android-compatible replace URL: %v", err)
+	}
+
+	const want = "https://meshtastic.org/e/#CgcSAQEoATABEhYIARj6ASALOAlAB0gBUBRYAmgByAYB"
+	if rawURL != want {
+		t.Fatalf("unexpected Android-compatible URL:\nwant: %s\ngot:  %s", want, rawURL)
+	}
+}
+
 func TestBuildChannelShareURLAdd(t *testing.T) {
-	rawURL, err := BuildChannelShareURL([]NodeChannelSettings{{Name: "Ops", PSK: []byte{0x02}}}, NodeLoRaSettings{}, true)
+	rawURL, err := BuildChannelShareURL([]NodeChannelSettings{
+		{
+			PSK:             []byte{0x01},
+			UplinkEnabled:   true,
+			DownlinkEnabled: true,
+		},
+	}, NodeLoRaSettings{
+		UsePreset:           true,
+		ModemPreset:         int32(generated.Config_LoRaConfig_LONG_FAST),
+		Bandwidth:           250,
+		SpreadFactor:        11,
+		CodingRate:          5,
+		Region:              int32(generated.Config_LoRaConfig_RU),
+		HopLimit:            7,
+		TxEnabled:           true,
+		TxPower:             20,
+		Sx126XRxBoostedGain: true,
+		ConfigOkToMqtt:      true,
+	}, true)
 	if err != nil {
 		t.Fatalf("build add URL: %v", err)
 	}
@@ -67,6 +115,9 @@ func TestBuildChannelShareURLAdd(t *testing.T) {
 	}
 	if got := parsed.RawQuery; got != channelShareAddFlag {
 		t.Fatalf("unexpected add query: %q", got)
+	}
+	if got := parsed.Scheme + "://" + parsed.Host + parsed.Path + "#" + parsed.Fragment; got != "https://meshtastic.org/e/#CgcSAQEoATABEhYIARj6ASALOAlAB0gBUBRYAmgByAYB" {
+		t.Fatalf("unexpected add payload URL body: %q", got)
 	}
 }
 
