@@ -57,21 +57,9 @@ func BuildSharedContactURL(node domain.Node) (string, error) {
 		return "", err
 	}
 
-	user := &generated.User{
-		Id:        nodeID,
-		LongName:  strings.TrimSpace(node.LongName),
-		ShortName: strings.TrimSpace(node.ShortName),
-	}
-	if len(node.PublicKey) > 0 {
-		user.PublicKey = cloneBytes(node.PublicKey)
-	}
-	if node.IsUnmessageable != nil {
-		user.IsUnmessagable = boolPtr(*node.IsUnmessageable)
-	}
-
 	contact := &generated.SharedContact{
 		NodeNum: nodeNum,
-		User:    user,
+		User:    cloneUserForSharedContact(node),
 	}
 	encoded, err := proto.Marshal(contact)
 	if err != nil {
@@ -79,6 +67,28 @@ func BuildSharedContactURL(node domain.Node) (string, error) {
 	}
 
 	return contactSharePrefix + base64.RawURLEncoding.EncodeToString(encoded), nil
+}
+
+func cloneUserForSharedContact(node domain.Node) *generated.User {
+	user := &generated.User{
+		Id:        strings.TrimSpace(node.NodeID),
+		LongName:  strings.TrimSpace(node.LongName),
+		ShortName: strings.TrimSpace(node.ShortName),
+	}
+	if len(node.PublicKey) > 0 {
+		user.PublicKey = cloneBytes(node.PublicKey)
+	}
+	if modelValue, ok := generated.HardwareModel_value[strings.TrimSpace(node.BoardModel)]; ok {
+		user.HwModel = generated.HardwareModel(modelValue)
+	}
+	if roleValue, ok := generated.Config_DeviceConfig_Role_value[strings.TrimSpace(node.Role)]; ok {
+		user.Role = generated.Config_DeviceConfig_Role(roleValue)
+	}
+	if node.IsUnmessageable != nil {
+		user.IsUnmessagable = boolPtr(*node.IsUnmessageable)
+	}
+
+	return user
 }
 
 func cloneChannelSettingsForShare(settings NodeChannelSettings) *generated.ChannelSettings {

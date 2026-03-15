@@ -123,11 +123,14 @@ func TestBuildChannelShareURLAdd(t *testing.T) {
 
 func TestBuildSharedContactURL(t *testing.T) {
 	isUnmessageable := true
+	const roleRouter = "ROUTER"
 	rawURL, err := BuildSharedContactURL(domain.Node{
 		NodeID:          "!0000002a",
 		LongName:        "Alpha",
 		ShortName:       "AL",
 		PublicKey:       []byte{1, 2, 3},
+		BoardModel:      generated.HardwareModel_T_ECHO.String(),
+		Role:            roleRouter,
 		IsUnmessageable: &isUnmessageable,
 	})
 	if err != nil {
@@ -151,6 +154,12 @@ func TestBuildSharedContactURL(t *testing.T) {
 	}
 	if got := strings.TrimSpace(contact.GetUser().GetLongName()); got != "Alpha" {
 		t.Fatalf("unexpected long name: %q", got)
+	}
+	if got := contact.GetUser().GetHwModel(); got != generated.HardwareModel_T_ECHO {
+		t.Fatalf("unexpected hw model: %v", got)
+	}
+	if got := contact.GetUser().GetRole().String(); got != roleRouter {
+		t.Fatalf("unexpected role: %v", got)
 	}
 	if !contact.GetUser().GetIsUnmessagable() {
 		t.Fatalf("expected unmessageable flag to be preserved")
