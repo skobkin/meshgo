@@ -5,12 +5,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -193,7 +196,14 @@ func (t *MapTileCacheTransport) fetchAndCacheAsync(rawURL, cachePath string) {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultMapTileTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	parsedURL, err := validateMapTileURL(rawURL)
+	if err != nil {
+		mapTileCacheLogger.Warn("rejecting async map tile request URL", "url", rawURL, "error", err)
+
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsedURL.String(), nil) // #nosec G704 -- URL is restricted to http/https with a non-empty host by validateMapTileURL.
 	if err != nil {
 		mapTileCacheLogger.Warn("building async map tile request failed", "url", rawURL, "error", err)
 
@@ -283,16 +293,23 @@ func (t *MapTileCacheTransport) readCachedTile(path string) ([]byte, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	data, err := os.ReadFile(filepath.Clean(path))
+	cleanPath, ok := t.safeCachePath(path)
+	if !ok {
+		mapTileCacheLogger.Warn("rejecting map tile cache read outside cache directory", "cache_path", path, "cache_dir", t.CacheDir)
+
+		return nil, false
+	}
+
+	data, err := os.ReadFile(cleanPath) // #nosec G304 G703 -- cleanPath is constrained to stay within CacheDir by safeCachePath.
 	if err != nil {
 		if !os.IsNotExist(err) {
-			mapTileCacheLogger.Debug("reading cached map tile failed", "cache_path", path, "error", err)
+			mapTileCacheLogger.Debug("reading cached map tile failed", "cache_path", cleanPath, "error", err)
 		}
 
 		return nil, false
 	}
 	now := time.Now()
-	_ = os.Chtimes(path, now, now)
+	_ = os.Chtimes(cleanPath, now, now)
 
 	return data, true
 }
@@ -301,29 +318,73 @@ func (t *MapTileCacheTransport) WriteCachedTile(path string, data []byte) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		mapTileCacheLogger.Warn("creating map tile cache directory failed", "cache_path", path, "error", err)
+	cleanPath, ok := t.safeCachePath(path)
+	if !ok {
+		mapTileCacheLogger.Warn("rejecting map tile cache write outside cache directory", "cache_path", path, "cache_dir", t.CacheDir)
 
 		return
 	}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o750); err != nil { // #nosec G703 -- cleanPath is constrained to stay within CacheDir by safeCachePath.
+		mapTileCacheLogger.Warn("creating map tile cache directory failed", "cache_path", cleanPath, "error", err)
+
+		return
+	}
+
+	tmpPath := cleanPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil { // #nosec G703 -- tmpPath is derived from a safe cache path inside CacheDir.
 		mapTileCacheLogger.Warn("writing map tile cache temp file failed", "tmp_path", tmpPath, "error", err)
-		_ = os.Remove(tmpPath)
+		_ = os.Remove(tmpPath) // #nosec G703 -- tmpPath is derived from a safe cache path inside CacheDir.
 
 		return
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		mapTileCacheLogger.Warn("renaming map tile cache temp file failed", "tmp_path", tmpPath, "cache_path", path, "error", err)
-		_ = os.Remove(tmpPath)
+	if err := os.Rename(tmpPath, cleanPath); err != nil { // #nosec G703 -- both paths are constrained to stay within CacheDir by safeCachePath.
+		mapTileCacheLogger.Warn("renaming map tile cache temp file failed", "tmp_path", tmpPath, "cache_path", cleanPath, "error", err)
+		_ = os.Remove(tmpPath) // #nosec G703 -- tmpPath is derived from a safe cache path inside CacheDir.
 
 		return
 	}
 	now := time.Now()
-	_ = os.Chtimes(path, now, now)
+	_ = os.Chtimes(cleanPath, now, now)
 
 	t.evictIfNeededLocked()
+}
+
+func validateMapTileURL(rawURL string) (*url.URL, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse URL: %w", err)
+	}
+	if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
+		return nil, fmt.Errorf("unsupported URL scheme %q", parsedURL.Scheme)
+	}
+	if parsedURL.Host == "" {
+		return nil, fmt.Errorf("URL host is required")
+	}
+
+	return parsedURL, nil
+}
+
+func (t *MapTileCacheTransport) safeCachePath(path string) (string, bool) {
+	cacheDir := strings.TrimSpace(t.CacheDir)
+	if cacheDir == "" {
+		return "", false
+	}
+
+	base := filepath.Clean(cacheDir)
+	target := filepath.Clean(path)
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return "", false
+	}
+	if rel == "." {
+		return target, true
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	return target, true
 }
 
 func (t *MapTileCacheTransport) evictIfNeededLocked() {

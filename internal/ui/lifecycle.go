@@ -13,14 +13,16 @@ import (
 func startNotificationService(dep RuntimeDependencies, fyApp fyne.App, startHidden bool) func() {
 	var appForeground atomic.Bool
 	appForeground.Store(!startHidden)
-	fyApp.Lifecycle().SetOnEnteredForeground(func() {
+	lifecycle := fyApp.Lifecycle()
+	lifecycle.SetOnEnteredForeground(func() {
 		appForeground.Store(true)
 	})
-	fyApp.Lifecycle().SetOnExitedForeground(func() {
+	lifecycle.SetOnExitedForeground(func() {
 		appForeground.Store(false)
 	})
 
 	notificationsCtx, stopNotifications := context.WithCancel(context.Background())
+	lifecycle.SetOnStopped(stopNotifications)
 	notificationService := meshapp.NewNotificationService(
 		dep.Data.Bus,
 		dep.Data.ChatStore,

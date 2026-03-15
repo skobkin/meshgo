@@ -265,6 +265,65 @@ func TestMapTileCacheTransport_AsyncMissCallbackFiresOnFailure(t *testing.T) {
 	}
 }
 
+func TestMapTileCacheTransport_AsyncMissRejectsUnsupportedURLSchemes(t *testing.T) {
+	cacheDir := t.TempDir()
+	done := make(chan struct{}, 1)
+	transport := &mapwidgets.MapTileCacheTransport{
+		Base:      http.DefaultTransport,
+		CacheDir:  cacheDir,
+		MaxBytes:  1024 * 1024,
+		AsyncMiss: true,
+	}
+	transport.SetOnAsyncTileCached(func() {
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	})
+	client := &http.Client{Transport: transport}
+
+	resp, err := client.Get("ftp://tile.example/0/0/0.png")
+	if err != nil {
+		t.Fatalf("get tile: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected async placeholder response status %d, got %d", http.StatusAccepted, resp.StatusCode)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for async completion callback on rejected URL")
+	}
+
+	progress, ok := mapwidgets.MapTileClientLoadProgress(client, []string{"ftp://tile.example/0/0/0.png"})
+	if !ok {
+		t.Fatalf("expected load progress check to be supported")
+	}
+	if progress.Cached != 0 {
+		t.Fatalf("expected no cached tiles, got %d", progress.Cached)
+	}
+	if progress.InFlight != 0 {
+		t.Fatalf("expected no in-flight tiles after rejected URL, got %d", progress.InFlight)
+	}
+}
+
+func TestMapTileCacheTransport_WriteCachedTileRejectsPathsOutsideCacheDir(t *testing.T) {
+	cacheDir := t.TempDir()
+	transport := &mapwidgets.MapTileCacheTransport{
+		CacheDir: cacheDir,
+		MaxBytes: 1024 * 1024,
+	}
+
+	outsidePath := filepath.Join(filepath.Dir(cacheDir), "outside.tile")
+	transport.WriteCachedTile(outsidePath, []byte("blocked"))
+
+	if _, err := os.Stat(outsidePath); !os.IsNotExist(err) {
+		t.Fatalf("expected no file to be created outside cache dir, got err=%v", err)
+	}
+}
+
 func mustPNGBytes(t *testing.T) []byte {
 	t.Helper()
 

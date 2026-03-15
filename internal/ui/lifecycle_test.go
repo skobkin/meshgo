@@ -36,9 +36,13 @@ func TestStartNotificationServiceRegistersLifecycleHooks(t *testing.T) {
 	if lifecycle.onExitedForeground == nil {
 		t.Fatalf("expected on-exited-foreground hook to be registered")
 	}
+	if lifecycle.onStopped == nil {
+		t.Fatalf("expected on-stopped hook to be registered")
+	}
 
 	lifecycle.onEnteredForeground()
 	lifecycle.onExitedForeground()
+	lifecycle.onStopped()
 	stop()
 	stop()
 }
