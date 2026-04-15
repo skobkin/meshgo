@@ -125,6 +125,24 @@ type NodeBluetoothSettings struct {
 	FixedPIN uint32
 }
 
+// NodeNetworkSettings contains editable network config settings.
+type NodeNetworkSettings struct {
+	NodeID           string
+	WifiEnabled      bool
+	WifiSSID         string
+	WifiPSK          string
+	NTPServer        string
+	EthernetEnabled  bool
+	AddressMode      int32
+	IPv4Address      uint32
+	IPv4Gateway      uint32
+	IPv4Subnet       uint32
+	IPv4DNS          uint32
+	RsyslogServer    string
+	EnabledProtocols uint32
+	IPv6Enabled      bool
+}
+
 // NodeMQTTSettings contains editable MQTT module settings.
 type NodeMQTTSettings struct {
 	NodeID   string
@@ -153,6 +171,154 @@ type NodeRangeTestSettings struct {
 	Enabled       bool
 	Sender        uint32
 	Save          bool
+}
+
+// NodeSerialSettings contains editable Serial module settings.
+type NodeSerialSettings struct {
+	NodeID                    string
+	Enabled                   bool
+	EchoEnabled               bool
+	RXGPIO                    uint32
+	TXGPIO                    uint32
+	Baud                      int32
+	Timeout                   uint32
+	Mode                      int32
+	OverrideConsoleSerialPort bool
+}
+
+// NodeExternalNotificationSettings contains editable External Notification module settings.
+type NodeExternalNotificationSettings struct {
+	NodeID             string
+	Enabled            bool
+	OutputMS           uint32
+	OutputGPIO         uint32
+	OutputVibraGPIO    uint32
+	OutputBuzzerGPIO   uint32
+	OutputActiveHigh   bool
+	AlertMessageLED    bool
+	AlertMessageVibra  bool
+	AlertMessageBuzzer bool
+	AlertBellLED       bool
+	AlertBellVibra     bool
+	AlertBellBuzzer    bool
+	UsePWMBuzzer       bool
+	NagTimeoutSecs     uint32
+	Ringtone           string
+	UseI2SAsBuzzer     bool
+}
+
+// NodeStoreForwardSettings contains editable Store & Forward module settings.
+type NodeStoreForwardSettings struct {
+	NodeID              string
+	Enabled             bool
+	Heartbeat           bool
+	Records             uint32
+	HistoryReturnMax    uint32
+	HistoryReturnWindow uint32
+	IsServer            bool
+}
+
+// NodeTelemetrySettings contains editable Telemetry module settings.
+type NodeTelemetrySettings struct {
+	NodeID                        string
+	DeviceUpdateInterval          uint32
+	EnvironmentUpdateInterval     uint32
+	EnvironmentMeasurementEnabled bool
+	EnvironmentScreenEnabled      bool
+	EnvironmentDisplayFahrenheit  bool
+	AirQualityEnabled             bool
+	AirQualityInterval            uint32
+	PowerMeasurementEnabled       bool
+	PowerUpdateInterval           uint32
+	PowerScreenEnabled            bool
+	HealthMeasurementEnabled      bool
+	HealthUpdateInterval          uint32
+	HealthScreenEnabled           bool
+	DeviceTelemetryEnabled        bool
+	AirQualityScreenEnabled       bool
+}
+
+// NodeCannedMessageSettings contains editable Canned Message module settings.
+type NodeCannedMessageSettings struct {
+	NodeID                string
+	Rotary1Enabled        bool
+	InputBrokerPinA       uint32
+	InputBrokerPinB       uint32
+	InputBrokerPinPress   uint32
+	InputBrokerEventCW    int32
+	InputBrokerEventCCW   int32
+	InputBrokerEventPress int32
+	UpDown1Enabled        bool
+	Enabled               bool
+	AllowInputSource      string
+	SendBell              bool
+	Messages              string
+}
+
+// NodeAudioSettings contains editable Audio module settings.
+type NodeAudioSettings struct {
+	NodeID        string
+	Codec2Enabled bool
+	PTTPin        uint32
+	Bitrate       int32
+	I2SWordSelect uint32
+	I2SDataIn     uint32
+	I2SDataOut    uint32
+	I2SClock      uint32
+}
+
+// NodeRemoteHardwareSettings contains editable Remote Hardware module settings.
+type NodeRemoteHardwareSettings struct {
+	NodeID                  string
+	Enabled                 bool
+	AllowUndefinedPinAccess bool
+	AvailablePins           []uint32
+}
+
+// NodeNeighborInfoSettings contains editable Neighbor Info module settings.
+type NodeNeighborInfoSettings struct {
+	NodeID             string
+	Enabled            bool
+	UpdateIntervalSecs uint32
+	TransmitOverLoRa   bool
+}
+
+// NodeAmbientLightingSettings contains editable Ambient Lighting module settings.
+type NodeAmbientLightingSettings struct {
+	NodeID   string
+	LEDState bool
+	Current  uint32
+	Red      uint32
+	Green    uint32
+	Blue     uint32
+}
+
+// NodeDetectionSensorSettings contains editable Detection Sensor module settings.
+type NodeDetectionSensorSettings struct {
+	NodeID               string
+	Enabled              bool
+	MinimumBroadcastSecs uint32
+	StateBroadcastSecs   uint32
+	SendBell             bool
+	Name                 string
+	MonitorPin           uint32
+	DetectionTriggerType int32
+	UsePullup            bool
+}
+
+// NodePaxcounterSettings contains editable Paxcounter module settings.
+type NodePaxcounterSettings struct {
+	NodeID             string
+	Enabled            bool
+	UpdateIntervalSecs uint32
+	WifiThreshold      int32
+	BLEThreshold       int32
+}
+
+// NodeStatusMessageSettings contains editable Status Message module settings.
+type NodeStatusMessageSettings struct {
+	NodeID     string
+	NodeStatus string
 }
 
 // NodeChannelSettings contains editable settings for one channel row.

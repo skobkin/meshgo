@@ -3,7 +3,6 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 )
 
 func newNodeTab(dep RuntimeDependencies) fyne.CanvasObject {
@@ -29,10 +28,36 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 	displayTab := container.NewTabItem("Display", displayPage)
 	bluetoothPage, onBluetoothTabOpened := newNodeBluetoothSettingsPage(dep, saveGate)
 	bluetoothTab := container.NewTabItem("Bluetooth", bluetoothPage)
+	networkPage, onNetworkTabOpened := newNodeNetworkSettingsPage(dep, saveGate)
+	networkTab := container.NewTabItem("Network", networkPage)
 	mqttPage, onMQTTTabOpened := newNodeMQTTSettingsPage(dep, saveGate)
 	mqttTab := container.NewTabItem("MQTT", mqttPage)
+	serialPage, onSerialTabOpened := newNodeSerialSettingsPage(dep, saveGate)
+	serialTab := container.NewTabItem("Serial", serialPage)
+	externalNotificationPage, onExternalNotificationTabOpened := newNodeExternalNotificationSettingsPage(dep, saveGate)
+	externalNotificationTab := container.NewTabItem("External notification", externalNotificationPage)
+	storeForwardPage, onStoreForwardTabOpened := newNodeStoreForwardSettingsPage(dep, saveGate)
+	storeForwardTab := container.NewTabItem("Store & Forward", storeForwardPage)
 	rangeTestPage, onRangeTestTabOpened := newNodeRangeTestSettingsPage(dep, saveGate)
 	rangeTestTab := container.NewTabItem("Range test", rangeTestPage)
+	telemetryPage, onTelemetryTabOpened := newNodeTelemetrySettingsPage(dep, saveGate)
+	telemetryTab := container.NewTabItem("Telemetry", telemetryPage)
+	cannedMessagePage, onCannedMessageTabOpened := newNodeCannedMessageSettingsPage(dep, saveGate)
+	cannedMessageTab := container.NewTabItem("Canned Message", cannedMessagePage)
+	audioPage, onAudioTabOpened := newNodeAudioSettingsPage(dep, saveGate)
+	audioTab := container.NewTabItem("Audio", audioPage)
+	remoteHardwarePage, onRemoteHardwareTabOpened := newNodeRemoteHardwareSettingsPage(dep, saveGate)
+	remoteHardwareTab := container.NewTabItem("Remote Hardware", remoteHardwarePage)
+	neighborInfoPage, onNeighborInfoTabOpened := newNodeNeighborInfoSettingsPage(dep, saveGate)
+	neighborInfoTab := container.NewTabItem("Neighbor Info", neighborInfoPage)
+	ambientLightingPage, onAmbientLightingTabOpened := newNodeAmbientLightingSettingsPage(dep, saveGate)
+	ambientLightingTab := container.NewTabItem("Ambient Lighting", ambientLightingPage)
+	detectionSensorPage, onDetectionSensorTabOpened := newNodeDetectionSensorSettingsPage(dep, saveGate)
+	detectionSensorTab := container.NewTabItem("Detection Sensor", detectionSensorPage)
+	paxcounterPage, onPaxcounterTabOpened := newNodePaxcounterSettingsPage(dep, saveGate)
+	paxcounterTab := container.NewTabItem("Paxcounter", paxcounterPage)
+	statusMessagePage, onStatusMessageTabOpened := newNodeStatusMessageSettingsPage(dep, saveGate)
+	statusMessageTab := container.NewTabItem("Status Message", statusMessagePage)
 
 	radioTabs := container.NewAppTabs(
 		loraTab,
@@ -63,6 +88,7 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 		deviceTab,
 		positionTab,
 		powerTab,
+		networkTab,
 		displayTab,
 		bluetoothTab,
 	)
@@ -81,6 +107,10 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 			if onPowerTabOpened != nil {
 				onPowerTabOpened()
 			}
+		case networkTab:
+			if onNetworkTabOpened != nil {
+				onNetworkTabOpened()
+			}
 		case displayTab:
 			if onDisplayTabOpened != nil {
 				onDisplayTabOpened()
@@ -95,37 +125,85 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 
 	moduleTabs := container.NewAppTabs(
 		mqttTab,
-		container.NewTabItem("Serial", newSettingsPlaceholderPage("Serial module settings editing is planned.")),
-		container.NewTabItem("External notification", newSettingsPlaceholderPage("External notification module settings editing is planned.")),
-		container.NewTabItem("Store & Forward", newSettingsPlaceholderPage("Store & Forward module settings editing is planned.")),
+		serialTab,
+		externalNotificationTab,
+		storeForwardTab,
 		rangeTestTab,
-		container.NewTabItem("Telemetry", newSettingsPlaceholderPage("Telemetry module settings editing is planned.")),
-		container.NewTabItem("Neighbor Info", newSettingsPlaceholderPage("Neighbor Info module settings editing is planned.")),
-		container.NewTabItem("Status Message", newSettingsPlaceholderPage("Status Message module settings editing is planned.")),
+		telemetryTab,
+		cannedMessageTab,
+		audioTab,
+		remoteHardwareTab,
+		neighborInfoTab,
+		ambientLightingTab,
+		detectionSensorTab,
+		paxcounterTab,
+		statusMessageTab,
 	)
 	moduleTabs.SetTabLocation(container.TabLocationTop)
-	moduleTabs.DisableIndex(1)
-	moduleTabs.DisableIndex(2)
-	moduleTabs.DisableIndex(3)
-	moduleTabs.DisableIndex(5)
-	moduleTabs.DisableIndex(6)
-	moduleTabs.DisableIndex(7)
 	openSelectedModuleTab := func() {
 		switch moduleTabs.Selected() {
 		case mqttTab:
 			if onMQTTTabOpened != nil {
 				onMQTTTabOpened()
 			}
+		case serialTab:
+			if onSerialTabOpened != nil {
+				onSerialTabOpened()
+			}
+		case externalNotificationTab:
+			if onExternalNotificationTabOpened != nil {
+				onExternalNotificationTabOpened()
+			}
+		case storeForwardTab:
+			if onStoreForwardTabOpened != nil {
+				onStoreForwardTabOpened()
+			}
 		case rangeTestTab:
 			if onRangeTestTabOpened != nil {
 				onRangeTestTabOpened()
+			}
+		case telemetryTab:
+			if onTelemetryTabOpened != nil {
+				onTelemetryTabOpened()
+			}
+		case cannedMessageTab:
+			if onCannedMessageTabOpened != nil {
+				onCannedMessageTabOpened()
+			}
+		case audioTab:
+			if onAudioTabOpened != nil {
+				onAudioTabOpened()
+			}
+		case remoteHardwareTab:
+			if onRemoteHardwareTabOpened != nil {
+				onRemoteHardwareTabOpened()
+			}
+		case neighborInfoTab:
+			if onNeighborInfoTabOpened != nil {
+				onNeighborInfoTabOpened()
+			}
+		case ambientLightingTab:
+			if onAmbientLightingTabOpened != nil {
+				onAmbientLightingTabOpened()
+			}
+		case detectionSensorTab:
+			if onDetectionSensorTabOpened != nil {
+				onDetectionSensorTabOpened()
+			}
+		case paxcounterTab:
+			if onPaxcounterTabOpened != nil {
+				onPaxcounterTabOpened()
+			}
+		case statusMessageTab:
+			if onStatusMessageTabOpened != nil {
+				onStatusMessageTabOpened()
 			}
 		}
 	}
 	moduleTabs.OnSelected = func(_ *container.TabItem) { openSelectedModuleTab() }
 
-	importExportTab := newDisabledTopLevelPage("Import/Export is planned and currently disabled.")
-	maintenanceTab := newDisabledTopLevelPage("Maintenance is planned and currently disabled.")
+	importExportTab := newNodeImportExportPage(dep)
+	maintenanceTab := newNodeMaintenancePage(dep)
 
 	overviewTopTab := container.NewTabItem("Node overview", newNodeOverviewSettingsPage(dep))
 	radioConfigTab := container.NewTabItem("Radio configuration", radioTabs)
@@ -142,8 +220,6 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 		maintenanceTopTab,
 	)
 	topTabs.SetTabLocation(container.TabLocationTop)
-	topTabs.DisableIndex(4)
-	topTabs.DisableIndex(5)
 	topTabs.OnSelected = func(_ *container.TabItem) {
 		switch topTabs.Selected() {
 		case radioConfigTab:
@@ -156,27 +232,4 @@ func newNodeTabWithOnShow(dep RuntimeDependencies) fyne.CanvasObject {
 	}
 
 	return topTabs
-}
-
-func newSettingsPlaceholderPage(text string) fyne.CanvasObject {
-	controls := newNodeSettingsPageControls(text)
-	controls.saveButton.Disable()
-	controls.cancelButton.Disable()
-	controls.reloadButton.Disable()
-
-	content := container.NewVBox(
-		widget.NewLabel("This settings page is scaffolded and will be implemented in a follow-up step."),
-	)
-
-	return wrapNodeSettingsPage(content, controls)
-}
-
-func newDisabledTopLevelPage(text string) fyne.CanvasObject {
-	label := widget.NewLabel(text)
-	label.Wrapping = fyne.TextWrapWord
-
-	return container.NewVBox(
-		widget.NewLabel("Disabled"),
-		label,
-	)
 }

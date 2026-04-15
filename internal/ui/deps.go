@@ -11,6 +11,7 @@ import (
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
+	app_generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
 
 // MessageSender sends user text messages through the active radio service.
@@ -41,12 +42,44 @@ type NodeSettingsAction interface {
 	SaveDisplaySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeDisplaySettings) error
 	LoadBluetoothSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeBluetoothSettings, error)
 	SaveBluetoothSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeBluetoothSettings) error
+	LoadNetworkSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeNetworkSettings, error)
+	SaveNetworkSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeNetworkSettings) error
 	LoadMQTTSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeMQTTSettings, error)
 	SaveMQTTSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeMQTTSettings) error
+	LoadSerialSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeSerialSettings, error)
+	SaveSerialSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeSerialSettings) error
+	LoadExternalNotificationSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeExternalNotificationSettings, error)
+	SaveExternalNotificationSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeExternalNotificationSettings) error
+	LoadStoreForwardSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeStoreForwardSettings, error)
+	SaveStoreForwardSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeStoreForwardSettings) error
 	LoadRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeRangeTestSettings, error)
 	SaveRangeTestSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeRangeTestSettings) error
+	LoadTelemetrySettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeTelemetrySettings, error)
+	SaveTelemetrySettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeTelemetrySettings) error
+	LoadCannedMessageSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeCannedMessageSettings, error)
+	SaveCannedMessageSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeCannedMessageSettings) error
+	LoadAudioSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeAudioSettings, error)
+	SaveAudioSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeAudioSettings) error
+	LoadRemoteHardwareSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeRemoteHardwareSettings, error)
+	SaveRemoteHardwareSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeRemoteHardwareSettings) error
+	LoadNeighborInfoSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeNeighborInfoSettings, error)
+	SaveNeighborInfoSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeNeighborInfoSettings) error
+	LoadAmbientLightingSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeAmbientLightingSettings, error)
+	SaveAmbientLightingSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeAmbientLightingSettings) error
+	LoadDetectionSensorSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeDetectionSensorSettings, error)
+	SaveDetectionSensorSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeDetectionSensorSettings) error
+	LoadPaxcounterSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodePaxcounterSettings, error)
+	SavePaxcounterSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodePaxcounterSettings) error
+	LoadStatusMessageSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeStatusMessageSettings, error)
+	SaveStatusMessageSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeStatusMessageSettings) error
 	LoadChannelSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeChannelSettingsList, error)
 	SaveChannelSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeChannelSettingsList) error
+	ExportProfile(ctx context.Context, target app.NodeSettingsTarget) (*app_generated.DeviceProfile, error)
+	ImportProfile(ctx context.Context, target app.NodeSettingsTarget, profile *app_generated.DeviceProfile) error
+	RebootNode(ctx context.Context, target app.NodeSettingsTarget) error
+	ShutdownNode(ctx context.Context, target app.NodeSettingsTarget) error
+	FactoryResetNode(ctx context.Context, target app.NodeSettingsTarget) error
+	ResetNodeDB(ctx context.Context, target app.NodeSettingsTarget, preserveFavorites bool) error
 }
 
 // NodeOverviewAction handles node overview requests and history reads.
