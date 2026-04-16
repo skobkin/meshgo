@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"strconv"
 	"testing"
 	"time"
 
@@ -14,14 +13,6 @@ import (
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
-
-type stubAdminSender struct {
-	send func(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error)
-}
-
-func (s stubAdminSender) SendAdmin(to uint32, channel uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
-	return s.send(to, channel, wantResponse, payload)
-}
 
 func TestNodeSettingsServiceLoadUserSettings_MatchesReplyID(t *testing.T) {
 	t.Parallel()
@@ -2139,10 +2130,6 @@ func TestNodeSettingsServiceSaveBluetoothSettings_ImmediateStatusEvents(t *testi
 	if call != len(expectedPayloadKinds) {
 		t.Fatalf("unexpected send calls count: got %d want %d", call, len(expectedPayloadKinds))
 	}
-}
-
-func stringFromUint32(v uint32) string {
-	return strconv.FormatUint(uint64(v), 10)
 }
 
 func float64Ptr(v float64) *float64 {
