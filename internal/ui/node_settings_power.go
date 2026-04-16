@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,23 +30,23 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 	nodeIDLabel.TextStyle = fyne.TextStyle{Monospace: true}
 
 	powerSavingBox := widget.NewCheck("", nil)
-	shutdownOnPowerLossEntry := widget.NewEntry()
+	shutdownOnPowerLossSelect := widget.NewSelect(nil, nil)
 	adcMultiplierOverrideBox := widget.NewCheck("", nil)
 	adcMultiplierOverrideEntry := widget.NewEntry()
-	waitBluetoothSecsEntry := widget.NewEntry()
-	superDeepSleepSecsEntry := widget.NewEntry()
-	minWakeSecsEntry := widget.NewEntry()
+	waitBluetoothSecsSelect := widget.NewSelect(nil, nil)
+	superDeepSleepSecsSelect := widget.NewSelect(nil, nil)
+	minWakeSecsSelect := widget.NewSelect(nil, nil)
 	deviceBatteryINAAddressEntry := widget.NewEntry()
 
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeIDLabel),
 		widget.NewFormItem("Enable power saving mode", powerSavingBox),
-		widget.NewFormItem("Shutdown on power loss (seconds)", shutdownOnPowerLossEntry),
+		widget.NewFormItem("Shutdown on power loss", shutdownOnPowerLossSelect),
 		widget.NewFormItem("ADC multiplier override", adcMultiplierOverrideBox),
 		widget.NewFormItem("ADC multiplier override ratio", adcMultiplierOverrideEntry),
-		widget.NewFormItem("Wait for Bluetooth duration (seconds)", waitBluetoothSecsEntry),
-		widget.NewFormItem("Super deep sleep duration (seconds)", superDeepSleepSecsEntry),
-		widget.NewFormItem("Minimum wake time (seconds)", minWakeSecsEntry),
+		widget.NewFormItem("Wait for Bluetooth duration", waitBluetoothSecsSelect),
+		widget.NewFormItem("Super deep sleep duration", superDeepSleepSecsSelect),
+		widget.NewFormItem("Minimum wake time", minWakeSecsSelect),
 		widget.NewFormItem("Battery INA 2xx I2C address", deviceBatteryINAAddressEntry),
 	)
 
@@ -70,7 +71,12 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 	setForm := func(settings app.NodePowerSettings) {
 		nodeIDLabel.SetText(orUnknown(settings.NodeID))
 		powerSavingBox.SetChecked(settings.IsPowerSaving)
-		shutdownOnPowerLossEntry.SetText(strconv.FormatUint(uint64(settings.OnBatteryShutdownAfterSecs), 10))
+		nodeSettingsSetUint32Select(
+			shutdownOnPowerLossSelect,
+			nodePowerAllIntervalOptions,
+			settings.OnBatteryShutdownAfterSecs,
+			nodePowerAllIntervalCustomLabel,
+		)
 		overrideEnabled := settings.AdcMultiplierOverride > 0
 		adcMultiplierOverrideBox.SetChecked(overrideEnabled)
 		if overrideEnabled {
@@ -78,9 +84,24 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 		} else {
 			adcMultiplierOverrideEntry.SetText("1")
 		}
-		waitBluetoothSecsEntry.SetText(strconv.FormatUint(uint64(settings.WaitBluetoothSecs), 10))
-		superDeepSleepSecsEntry.SetText(strconv.FormatUint(uint64(settings.SdsSecs), 10))
-		minWakeSecsEntry.SetText(strconv.FormatUint(uint64(settings.MinWakeSecs), 10))
+		nodeSettingsSetUint32Select(
+			waitBluetoothSecsSelect,
+			nodeSettingsNagTimeoutOptions,
+			settings.WaitBluetoothSecs,
+			nodeSettingsCustomSecondsLabel,
+		)
+		nodeSettingsSetUint32Select(
+			superDeepSleepSecsSelect,
+			nodePowerAllIntervalOptions,
+			settings.SdsSecs,
+			nodePowerAllIntervalCustomLabel,
+		)
+		nodeSettingsSetUint32Select(
+			minWakeSecsSelect,
+			nodeSettingsNagTimeoutOptions,
+			settings.MinWakeSecs,
+			nodeSettingsCustomSecondsLabel,
+		)
 		deviceBatteryINAAddressEntry.SetText(strconv.FormatUint(uint64(settings.DeviceBatteryInaAddress), 10))
 	}
 
@@ -93,12 +114,12 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 	readFormValues := func() nodePowerSettingsFormValues {
 		return nodePowerSettingsFormValues{
 			IsPowerSaving:              powerSavingBox.Checked,
-			OnBatteryShutdownAfterSecs: strings.TrimSpace(shutdownOnPowerLossEntry.Text),
+			OnBatteryShutdownAfterSecs: strings.TrimSpace(shutdownOnPowerLossSelect.Selected),
 			AdcMultiplierOverride:      strings.TrimSpace(adcMultiplierOverrideEntry.Text),
 			AdcMultiplierOverrideOn:    adcMultiplierOverrideBox.Checked,
-			WaitBluetoothSecs:          strings.TrimSpace(waitBluetoothSecsEntry.Text),
-			SdsSecs:                    strings.TrimSpace(superDeepSleepSecsEntry.Text),
-			MinWakeSecs:                strings.TrimSpace(minWakeSecsEntry.Text),
+			WaitBluetoothSecs:          strings.TrimSpace(waitBluetoothSecsSelect.Selected),
+			SdsSecs:                    strings.TrimSpace(superDeepSleepSecsSelect.Selected),
+			MinWakeSecs:                strings.TrimSpace(minWakeSecsSelect.Selected),
 			DeviceBatteryInaAddress:    strings.TrimSpace(deviceBatteryINAAddressEntry.Text),
 		}
 	}
@@ -167,19 +188,27 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 	}
 
 	buildSettingsFromForm := func(target app.NodeSettingsTarget) (app.NodePowerSettings, error) {
-		onBatteryShutdownAfterSecs, err := parseNodePowerUint32Field("shutdown on power loss", shutdownOnPowerLossEntry.Text)
+		onBatteryShutdownAfterSecs, err := nodePowerParseAllIntervalSelectLabel("shutdown on power loss", shutdownOnPowerLossSelect.Selected)
 		if err != nil {
 			return app.NodePowerSettings{}, err
 		}
-		waitBluetoothSecs, err := parseNodePowerUint32Field("wait for Bluetooth duration", waitBluetoothSecsEntry.Text)
+		waitBluetoothSecs, err := nodeSettingsParseUint32SelectLabel(
+			"wait for Bluetooth duration",
+			waitBluetoothSecsSelect.Selected,
+			nodeSettingsNagTimeoutOptions,
+		)
 		if err != nil {
 			return app.NodePowerSettings{}, err
 		}
-		sdsSecs, err := parseNodePowerUint32Field("super deep sleep duration", superDeepSleepSecsEntry.Text)
+		sdsSecs, err := nodePowerParseAllIntervalSelectLabel("super deep sleep duration", superDeepSleepSecsSelect.Selected)
 		if err != nil {
 			return app.NodePowerSettings{}, err
 		}
-		minWakeSecs, err := parseNodePowerUint32Field("minimum wake time", minWakeSecsEntry.Text)
+		minWakeSecs, err := nodeSettingsParseUint32SelectLabel(
+			"minimum wake time",
+			minWakeSecsSelect.Selected,
+			nodeSettingsNagTimeoutOptions,
+		)
 		if err != nil {
 			return app.NodePowerSettings{}, err
 		}
@@ -258,7 +287,7 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 	}
 
 	powerSavingBox.OnChanged = func(_ bool) { markDirty() }
-	shutdownOnPowerLossEntry.OnChanged = func(_ string) { markDirty() }
+	shutdownOnPowerLossSelect.OnChanged = func(_ string) { markDirty() }
 	adcMultiplierOverrideBox.OnChanged = func(checked bool) {
 		if checked {
 			raw := strings.TrimSpace(adcMultiplierOverrideEntry.Text)
@@ -270,9 +299,9 @@ func newNodePowerSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSav
 		updateFieldAvailability()
 	}
 	adcMultiplierOverrideEntry.OnChanged = func(_ string) { markDirty() }
-	waitBluetoothSecsEntry.OnChanged = func(_ string) { markDirty() }
-	superDeepSleepSecsEntry.OnChanged = func(_ string) { markDirty() }
-	minWakeSecsEntry.OnChanged = func(_ string) { markDirty() }
+	waitBluetoothSecsSelect.OnChanged = func(_ string) { markDirty() }
+	superDeepSleepSecsSelect.OnChanged = func(_ string) { markDirty() }
+	minWakeSecsSelect.OnChanged = func(_ string) { markDirty() }
 	deviceBatteryINAAddressEntry.OnChanged = func(_ string) { markDirty() }
 
 	cancelButton.OnTapped = func() {
@@ -438,12 +467,12 @@ func nodePowerFormValuesFromSettings(settings app.NodePowerSettings) nodePowerSe
 
 	return nodePowerSettingsFormValues{
 		IsPowerSaving:              settings.IsPowerSaving,
-		OnBatteryShutdownAfterSecs: strconv.FormatUint(uint64(settings.OnBatteryShutdownAfterSecs), 10),
+		OnBatteryShutdownAfterSecs: nodePowerAllIntervalLabel(settings.OnBatteryShutdownAfterSecs),
 		AdcMultiplierOverrideOn:    overrideEnabled,
 		AdcMultiplierOverride:      overrideValue,
-		WaitBluetoothSecs:          strconv.FormatUint(uint64(settings.WaitBluetoothSecs), 10),
-		SdsSecs:                    strconv.FormatUint(uint64(settings.SdsSecs), 10),
-		MinWakeSecs:                strconv.FormatUint(uint64(settings.MinWakeSecs), 10),
+		WaitBluetoothSecs:          nodeSettingsSelectCurrentLabel(settings.WaitBluetoothSecs, nodeSettingsNagTimeoutOptions, nodeSettingsCustomSecondsLabel),
+		SdsSecs:                    nodePowerAllIntervalLabel(settings.SdsSecs),
+		MinWakeSecs:                nodeSettingsSelectCurrentLabel(settings.MinWakeSecs, nodeSettingsNagTimeoutOptions, nodeSettingsCustomSecondsLabel),
 		DeviceBatteryInaAddress:    strconv.FormatUint(uint64(settings.DeviceBatteryInaAddress), 10),
 	}
 }
@@ -476,4 +505,64 @@ func parseNodePowerFloat32Field(fieldName, raw string) (float32, error) {
 	}
 
 	return float32(value), nil
+}
+
+var nodePowerAllIntervalOptions = []nodeSettingsUint32Option{
+	{Label: "Unset", Value: 0},
+	{Label: nodeSettingsSecondsKnownLabel(1, ""), Value: 1},
+	{Label: nodeSettingsSecondsKnownLabel(2, ""), Value: 2},
+	{Label: nodeSettingsSecondsKnownLabel(3, ""), Value: 3},
+	{Label: nodeSettingsSecondsKnownLabel(4, ""), Value: 4},
+	{Label: nodeSettingsSecondsKnownLabel(5, ""), Value: 5},
+	{Label: nodeSettingsSecondsKnownLabel(10, ""), Value: 10},
+	{Label: nodeSettingsSecondsKnownLabel(15, ""), Value: 15},
+	{Label: nodeSettingsSecondsKnownLabel(20, ""), Value: 20},
+	{Label: nodeSettingsSecondsKnownLabel(30, ""), Value: 30},
+	{Label: nodeSettingsSecondsKnownLabel(45, ""), Value: 45},
+	{Label: nodeSettingsSecondsKnownLabel(60, ""), Value: 60},
+	{Label: nodeSettingsSecondsKnownLabel(2*60, ""), Value: 2 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(5*60, ""), Value: 5 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(10*60, ""), Value: 10 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(2*60*60, ""), Value: 2 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(3*60*60, ""), Value: 3 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(4*60*60, ""), Value: 4 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(5*60*60, ""), Value: 5 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(6*60*60, ""), Value: 6 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(12*60*60, ""), Value: 12 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(18*60*60, ""), Value: 18 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(24*60*60, ""), Value: 24 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(36*60*60, ""), Value: 36 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(48*60*60, ""), Value: 48 * 60 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(72*60*60, ""), Value: 72 * 60 * 60},
+	{Label: "Always on", Value: math.MaxInt32},
+}
+
+func nodePowerAllIntervalCustomLabel(value uint32) string {
+	if value == math.MaxInt32 {
+		return "Always on"
+	}
+	if value == 0 {
+		return "Unset"
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodePowerAllIntervalLabel(value uint32) string {
+	return nodeSettingsSelectCurrentLabel(value, nodePowerAllIntervalOptions, nodePowerAllIntervalCustomLabel)
+}
+
+func nodePowerParseAllIntervalSelectLabel(fieldName string, selected string) (uint32, error) {
+	selected = strings.TrimSpace(selected)
+	if strings.EqualFold(selected, "Always on") {
+		return math.MaxInt32, nil
+	}
+	if strings.EqualFold(selected, "Unset") {
+		return 0, nil
+	}
+
+	return nodeSettingsParseUint32SelectLabel(fieldName, selected, nodePowerAllIntervalOptions)
 }

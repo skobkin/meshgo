@@ -22,6 +22,148 @@ import (
 
 const nodeSettingsProfileFileExt = ".cfg"
 
+var (
+	nodeSettingsBroadcastShortIntervalOptions = []nodeSettingsUint32Option{
+		{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(2*60*60, ""), Value: 2 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(3*60*60, ""), Value: 3 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(4*60*60, ""), Value: 4 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(5*60*60, ""), Value: 5 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(6*60*60, ""), Value: 6 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(12*60*60, ""), Value: 12 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(18*60*60, ""), Value: 18 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(24*60*60, ""), Value: 24 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(36*60*60, ""), Value: 36 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(48*60*60, ""), Value: 48 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(72*60*60, ""), Value: 72 * 60 * 60},
+	}
+	nodeSettingsDetectionMinimumIntervalOptions = []nodeSettingsUint32Option{
+		{Label: "Unset", Value: 0},
+		{Label: nodeSettingsSecondsKnownLabel(15, ""), Value: 15},
+		{Label: nodeSettingsSecondsKnownLabel(30, ""), Value: 30},
+		{Label: nodeSettingsSecondsKnownLabel(60, ""), Value: 60},
+		{Label: nodeSettingsSecondsKnownLabel(2*60, ""), Value: 2 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(5*60, ""), Value: 5 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(10*60, ""), Value: 10 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(2*60*60, ""), Value: 2 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(3*60*60, ""), Value: 3 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(4*60*60, ""), Value: 4 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(5*60*60, ""), Value: 5 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(6*60*60, ""), Value: 6 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(12*60*60, ""), Value: 12 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(18*60*60, ""), Value: 18 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(24*60*60, ""), Value: 24 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(36*60*60, ""), Value: 36 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(48*60*60, ""), Value: 48 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(72*60*60, ""), Value: 72 * 60 * 60},
+	}
+	nodeSettingsDetectionStateIntervalOptions = []nodeSettingsUint32Option{
+		{Label: "Unset", Value: 0},
+		{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(2*60*60, ""), Value: 2 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(3*60*60, ""), Value: 3 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(4*60*60, ""), Value: 4 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(5*60*60, ""), Value: 5 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(6*60*60, ""), Value: 6 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(12*60*60, ""), Value: 12 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(18*60*60, ""), Value: 18 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(24*60*60, ""), Value: 24 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(36*60*60, ""), Value: 36 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(48*60*60, ""), Value: 48 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(72*60*60, ""), Value: 72 * 60 * 60},
+	}
+	nodeSettingsPaxcounterIntervalOptions = []nodeSettingsUint32Option{
+		{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(2*60*60, ""), Value: 2 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(3*60*60, ""), Value: 3 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(4*60*60, ""), Value: 4 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(5*60*60, ""), Value: 5 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(6*60*60, ""), Value: 6 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(12*60*60, ""), Value: 12 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(18*60*60, ""), Value: 18 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(24*60*60, ""), Value: 24 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(36*60*60, ""), Value: 36 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(48*60*60, ""), Value: 48 * 60 * 60},
+		{Label: nodeSettingsSecondsKnownLabel(72*60*60, ""), Value: 72 * 60 * 60},
+	}
+	nodeSettingsNagTimeoutOptions = []nodeSettingsUint32Option{
+		{Label: "Unset", Value: 0},
+		{Label: nodeSettingsSecondsKnownLabel(1, ""), Value: 1},
+		{Label: nodeSettingsSecondsKnownLabel(5, ""), Value: 5},
+		{Label: nodeSettingsSecondsKnownLabel(10, ""), Value: 10},
+		{Label: nodeSettingsSecondsKnownLabel(15, ""), Value: 15},
+		{Label: nodeSettingsSecondsKnownLabel(30, ""), Value: 30},
+		{Label: nodeSettingsSecondsKnownLabel(60, ""), Value: 60},
+	}
+	nodeSettingsOutputDurationOptions = []nodeSettingsUint32Option{
+		{Label: "Unset", Value: 0},
+		{Label: "1 ms", Value: 1},
+		{Label: "2 ms", Value: 2},
+		{Label: "3 ms", Value: 3},
+		{Label: "4 ms", Value: 4},
+		{Label: "5 ms", Value: 5},
+		{Label: "10 ms", Value: 10},
+	}
+	nodeSettingsSerialBaudOptions = []nodeSettingsInt32Option{
+		{Label: "Default", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_DEFAULT)},
+		{Label: "110", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_110)},
+		{Label: "300", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_300)},
+		{Label: "600", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_600)},
+		{Label: "1200", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_1200)},
+		{Label: "2400", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_2400)},
+		{Label: "4800", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_4800)},
+		{Label: "9600", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_9600)},
+		{Label: "19200", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_19200)},
+		{Label: "38400", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_38400)},
+		{Label: "57600", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_57600)},
+		{Label: "115200", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_115200)},
+		{Label: "230400", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_230400)},
+		{Label: "460800", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_460800)},
+		{Label: "576000", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_576000)},
+		{Label: "921600", Value: int32(generated.ModuleConfig_SerialConfig_BAUD_921600)},
+	}
+	nodeSettingsSerialModeOptions = []nodeSettingsInt32Option{
+		{Label: "Default", Value: int32(generated.ModuleConfig_SerialConfig_DEFAULT)},
+		{Label: "Simple", Value: int32(generated.ModuleConfig_SerialConfig_SIMPLE)},
+		{Label: "Proto", Value: int32(generated.ModuleConfig_SerialConfig_PROTO)},
+		{Label: "Text message", Value: int32(generated.ModuleConfig_SerialConfig_TEXTMSG)},
+		{Label: "NMEA", Value: int32(generated.ModuleConfig_SerialConfig_NMEA)},
+		{Label: "CalTopo", Value: int32(generated.ModuleConfig_SerialConfig_CALTOPO)},
+		{Label: "WS85", Value: int32(generated.ModuleConfig_SerialConfig_WS85)},
+		{Label: "VE Direct", Value: int32(generated.ModuleConfig_SerialConfig_VE_DIRECT)},
+		{Label: "MS Config", Value: int32(generated.ModuleConfig_SerialConfig_MS_CONFIG)},
+		{Label: "Log", Value: int32(generated.ModuleConfig_SerialConfig_LOG)},
+		{Label: "Log text", Value: int32(generated.ModuleConfig_SerialConfig_LOGTEXT)},
+	}
+	nodeSettingsAudioBitrateOptions = []nodeSettingsInt32Option{
+		{Label: "Default", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_DEFAULT)},
+		{Label: "3200", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_3200)},
+		{Label: "2400", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_2400)},
+		{Label: "1600", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_1600)},
+		{Label: "1400", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_1400)},
+		{Label: "1300", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_1300)},
+		{Label: "1200", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_1200)},
+		{Label: "700", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_700)},
+		{Label: "700B", Value: int32(generated.ModuleConfig_AudioConfig_CODEC2_700B)},
+	}
+	nodeSettingsDetectionTriggerTypeOptions = []nodeSettingsInt32Option{
+		{Label: "Logic low", Value: int32(generated.ModuleConfig_DetectionSensorConfig_LOGIC_LOW)},
+		{Label: "Logic high", Value: int32(generated.ModuleConfig_DetectionSensorConfig_LOGIC_HIGH)},
+		{Label: "Falling edge", Value: int32(generated.ModuleConfig_DetectionSensorConfig_FALLING_EDGE)},
+		{Label: "Rising edge", Value: int32(generated.ModuleConfig_DetectionSensorConfig_RISING_EDGE)},
+		{Label: "Either edge active low", Value: int32(generated.ModuleConfig_DetectionSensorConfig_EITHER_EDGE_ACTIVE_LOW)},
+		{Label: "Either edge active high", Value: int32(generated.ModuleConfig_DetectionSensorConfig_EITHER_EDGE_ACTIVE_HIGH)},
+	}
+)
+
 type nodeManagedSettingsForm[T any] struct {
 	content   fyne.CanvasObject
 	set       func(T)
@@ -426,9 +568,11 @@ func buildNodeSerialSettingsForm(onChanged func()) nodeManagedSettingsForm[app.N
 	echoEnabled := newSettingsCheck(onChanged)
 	rxGPIO := newNumberEntry(onChanged)
 	txGPIO := newNumberEntry(onChanged)
-	baud := newNumberEntry(onChanged)
+	baud := widget.NewSelect(nil, nil)
+	baud.OnChanged = func(string) { onChanged() }
 	timeout := newNumberEntry(onChanged)
-	mode := newNumberEntry(onChanged)
+	mode := widget.NewSelect(nil, nil)
+	mode.OnChanged = func(string) { onChanged() }
 	overrideConsole := newSettingsCheck(onChanged)
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeID),
@@ -450,9 +594,9 @@ func buildNodeSerialSettingsForm(onChanged func()) nodeManagedSettingsForm[app.N
 			echoEnabled.SetChecked(v.EchoEnabled)
 			rxGPIO.SetText(strconv.FormatUint(uint64(v.RXGPIO), 10))
 			txGPIO.SetText(strconv.FormatUint(uint64(v.TXGPIO), 10))
-			baud.SetText(strconv.FormatInt(int64(v.Baud), 10))
+			nodeSettingsSetInt32Select(baud, nodeSettingsSerialBaudOptions, v.Baud, nodeSettingsCustomInt32Label)
 			timeout.SetText(strconv.FormatUint(uint64(v.Timeout), 10))
-			mode.SetText(strconv.FormatInt(int64(v.Mode), 10))
+			nodeSettingsSetInt32Select(mode, nodeSettingsSerialModeOptions, v.Mode, nodeSettingsCustomInt32Label)
 			overrideConsole.SetChecked(v.OverrideConsoleSerialPort)
 		},
 		read: func(base app.NodeSerialSettings, target app.NodeSettingsTarget) (app.NodeSerialSettings, error) {
@@ -468,7 +612,7 @@ func buildNodeSerialSettingsForm(onChanged func()) nodeManagedSettingsForm[app.N
 			if err != nil {
 				return app.NodeSerialSettings{}, fieldParseError("TX GPIO", err)
 			}
-			base.Baud, err = parseOptionalInt32(baud.Text)
+			base.Baud, err = nodeSettingsParseInt32SelectLabel("baud", baud.Selected, nodeSettingsSerialBaudOptions)
 			if err != nil {
 				return app.NodeSerialSettings{}, fieldParseError("baud", err)
 			}
@@ -476,7 +620,7 @@ func buildNodeSerialSettingsForm(onChanged func()) nodeManagedSettingsForm[app.N
 			if err != nil {
 				return app.NodeSerialSettings{}, fieldParseError("timeout", err)
 			}
-			base.Mode, err = parseOptionalInt32(mode.Text)
+			base.Mode, err = nodeSettingsParseInt32SelectLabel("mode", mode.Selected, nodeSettingsSerialModeOptions)
 			if err != nil {
 				return app.NodeSerialSettings{}, fieldParseError("mode", err)
 			}
@@ -512,7 +656,8 @@ func buildNodeExternalNotificationSettingsForm(onChanged func()) nodeManagedSett
 	nodeID := widget.NewLabel("unknown")
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
 	enabled := newSettingsCheck(onChanged)
-	outputMS := newNumberEntry(onChanged)
+	outputMS := widget.NewSelect(nil, nil)
+	outputMS.OnChanged = func(string) { onChanged() }
 	outputGPIO := newNumberEntry(onChanged)
 	outputVibraGPIO := newNumberEntry(onChanged)
 	outputBuzzerGPIO := newNumberEntry(onChanged)
@@ -524,36 +669,80 @@ func buildNodeExternalNotificationSettingsForm(onChanged func()) nodeManagedSett
 	alertBellVibra := newSettingsCheck(onChanged)
 	alertBellBuzzer := newSettingsCheck(onChanged)
 	usePWMBuzzer := newSettingsCheck(onChanged)
-	nagTimeout := newNumberEntry(onChanged)
+	nagTimeout := widget.NewSelect(nil, nil)
+	nagTimeout.OnChanged = func(string) { onChanged() }
 	ringtone := widget.NewMultiLineEntry()
+	ringtone.SetMinRowsVisible(4)
 	ringtone.OnChanged = func(string) { onChanged() }
 	useI2S := newSettingsCheck(onChanged)
-	form := widget.NewForm(
+
+	configForm := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeID),
-		widget.NewFormItem("Enabled", enabled),
-		widget.NewFormItem("Output ms", outputMS),
-		widget.NewFormItem("Output GPIO", outputGPIO),
-		widget.NewFormItem("Vibra GPIO", outputVibraGPIO),
-		widget.NewFormItem("Buzzer GPIO", outputBuzzerGPIO),
-		widget.NewFormItem("Active high", outputActiveHigh),
+		widget.NewFormItem("External notification enabled", enabled),
+	)
+	messageForm := widget.NewForm(
 		widget.NewFormItem("Alert message LED", alertMessageLED),
-		widget.NewFormItem("Alert message vibra", alertMessageVibra),
 		widget.NewFormItem("Alert message buzzer", alertMessageBuzzer),
+		widget.NewFormItem("Alert message vibra", alertMessageVibra),
+	)
+	bellForm := widget.NewForm(
 		widget.NewFormItem("Alert bell LED", alertBellLED),
-		widget.NewFormItem("Alert bell vibra", alertBellVibra),
 		widget.NewFormItem("Alert bell buzzer", alertBellBuzzer),
+		widget.NewFormItem("Alert bell vibra", alertBellVibra),
+	)
+	activeHighItem := widget.NewForm(
+		widget.NewFormItem("Output LED active high", outputActiveHigh),
+	)
+	pwmItem := widget.NewForm(
 		widget.NewFormItem("Use PWM buzzer", usePWMBuzzer),
-		widget.NewFormItem("Nag timeout secs", nagTimeout),
+	)
+	advancedForm := widget.NewForm(
+		widget.NewFormItem("Output LED GPIO", outputGPIO),
+		widget.NewFormItem("Output buzzer GPIO", outputBuzzerGPIO),
+		widget.NewFormItem("Output vibra GPIO", outputVibraGPIO),
+		widget.NewFormItem("Output duration milliseconds", outputMS),
+		widget.NewFormItem("Nag timeout seconds", nagTimeout),
 		widget.NewFormItem("Ringtone", ringtone),
 		widget.NewFormItem("Use I2S as buzzer", useI2S),
 	)
+	updateAdvancedVisibility := func() {
+		if strings.TrimSpace(outputGPIO.Text) != "" && strings.TrimSpace(outputGPIO.Text) != "0" {
+			activeHighItem.Show()
+		} else {
+			activeHighItem.Hide()
+		}
+		if strings.TrimSpace(outputBuzzerGPIO.Text) != "" && strings.TrimSpace(outputBuzzerGPIO.Text) != "0" {
+			pwmItem.Show()
+		} else {
+			pwmItem.Hide()
+		}
+	}
+	outputGPIO.OnChanged = func(string) {
+		updateAdvancedVisibility()
+		onChanged()
+	}
+	outputBuzzerGPIO.OnChanged = func(string) {
+		updateAdvancedVisibility()
+		onChanged()
+	}
+	content := container.NewVBox(
+		widget.NewCard("External notification config", "", configForm),
+		widget.NewCard("Notifications on message receipt", "", messageForm),
+		widget.NewCard("Notifications on alert bell receipt", "", bellForm),
+		widget.NewCard("Advanced", "", container.NewVBox(
+			advancedForm,
+			activeHighItem,
+			pwmItem,
+		)),
+	)
+	updateAdvancedVisibility()
 
 	return nodeManagedSettingsForm[app.NodeExternalNotificationSettings]{
-		content: form,
+		content: content,
 		set: func(v app.NodeExternalNotificationSettings) {
 			nodeID.SetText(orUnknown(v.NodeID))
 			enabled.SetChecked(v.Enabled)
-			outputMS.SetText(strconv.FormatUint(uint64(v.OutputMS), 10))
+			nodeSettingsSetUint32Select(outputMS, nodeSettingsOutputDurationOptions, v.OutputMS, nodeSettingsCustomMillisecondsLabel)
 			outputGPIO.SetText(strconv.FormatUint(uint64(v.OutputGPIO), 10))
 			outputVibraGPIO.SetText(strconv.FormatUint(uint64(v.OutputVibraGPIO), 10))
 			outputBuzzerGPIO.SetText(strconv.FormatUint(uint64(v.OutputBuzzerGPIO), 10))
@@ -565,15 +754,16 @@ func buildNodeExternalNotificationSettingsForm(onChanged func()) nodeManagedSett
 			alertBellVibra.SetChecked(v.AlertBellVibra)
 			alertBellBuzzer.SetChecked(v.AlertBellBuzzer)
 			usePWMBuzzer.SetChecked(v.UsePWMBuzzer)
-			nagTimeout.SetText(strconv.FormatUint(uint64(v.NagTimeoutSecs), 10))
+			nodeSettingsSetUint32Select(nagTimeout, nodeSettingsNagTimeoutOptions, v.NagTimeoutSecs, nodeSettingsCustomSecondsLabel)
 			ringtone.SetText(v.Ringtone)
 			useI2S.SetChecked(v.UseI2SAsBuzzer)
+			updateAdvancedVisibility()
 		},
 		read: func(base app.NodeExternalNotificationSettings, target app.NodeSettingsTarget) (app.NodeExternalNotificationSettings, error) {
 			base.NodeID = strings.TrimSpace(target.NodeID)
 			var err error
 			base.Enabled = enabled.Checked
-			base.OutputMS, err = parseOptionalUint32(outputMS.Text)
+			base.OutputMS, err = nodeSettingsParseMillisecondsSelectLabel("output ms", outputMS.Selected, nodeSettingsOutputDurationOptions)
 			if err != nil {
 				return app.NodeExternalNotificationSettings{}, fieldParseError("output ms", err)
 			}
@@ -597,7 +787,7 @@ func buildNodeExternalNotificationSettingsForm(onChanged func()) nodeManagedSett
 			base.AlertBellVibra = alertBellVibra.Checked
 			base.AlertBellBuzzer = alertBellBuzzer.Checked
 			base.UsePWMBuzzer = usePWMBuzzer.Checked
-			base.NagTimeoutSecs, err = parseOptionalUint32(nagTimeout.Text)
+			base.NagTimeoutSecs, err = nodeSettingsParseUint32SelectLabel("nag timeout", nagTimeout.Selected, nodeSettingsNagTimeoutOptions)
 			if err != nil {
 				return app.NodeExternalNotificationSettings{}, fieldParseError("nag timeout", err)
 			}
@@ -706,18 +896,23 @@ func newNodeTelemetrySettingsPage(dep RuntimeDependencies, saveGate *nodeSetting
 func buildNodeTelemetrySettingsForm(onChanged func()) nodeManagedSettingsForm[app.NodeTelemetrySettings] {
 	nodeID := widget.NewLabel("unknown")
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
-	deviceUpdateInterval := newNumberEntry(onChanged)
-	environmentUpdateInterval := newNumberEntry(onChanged)
+	deviceUpdateInterval := widget.NewSelect(nil, nil)
+	deviceUpdateInterval.OnChanged = func(string) { onChanged() }
+	environmentUpdateInterval := widget.NewSelect(nil, nil)
+	environmentUpdateInterval.OnChanged = func(string) { onChanged() }
 	environmentMeasurement := newSettingsCheck(onChanged)
 	environmentScreen := newSettingsCheck(onChanged)
 	displayFahrenheit := newSettingsCheck(onChanged)
 	airQualityEnabled := newSettingsCheck(onChanged)
-	airQualityInterval := newNumberEntry(onChanged)
+	airQualityInterval := widget.NewSelect(nil, nil)
+	airQualityInterval.OnChanged = func(string) { onChanged() }
 	powerMeasurement := newSettingsCheck(onChanged)
-	powerUpdateInterval := newNumberEntry(onChanged)
+	powerUpdateInterval := widget.NewSelect(nil, nil)
+	powerUpdateInterval.OnChanged = func(string) { onChanged() }
 	powerScreen := newSettingsCheck(onChanged)
 	healthMeasurement := newSettingsCheck(onChanged)
-	healthUpdateInterval := newNumberEntry(onChanged)
+	healthUpdateInterval := widget.NewSelect(nil, nil)
+	healthUpdateInterval.OnChanged = func(string) { onChanged() }
 	healthScreen := newSettingsCheck(onChanged)
 	deviceTelemetry := newSettingsCheck(onChanged)
 	airQualityScreen := newSettingsCheck(onChanged)
@@ -744,18 +939,18 @@ func buildNodeTelemetrySettingsForm(onChanged func()) nodeManagedSettingsForm[ap
 		content: form,
 		set: func(v app.NodeTelemetrySettings) {
 			nodeID.SetText(orUnknown(v.NodeID))
-			deviceUpdateInterval.SetText(strconv.FormatUint(uint64(v.DeviceUpdateInterval), 10))
-			environmentUpdateInterval.SetText(strconv.FormatUint(uint64(v.EnvironmentUpdateInterval), 10))
+			nodeSettingsSetUint32Select(deviceUpdateInterval, nodeSettingsBroadcastShortIntervalOptions, v.DeviceUpdateInterval, nodeSettingsCustomSecondsLabel)
+			nodeSettingsSetUint32Select(environmentUpdateInterval, nodeSettingsBroadcastShortIntervalOptions, v.EnvironmentUpdateInterval, nodeSettingsCustomSecondsLabel)
 			environmentMeasurement.SetChecked(v.EnvironmentMeasurementEnabled)
 			environmentScreen.SetChecked(v.EnvironmentScreenEnabled)
 			displayFahrenheit.SetChecked(v.EnvironmentDisplayFahrenheit)
 			airQualityEnabled.SetChecked(v.AirQualityEnabled)
-			airQualityInterval.SetText(strconv.FormatUint(uint64(v.AirQualityInterval), 10))
+			nodeSettingsSetUint32Select(airQualityInterval, nodeSettingsBroadcastShortIntervalOptions, v.AirQualityInterval, nodeSettingsCustomSecondsLabel)
 			powerMeasurement.SetChecked(v.PowerMeasurementEnabled)
-			powerUpdateInterval.SetText(strconv.FormatUint(uint64(v.PowerUpdateInterval), 10))
+			nodeSettingsSetUint32Select(powerUpdateInterval, nodeSettingsBroadcastShortIntervalOptions, v.PowerUpdateInterval, nodeSettingsCustomSecondsLabel)
 			powerScreen.SetChecked(v.PowerScreenEnabled)
 			healthMeasurement.SetChecked(v.HealthMeasurementEnabled)
-			healthUpdateInterval.SetText(strconv.FormatUint(uint64(v.HealthUpdateInterval), 10))
+			nodeSettingsSetUint32Select(healthUpdateInterval, nodeSettingsBroadcastShortIntervalOptions, v.HealthUpdateInterval, nodeSettingsCustomSecondsLabel)
 			healthScreen.SetChecked(v.HealthScreenEnabled)
 			deviceTelemetry.SetChecked(v.DeviceTelemetryEnabled)
 			airQualityScreen.SetChecked(v.AirQualityScreenEnabled)
@@ -763,11 +958,11 @@ func buildNodeTelemetrySettingsForm(onChanged func()) nodeManagedSettingsForm[ap
 		read: func(base app.NodeTelemetrySettings, target app.NodeSettingsTarget) (app.NodeTelemetrySettings, error) {
 			base.NodeID = strings.TrimSpace(target.NodeID)
 			var err error
-			base.DeviceUpdateInterval, err = parseOptionalUint32(deviceUpdateInterval.Text)
+			base.DeviceUpdateInterval, err = nodeSettingsParseUint32SelectLabel("device update interval", deviceUpdateInterval.Selected, nodeSettingsBroadcastShortIntervalOptions)
 			if err != nil {
 				return app.NodeTelemetrySettings{}, fieldParseError("device update interval", err)
 			}
-			base.EnvironmentUpdateInterval, err = parseOptionalUint32(environmentUpdateInterval.Text)
+			base.EnvironmentUpdateInterval, err = nodeSettingsParseUint32SelectLabel("environment update interval", environmentUpdateInterval.Selected, nodeSettingsBroadcastShortIntervalOptions)
 			if err != nil {
 				return app.NodeTelemetrySettings{}, fieldParseError("environment update interval", err)
 			}
@@ -775,18 +970,18 @@ func buildNodeTelemetrySettingsForm(onChanged func()) nodeManagedSettingsForm[ap
 			base.EnvironmentScreenEnabled = environmentScreen.Checked
 			base.EnvironmentDisplayFahrenheit = displayFahrenheit.Checked
 			base.AirQualityEnabled = airQualityEnabled.Checked
-			base.AirQualityInterval, err = parseOptionalUint32(airQualityInterval.Text)
+			base.AirQualityInterval, err = nodeSettingsParseUint32SelectLabel("air quality interval", airQualityInterval.Selected, nodeSettingsBroadcastShortIntervalOptions)
 			if err != nil {
 				return app.NodeTelemetrySettings{}, fieldParseError("air quality interval", err)
 			}
 			base.PowerMeasurementEnabled = powerMeasurement.Checked
-			base.PowerUpdateInterval, err = parseOptionalUint32(powerUpdateInterval.Text)
+			base.PowerUpdateInterval, err = nodeSettingsParseUint32SelectLabel("power update interval", powerUpdateInterval.Selected, nodeSettingsBroadcastShortIntervalOptions)
 			if err != nil {
 				return app.NodeTelemetrySettings{}, fieldParseError("power update interval", err)
 			}
 			base.PowerScreenEnabled = powerScreen.Checked
 			base.HealthMeasurementEnabled = healthMeasurement.Checked
-			base.HealthUpdateInterval, err = parseOptionalUint32(healthUpdateInterval.Text)
+			base.HealthUpdateInterval, err = nodeSettingsParseUint32SelectLabel("health update interval", healthUpdateInterval.Selected, nodeSettingsBroadcastShortIntervalOptions)
 			if err != nil {
 				return app.NodeTelemetrySettings{}, fieldParseError("health update interval", err)
 			}
@@ -932,7 +1127,8 @@ func buildNodeAudioSettingsForm(onChanged func()) nodeManagedSettingsForm[app.No
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
 	codec2Enabled := newSettingsCheck(onChanged)
 	pttPin := newNumberEntry(onChanged)
-	bitrate := newNumberEntry(onChanged)
+	bitrate := widget.NewSelect(nil, nil)
+	bitrate.OnChanged = func(string) { onChanged() }
 	i2sWs := newNumberEntry(onChanged)
 	i2sSd := newNumberEntry(onChanged)
 	i2sDin := newNumberEntry(onChanged)
@@ -954,7 +1150,7 @@ func buildNodeAudioSettingsForm(onChanged func()) nodeManagedSettingsForm[app.No
 			nodeID.SetText(orUnknown(v.NodeID))
 			codec2Enabled.SetChecked(v.Codec2Enabled)
 			pttPin.SetText(strconv.FormatUint(uint64(v.PTTPin), 10))
-			bitrate.SetText(strconv.FormatInt(int64(v.Bitrate), 10))
+			nodeSettingsSetInt32Select(bitrate, nodeSettingsAudioBitrateOptions, v.Bitrate, nodeSettingsCustomInt32Label)
 			i2sWs.SetText(strconv.FormatUint(uint64(v.I2SWordSelect), 10))
 			i2sSd.SetText(strconv.FormatUint(uint64(v.I2SDataIn), 10))
 			i2sDin.SetText(strconv.FormatUint(uint64(v.I2SDataOut), 10))
@@ -968,7 +1164,7 @@ func buildNodeAudioSettingsForm(onChanged func()) nodeManagedSettingsForm[app.No
 			if err != nil {
 				return app.NodeAudioSettings{}, fieldParseError("PTT pin", err)
 			}
-			base.Bitrate, err = parseOptionalInt32(bitrate.Text)
+			base.Bitrate, err = nodeSettingsParseInt32SelectLabel("bitrate", bitrate.Selected, nodeSettingsAudioBitrateOptions)
 			if err != nil {
 				return app.NodeAudioSettings{}, fieldParseError("bitrate", err)
 			}
@@ -1080,7 +1276,8 @@ func buildNodeNeighborInfoSettingsForm(onChanged func()) nodeManagedSettingsForm
 	nodeID := widget.NewLabel("unknown")
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
 	enabled := newSettingsCheck(onChanged)
-	updateInterval := newNumberEntry(onChanged)
+	updateInterval := widget.NewSelect(nil, nil)
+	updateInterval.OnChanged = func(string) { onChanged() }
 	transmitOverLoRa := newSettingsCheck(onChanged)
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeID),
@@ -1094,14 +1291,14 @@ func buildNodeNeighborInfoSettingsForm(onChanged func()) nodeManagedSettingsForm
 		set: func(v app.NodeNeighborInfoSettings) {
 			nodeID.SetText(orUnknown(v.NodeID))
 			enabled.SetChecked(v.Enabled)
-			updateInterval.SetText(strconv.FormatUint(uint64(v.UpdateIntervalSecs), 10))
+			nodeSettingsSetUint32Select(updateInterval, nodeSettingsDetectionMinimumIntervalOptions, v.UpdateIntervalSecs, nodeSettingsCustomSecondsLabel)
 			transmitOverLoRa.SetChecked(v.TransmitOverLoRa)
 		},
 		read: func(base app.NodeNeighborInfoSettings, target app.NodeSettingsTarget) (app.NodeNeighborInfoSettings, error) {
 			base.NodeID = strings.TrimSpace(target.NodeID)
 			var err error
 			base.Enabled = enabled.Checked
-			base.UpdateIntervalSecs, err = parseOptionalUint32(updateInterval.Text)
+			base.UpdateIntervalSecs, err = nodeSettingsParseUint32SelectLabel("update interval secs", updateInterval.Selected, nodeSettingsDetectionMinimumIntervalOptions)
 			if err != nil {
 				return app.NodeNeighborInfoSettings{}, fieldParseError("update interval secs", err)
 			}
@@ -1205,13 +1402,16 @@ func buildNodeDetectionSensorSettingsForm(onChanged func()) nodeManagedSettingsF
 	nodeID := widget.NewLabel("unknown")
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
 	enabled := newSettingsCheck(onChanged)
-	minimumBroadcast := newNumberEntry(onChanged)
-	stateBroadcast := newNumberEntry(onChanged)
+	minimumBroadcast := widget.NewSelect(nil, nil)
+	minimumBroadcast.OnChanged = func(string) { onChanged() }
+	stateBroadcast := widget.NewSelect(nil, nil)
+	stateBroadcast.OnChanged = func(string) { onChanged() }
 	sendBell := newSettingsCheck(onChanged)
 	name := widget.NewEntry()
 	name.OnChanged = func(string) { onChanged() }
 	monitorPin := newNumberEntry(onChanged)
-	triggerType := newNumberEntry(onChanged)
+	triggerType := widget.NewSelect(nil, nil)
+	triggerType.OnChanged = func(string) { onChanged() }
 	usePullup := newSettingsCheck(onChanged)
 	form := widget.NewForm(
 		widget.NewFormItem("Node ID", nodeID),
@@ -1230,23 +1430,23 @@ func buildNodeDetectionSensorSettingsForm(onChanged func()) nodeManagedSettingsF
 		set: func(v app.NodeDetectionSensorSettings) {
 			nodeID.SetText(orUnknown(v.NodeID))
 			enabled.SetChecked(v.Enabled)
-			minimumBroadcast.SetText(strconv.FormatUint(uint64(v.MinimumBroadcastSecs), 10))
-			stateBroadcast.SetText(strconv.FormatUint(uint64(v.StateBroadcastSecs), 10))
+			nodeSettingsSetUint32Select(minimumBroadcast, nodeSettingsDetectionMinimumIntervalOptions, v.MinimumBroadcastSecs, nodeSettingsCustomSecondsLabel)
+			nodeSettingsSetUint32Select(stateBroadcast, nodeSettingsDetectionStateIntervalOptions, v.StateBroadcastSecs, nodeSettingsCustomSecondsLabel)
 			sendBell.SetChecked(v.SendBell)
 			name.SetText(v.Name)
 			monitorPin.SetText(strconv.FormatUint(uint64(v.MonitorPin), 10))
-			triggerType.SetText(strconv.FormatInt(int64(v.DetectionTriggerType), 10))
+			nodeSettingsSetInt32Select(triggerType, nodeSettingsDetectionTriggerTypeOptions, v.DetectionTriggerType, nodeSettingsCustomInt32Label)
 			usePullup.SetChecked(v.UsePullup)
 		},
 		read: func(base app.NodeDetectionSensorSettings, target app.NodeSettingsTarget) (app.NodeDetectionSensorSettings, error) {
 			base.NodeID = strings.TrimSpace(target.NodeID)
 			var err error
 			base.Enabled = enabled.Checked
-			base.MinimumBroadcastSecs, err = parseOptionalUint32(minimumBroadcast.Text)
+			base.MinimumBroadcastSecs, err = nodeSettingsParseUint32SelectLabel("minimum broadcast secs", minimumBroadcast.Selected, nodeSettingsDetectionMinimumIntervalOptions)
 			if err != nil {
 				return app.NodeDetectionSensorSettings{}, fieldParseError("minimum broadcast secs", err)
 			}
-			base.StateBroadcastSecs, err = parseOptionalUint32(stateBroadcast.Text)
+			base.StateBroadcastSecs, err = nodeSettingsParseUint32SelectLabel("state broadcast secs", stateBroadcast.Selected, nodeSettingsDetectionStateIntervalOptions)
 			if err != nil {
 				return app.NodeDetectionSensorSettings{}, fieldParseError("state broadcast secs", err)
 			}
@@ -1256,7 +1456,7 @@ func buildNodeDetectionSensorSettingsForm(onChanged func()) nodeManagedSettingsF
 			if err != nil {
 				return app.NodeDetectionSensorSettings{}, fieldParseError("monitor pin", err)
 			}
-			base.DetectionTriggerType, err = parseOptionalInt32(triggerType.Text)
+			base.DetectionTriggerType, err = nodeSettingsParseInt32SelectLabel("detection trigger type", triggerType.Selected, nodeSettingsDetectionTriggerTypeOptions)
 			if err != nil {
 				return app.NodeDetectionSensorSettings{}, fieldParseError("detection trigger type", err)
 			}
@@ -1289,7 +1489,8 @@ func buildNodePaxcounterSettingsForm(onChanged func()) nodeManagedSettingsForm[a
 	nodeID := widget.NewLabel("unknown")
 	nodeID.TextStyle = fyne.TextStyle{Monospace: true}
 	enabled := newSettingsCheck(onChanged)
-	updateInterval := newNumberEntry(onChanged)
+	updateInterval := widget.NewSelect(nil, nil)
+	updateInterval.OnChanged = func(string) { onChanged() }
 	wifiThreshold := newNumberEntry(onChanged)
 	bleThreshold := newNumberEntry(onChanged)
 	form := widget.NewForm(
@@ -1305,7 +1506,7 @@ func buildNodePaxcounterSettingsForm(onChanged func()) nodeManagedSettingsForm[a
 		set: func(v app.NodePaxcounterSettings) {
 			nodeID.SetText(orUnknown(v.NodeID))
 			enabled.SetChecked(v.Enabled)
-			updateInterval.SetText(strconv.FormatUint(uint64(v.UpdateIntervalSecs), 10))
+			nodeSettingsSetUint32Select(updateInterval, nodeSettingsPaxcounterIntervalOptions, v.UpdateIntervalSecs, nodeSettingsCustomSecondsLabel)
 			wifiThreshold.SetText(strconv.FormatInt(int64(v.WifiThreshold), 10))
 			bleThreshold.SetText(strconv.FormatInt(int64(v.BLEThreshold), 10))
 		},
@@ -1313,7 +1514,7 @@ func buildNodePaxcounterSettingsForm(onChanged func()) nodeManagedSettingsForm[a
 			base.NodeID = strings.TrimSpace(target.NodeID)
 			var err error
 			base.Enabled = enabled.Checked
-			base.UpdateIntervalSecs, err = parseOptionalUint32(updateInterval.Text)
+			base.UpdateIntervalSecs, err = nodeSettingsParseUint32SelectLabel("update interval secs", updateInterval.Selected, nodeSettingsPaxcounterIntervalOptions)
 			if err != nil {
 				return app.NodePaxcounterSettings{}, fieldParseError("update interval secs", err)
 			}
@@ -1835,6 +2036,34 @@ func parseUint32List(raw string) ([]uint32, error) {
 	}
 
 	return out, nil
+}
+
+func nodeSettingsCustomMillisecondsLabel(milliseconds uint32) string {
+	return fmt.Sprintf("Custom (%d ms)", milliseconds)
+}
+
+func nodeSettingsParseMillisecondsSelectLabel(
+	fieldName string,
+	selected string,
+	options []nodeSettingsUint32Option,
+) (uint32, error) {
+	selected = strings.TrimSpace(selected)
+	for _, option := range options {
+		if option.Label == selected {
+			return option.Value, nil
+		}
+	}
+	if strings.HasPrefix(selected, nodeSettingsCustomLabelPrefix) && strings.HasSuffix(selected, " ms)") {
+		raw := strings.TrimSuffix(strings.TrimPrefix(selected, nodeSettingsCustomLabelPrefix), " ms)")
+		value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("%s has invalid value", fieldName)
+		}
+
+		return uint32(value), nil
+	}
+
+	return 0, fmt.Errorf("%s has unsupported value", fieldName)
 }
 
 func fieldParseError(field string, err error) error {

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,8 +34,8 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 	use12HClockBox := widget.NewCheck("", nil)
 	headingBoldBox := widget.NewCheck("", nil)
 	unitsSelect := widget.NewSelect(nil, nil)
-	screenOnSecsEntry := widget.NewEntry()
-	carouselSecsEntry := widget.NewEntry()
+	screenOnSecsSelect := widget.NewSelect(nil, nil)
+	carouselSecsSelect := widget.NewSelect(nil, nil)
 	wakeOnTapOrMotionBox := widget.NewCheck("", nil)
 	flipScreenBox := widget.NewCheck("", nil)
 	displayModeSelect := widget.NewSelect(nil, nil)
@@ -47,8 +48,8 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 		widget.NewFormItem("Use 12-hour time format", use12HClockBox),
 		widget.NewFormItem("Bold heading", headingBoldBox),
 		widget.NewFormItem("Display units", unitsSelect),
-		widget.NewFormItem("Screen on duration (seconds)", screenOnSecsEntry),
-		widget.NewFormItem("Carousel interval (seconds)", carouselSecsEntry),
+		widget.NewFormItem("Screen on duration", screenOnSecsSelect),
+		widget.NewFormItem("Carousel duration", carouselSecsSelect),
 		widget.NewFormItem("Wake on tap or motion", wakeOnTapOrMotionBox),
 		widget.NewFormItem("Flip screen", flipScreenBox),
 		widget.NewFormItem("Display mode", displayModeSelect),
@@ -80,8 +81,18 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 		use12HClockBox.SetChecked(settings.Use12HClock)
 		headingBoldBox.SetChecked(settings.HeadingBold)
 		nodeDisplaySetEnumSelect(unitsSelect, nodeDisplayUnitsOptions, settings.Units)
-		screenOnSecsEntry.SetText(strconv.FormatUint(uint64(settings.ScreenOnSecs), 10))
-		carouselSecsEntry.SetText(strconv.FormatUint(uint64(settings.AutoScreenCarouselSecs), 10))
+		nodeSettingsSetUint32Select(
+			screenOnSecsSelect,
+			nodeDisplayScreenOnIntervalOptions,
+			settings.ScreenOnSecs,
+			nodeDisplayScreenOnCustomLabel,
+		)
+		nodeSettingsSetUint32Select(
+			carouselSecsSelect,
+			nodeDisplayCarouselIntervalOptions,
+			settings.AutoScreenCarouselSecs,
+			nodeDisplayCarouselCustomLabel,
+		)
 		wakeOnTapOrMotionBox.SetChecked(settings.WakeOnTapOrMotion)
 		flipScreenBox.SetChecked(settings.FlipScreen)
 		nodeDisplaySetEnumSelect(displayModeSelect, nodeDisplayModeOptions, settings.DisplayMode)
@@ -101,8 +112,8 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 			Use12HClock:            use12HClockBox.Checked,
 			HeadingBold:            headingBoldBox.Checked,
 			Units:                  strings.TrimSpace(unitsSelect.Selected),
-			ScreenOnSecs:           strings.TrimSpace(screenOnSecsEntry.Text),
-			AutoScreenCarouselSecs: strings.TrimSpace(carouselSecsEntry.Text),
+			ScreenOnSecs:           strings.TrimSpace(screenOnSecsSelect.Selected),
+			AutoScreenCarouselSecs: strings.TrimSpace(carouselSecsSelect.Selected),
 			WakeOnTapOrMotion:      wakeOnTapOrMotionBox.Checked,
 			FlipScreen:             flipScreenBox.Checked,
 			DisplayMode:            strings.TrimSpace(displayModeSelect.Selected),
@@ -162,11 +173,11 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 	}
 
 	buildSettingsFromForm := func(target app.NodeSettingsTarget) (app.NodeDisplaySettings, error) {
-		screenOnSecs, err := parseNodeDisplayUint32Field("screen on duration", screenOnSecsEntry.Text)
+		screenOnSecs, err := nodeDisplayParseScreenOnSelectLabel(screenOnSecsSelect.Selected)
 		if err != nil {
 			return app.NodeDisplaySettings{}, err
 		}
-		autoScreenCarouselSecs, err := parseNodeDisplayUint32Field("carousel interval", carouselSecsEntry.Text)
+		autoScreenCarouselSecs, err := nodeDisplayParseCarouselSelectLabel(carouselSecsSelect.Selected)
 		if err != nil {
 			return app.NodeDisplaySettings{}, err
 		}
@@ -253,8 +264,8 @@ func newNodeDisplaySettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsS
 	use12HClockBox.OnChanged = func(_ bool) { markDirty() }
 	headingBoldBox.OnChanged = func(_ bool) { markDirty() }
 	unitsSelect.OnChanged = func(_ string) { markDirty() }
-	screenOnSecsEntry.OnChanged = func(_ string) { markDirty() }
-	carouselSecsEntry.OnChanged = func(_ string) { markDirty() }
+	screenOnSecsSelect.OnChanged = func(_ string) { markDirty() }
+	carouselSecsSelect.OnChanged = func(_ string) { markDirty() }
 	wakeOnTapOrMotionBox.OnChanged = func(_ bool) { markDirty() }
 	flipScreenBox.OnChanged = func(_ bool) { markDirty() }
 	displayModeSelect.OnChanged = func(_ string) { markDirty() }
@@ -426,6 +437,28 @@ type nodeDisplayEnumOption struct {
 	Value int32
 }
 
+var nodeDisplayScreenOnIntervalOptions = []nodeSettingsUint32Option{
+	{Label: nodeSettingsSecondsKnownLabel(15, ""), Value: 15},
+	{Label: nodeSettingsSecondsKnownLabel(30, ""), Value: 30},
+	{Label: nodeSettingsSecondsKnownLabel(60, ""), Value: 60},
+	{Label: nodeSettingsSecondsKnownLabel(5*60, ""), Value: 5 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(10*60, ""), Value: 10 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+	{Label: "Always on", Value: math.MaxInt32},
+}
+
+var nodeDisplayCarouselIntervalOptions = []nodeSettingsUint32Option{
+	{Label: "Unset", Value: 0},
+	{Label: nodeSettingsSecondsKnownLabel(15, ""), Value: 15},
+	{Label: nodeSettingsSecondsKnownLabel(30, ""), Value: 30},
+	{Label: nodeSettingsSecondsKnownLabel(60, ""), Value: 60},
+	{Label: nodeSettingsSecondsKnownLabel(5*60, ""), Value: 5 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(10*60, ""), Value: 10 * 60},
+	{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
+}
+
 var nodeDisplayUnitsOptions = []nodeDisplayEnumOption{
 	{Label: "Metric", Value: int32(generated.Config_DisplayConfig_METRIC)},
 	{Label: "Imperial", Value: int32(generated.Config_DisplayConfig_IMPERIAL)},
@@ -463,8 +496,8 @@ func nodeDisplayFormValuesFromSettings(settings app.NodeDisplaySettings) nodeDis
 		Use12HClock:            settings.Use12HClock,
 		HeadingBold:            settings.HeadingBold,
 		Units:                  nodeDisplayEnumLabel(settings.Units, nodeDisplayUnitsOptions),
-		ScreenOnSecs:           strconv.FormatUint(uint64(settings.ScreenOnSecs), 10),
-		AutoScreenCarouselSecs: strconv.FormatUint(uint64(settings.AutoScreenCarouselSecs), 10),
+		ScreenOnSecs:           nodeDisplayScreenOnLabel(settings.ScreenOnSecs),
+		AutoScreenCarouselSecs: nodeDisplayCarouselLabel(settings.AutoScreenCarouselSecs),
 		WakeOnTapOrMotion:      settings.WakeOnTapOrMotion,
 		FlipScreen:             settings.FlipScreen,
 		DisplayMode:            nodeDisplayEnumLabel(settings.DisplayMode, nodeDisplayModeOptions),
@@ -477,17 +510,56 @@ func cloneNodeDisplaySettings(settings app.NodeDisplaySettings) app.NodeDisplayS
 	return settings
 }
 
-func parseNodeDisplayUint32Field(fieldName, raw string) (uint32, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, fmt.Errorf("%s is required", fieldName)
-	}
-	value, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("%s must be a non-negative integer", fieldName)
+func nodeDisplayScreenOnCustomLabel(value uint32) string {
+	if value == math.MaxInt32 {
+		return "Always on"
 	}
 
-	return uint32(value), nil
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodeDisplayScreenOnLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodeDisplayScreenOnIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeDisplayScreenOnCustomLabel(value)
+}
+
+func nodeDisplayParseScreenOnSelectLabel(selected string) (uint32, error) {
+	selected = strings.TrimSpace(selected)
+	if strings.EqualFold(selected, "Always on") {
+		return math.MaxInt32, nil
+	}
+
+	return nodeSettingsParseUint32SelectLabel("screen on duration", selected, nodeDisplayScreenOnIntervalOptions)
+}
+
+func nodeDisplayCarouselCustomLabel(value uint32) string {
+	if value == 0 {
+		return "Unset"
+	}
+
+	return nodeSettingsCustomSecondsLabel(value)
+}
+
+func nodeDisplayCarouselLabel(value uint32) string {
+	label := nodeSettingsUint32OptionLabel(value, nodeDisplayCarouselIntervalOptions)
+	if label != "" {
+		return label
+	}
+
+	return nodeDisplayCarouselCustomLabel(value)
+}
+
+func nodeDisplayParseCarouselSelectLabel(selected string) (uint32, error) {
+	selected = strings.TrimSpace(selected)
+	if strings.EqualFold(selected, "Unset") {
+		return 0, nil
+	}
+
+	return nodeSettingsParseUint32SelectLabel("carousel duration", selected, nodeDisplayCarouselIntervalOptions)
 }
 
 func nodeDisplaySetEnumSelect(selectWidget *widget.Select, options []nodeDisplayEnumOption, value int32) {

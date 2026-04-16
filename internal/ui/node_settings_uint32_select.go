@@ -106,6 +106,19 @@ func nodeSettingsUint32OptionLabel(value uint32, options []nodeSettingsUint32Opt
 	return ""
 }
 
+func nodeSettingsSelectCurrentLabel(
+	value uint32,
+	options []nodeSettingsUint32Option,
+	customLabel func(uint32) string,
+) string {
+	label := nodeSettingsUint32OptionLabel(value, options)
+	if label != "" {
+		return label
+	}
+
+	return customLabel(value)
+}
+
 func nodeSettingsUint32OptionLabels(options []nodeSettingsUint32Option) []string {
 	out := make([]string, 0, len(options))
 	for _, option := range options {

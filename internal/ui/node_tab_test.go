@@ -27,8 +27,12 @@ type nodeSettingsActionSpy struct {
 	loadNetworkCalls   atomic.Int32
 	loadMQTTCalls      atomic.Int32
 	loadSerialCalls    atomic.Int32
+	loadExternalCalls  atomic.Int32
 	loadRangeTestCalls atomic.Int32
 	loadTelemetryCalls atomic.Int32
+	loadAudioCalls     atomic.Int32
+	loadDetectionCalls atomic.Int32
+	loadPaxCalls       atomic.Int32
 }
 
 func (s *nodeSettingsActionSpy) LoadUserSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeUserSettings, error) {
@@ -148,6 +152,8 @@ func (s *nodeSettingsActionSpy) SaveSerialSettings(_ context.Context, _ app.Node
 }
 
 func (s *nodeSettingsActionSpy) LoadExternalNotificationSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeExternalNotificationSettings, error) {
+	s.loadExternalCalls.Add(1)
+
 	return app.NodeExternalNotificationSettings{NodeID: target.NodeID}, nil
 }
 
@@ -192,6 +198,8 @@ func (s *nodeSettingsActionSpy) SaveCannedMessageSettings(_ context.Context, _ a
 }
 
 func (s *nodeSettingsActionSpy) LoadAudioSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeAudioSettings, error) {
+	s.loadAudioCalls.Add(1)
+
 	return app.NodeAudioSettings{NodeID: target.NodeID}, nil
 }
 
@@ -224,6 +232,8 @@ func (s *nodeSettingsActionSpy) SaveAmbientLightingSettings(_ context.Context, _
 }
 
 func (s *nodeSettingsActionSpy) LoadDetectionSensorSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodeDetectionSensorSettings, error) {
+	s.loadDetectionCalls.Add(1)
+
 	return app.NodeDetectionSensorSettings{NodeID: target.NodeID}, nil
 }
 
@@ -232,6 +242,8 @@ func (s *nodeSettingsActionSpy) SaveDetectionSensorSettings(_ context.Context, _
 }
 
 func (s *nodeSettingsActionSpy) LoadPaxcounterSettings(_ context.Context, target app.NodeSettingsTarget) (app.NodePaxcounterSettings, error) {
+	s.loadPaxCalls.Add(1)
+
 	return app.NodePaxcounterSettings{NodeID: target.NodeID}, nil
 }
 
@@ -287,12 +299,28 @@ func (s *nodeSettingsActionSpy) SerialLoadCalls() int {
 	return int(s.loadSerialCalls.Load())
 }
 
+func (s *nodeSettingsActionSpy) ExternalLoadCalls() int {
+	return int(s.loadExternalCalls.Load())
+}
+
 func (s *nodeSettingsActionSpy) RangeTestLoadCalls() int {
 	return int(s.loadRangeTestCalls.Load())
 }
 
 func (s *nodeSettingsActionSpy) TelemetryLoadCalls() int {
 	return int(s.loadTelemetryCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) AudioLoadCalls() int {
+	return int(s.loadAudioCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) DetectionLoadCalls() int {
+	return int(s.loadDetectionCalls.Load())
+}
+
+func (s *nodeSettingsActionSpy) PaxLoadCalls() int {
+	return int(s.loadPaxCalls.Load())
 }
 
 func (s *nodeSettingsActionSpy) ExportProfile(_ context.Context, target app.NodeSettingsTarget) (*generated.DeviceProfile, error) {
@@ -842,4 +870,101 @@ func TestNodeTabIncludesImportExportAndMaintenanceTabs(t *testing.T) {
 	if topTabs.Items[5].Text != "Maintenance" {
 		t.Fatalf("expected Maintenance tab at index 5, got %q", topTabs.Items[5].Text)
 	}
+}
+
+func TestNodeTabNewSettingsUseSelectBasedIntervalsAndEnums(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	mustSelectAppTabByText(t, tab, "Module configuration")
+
+	mustSelectAppTabByText(t, tab, "Display")
+	waitForCondition(t, func() bool {
+		return spy.DisplayLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "Always on")
+
+	mustSelectAppTabByText(t, tab, "Power")
+	waitForCondition(t, func() bool {
+		return spy.PowerLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "45 seconds")
+
+	mustSelectAppTabByText(t, tab, "Telemetry")
+	waitForCondition(t, func() bool {
+		return spy.TelemetryLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "30 minutes")
+
+	mustSelectAppTabByText(t, tab, "Paxcounter")
+	waitForCondition(t, func() bool {
+		return spy.PaxLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "15 minutes")
+
+	mustSelectAppTabByText(t, tab, "External notification")
+	waitForCondition(t, func() bool {
+		return spy.ExternalLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "10 ms")
+
+	mustSelectAppTabByText(t, tab, "Detection Sensor")
+	waitForCondition(t, func() bool {
+		return spy.DetectionLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "Falling edge")
+}
+
+func TestNodeTabNewSettingsUseSelectBasedEnumsForSerialAndAudio(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	spy := &nodeSettingsActionSpy{}
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			LocalNodeID: func() string { return "!00000001" },
+			CurrentConnStatus: func() (busmsg.ConnectionStatus, bool) {
+				return busmsg.ConnectionStatus{State: busmsg.ConnectionStateConnected}, true
+			},
+		},
+		Actions: ActionDependencies{
+			NodeSettings: spy,
+		},
+	}
+
+	tab := newNodeTab(dep)
+	_ = fynetest.NewTempWindow(t, tab)
+
+	mustSelectAppTabByText(t, tab, "Module configuration")
+
+	mustSelectAppTabByText(t, tab, "Serial")
+	waitForCondition(t, func() bool {
+		return spy.SerialLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "115200")
+	mustFindSelectWithOption(t, tab, "Text message")
+
+	mustSelectAppTabByText(t, tab, "Audio")
+	waitForCondition(t, func() bool {
+		return spy.AudioLoadCalls() == 1
+	})
+	mustFindSelectWithOption(t, tab, "3200")
 }
