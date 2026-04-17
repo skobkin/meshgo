@@ -213,6 +213,55 @@ func (s *NodeSettingsService) saveAdminString(
 	})
 }
 
+func (s *NodeSettingsService) loadOwner(ctx context.Context, target NodeSettingsTarget) (*generated.User, error) {
+	if s == nil || s.bus == nil || s.radio == nil {
+		return nil, fmt.Errorf("node settings service is not initialized")
+	}
+	nodeNum, parseErr := parseNodeID(target.NodeID)
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	s.logger.Info("requesting node owner settings", "action", "get_owner", "node_id", strings.TrimSpace(target.NodeID), "node_num", nodeNum)
+
+	loadCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
+	defer cancel()
+
+	var (
+		resp *generated.AdminMessage
+		err  error
+	)
+	for attempt := 0; attempt <= nodeSettingsReadRetry; attempt++ {
+		resp, err = s.sendAdminAndWaitResponse(loadCtx, nodeNum, "get_owner", &generated.AdminMessage{
+			PayloadVariant: &generated.AdminMessage_GetOwnerRequest{GetOwnerRequest: true},
+		})
+		if err == nil {
+			break
+		}
+		if attempt >= nodeSettingsReadRetry || !isRetriableReadError(err) {
+			return nil, err
+		}
+	}
+
+	owner := resp.GetGetOwnerResponse()
+	if owner == nil {
+		return nil, fmt.Errorf("owner response is empty")
+	}
+
+	return owner, nil
+}
+
+func (s *NodeSettingsService) saveOwner(ctx context.Context, target NodeSettingsTarget, owner *generated.User) error {
+	if owner == nil {
+		return fmt.Errorf("set_owner owner payload is empty")
+	}
+
+	return s.runEditSettingsWrite(ctx, target, "set_owner", func(saveCtx context.Context, nodeNum uint32) error {
+		return s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_owner", &generated.AdminMessage{
+			PayloadVariant: &generated.AdminMessage_SetOwner{SetOwner: owner},
+		})
+	})
+}
+
 func cloneProtoMessage[T proto.Message](in T) T {
 	if any(in) == nil {
 		var zero T
@@ -221,4 +270,15 @@ func cloneProtoMessage[T proto.Message](in T) T {
 	}
 
 	return proto.Clone(in).(T)
+}
+
+func cloneUint32Slice(values []uint32) []uint32 {
+	if len(values) == 0 {
+		return nil
+	}
+
+	out := make([]uint32, len(values))
+	copy(out, values)
+
+	return out
 }
