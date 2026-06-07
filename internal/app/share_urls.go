@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -44,6 +45,58 @@ func BuildChannelShareURL(settings []NodeChannelSettings, lora NodeLoRaSettings,
 	rawURL += "#" + base64.RawURLEncoding.EncodeToString(encoded)
 
 	return rawURL, nil
+}
+
+func ParseChannelShareURL(rawURL string) (*generated.ChannelSet, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, fmt.Errorf("parse channel URL: %w", err)
+	}
+	if !strings.EqualFold(parsed.Hostname(), meshtasticHost) &&
+		!strings.EqualFold(parsed.Hostname(), "www."+meshtasticHost) {
+		return nil, fmt.Errorf("channel URL must use %s", meshtasticHost)
+	}
+
+	hasChannelPath := false
+	for _, segment := range strings.Split(strings.Trim(parsed.Path, "/"), "/") {
+		if strings.EqualFold(segment, "e") {
+			hasChannelPath = true
+
+			break
+		}
+	}
+	if !hasChannelPath {
+		return nil, fmt.Errorf("channel URL path must contain %q", strings.Trim(channelSharePath, "/"))
+	}
+
+	fragment := strings.TrimSpace(parsed.Fragment)
+	if fragment == "" {
+		return nil, fmt.Errorf("channel URL payload is empty")
+	}
+	// Older clients put add=true after the fragment payload. It does not change
+	// decoding, and profile imports always use replacement semantics.
+	fragment, _, _ = strings.Cut(fragment, "?")
+
+	encoded, err := base64.RawURLEncoding.DecodeString(fragment)
+	if err != nil {
+		encoded, err = base64.URLEncoding.DecodeString(fragment)
+		if err != nil {
+			return nil, fmt.Errorf("decode channel URL payload: %w", err)
+		}
+	}
+
+	var channelSet generated.ChannelSet
+	if err := proto.Unmarshal(encoded, &channelSet); err != nil {
+		return nil, fmt.Errorf("decode channel set: %w", err)
+	}
+	if len(channelSet.GetSettings()) == 0 {
+		return nil, fmt.Errorf("channel URL contains no channels")
+	}
+	if len(channelSet.GetSettings()) > NodeChannelMaxSlots {
+		return nil, fmt.Errorf("channel URL contains %d channels; maximum is %d", len(channelSet.GetSettings()), NodeChannelMaxSlots)
+	}
+
+	return &channelSet, nil
 }
 
 func BuildSharedContactURL(node domain.Node) (string, error) {

@@ -288,7 +288,12 @@ func (s *nodeSettingsActionSpy) ExportProfile(_ context.Context, target app.Node
 	return &generated.DeviceProfile{LongName: &target.NodeID}, nil
 }
 
-func (s *nodeSettingsActionSpy) ImportProfile(_ context.Context, _ app.NodeSettingsTarget, _ *generated.DeviceProfile) error {
+func (s *nodeSettingsActionSpy) ImportProfile(
+	_ context.Context,
+	_ app.NodeSettingsTarget,
+	_ *generated.DeviceProfile,
+	_ app.NodeProfileImportOptions,
+) error {
 	return nil
 }
 

@@ -75,7 +75,7 @@ type NodeSettingsAction interface {
 	LoadChannelSettings(ctx context.Context, target app.NodeSettingsTarget) (app.NodeChannelSettingsList, error)
 	SaveChannelSettings(ctx context.Context, target app.NodeSettingsTarget, settings app.NodeChannelSettingsList) error
 	ExportProfile(ctx context.Context, target app.NodeSettingsTarget) (*app_generated.DeviceProfile, error)
-	ImportProfile(ctx context.Context, target app.NodeSettingsTarget, profile *app_generated.DeviceProfile) error
+	ImportProfile(ctx context.Context, target app.NodeSettingsTarget, profile *app_generated.DeviceProfile, options app.NodeProfileImportOptions) error
 	RebootNode(ctx context.Context, target app.NodeSettingsTarget) error
 	ShutdownNode(ctx context.Context, target app.NodeSettingsTarget) error
 	FactoryResetNode(ctx context.Context, target app.NodeSettingsTarget) error

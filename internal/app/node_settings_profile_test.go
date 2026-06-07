@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/skobkin/meshgo/internal/bus"
@@ -158,10 +159,141 @@ func TestNodeSettingsServiceImportProfile_AppliesProvidedFields(t *testing.T) {
 	ctx, cancel := contextWithTimeout(t)
 	defer cancel()
 
-	if err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile); err != nil {
+	if err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile, NodeProfileImportOptions{}); err != nil {
 		t.Fatalf("import profile: %v", err)
 	}
 	if call != 8 {
 		t.Fatalf("unexpected send calls count: got %d want 8", call)
+	}
+}
+
+func TestNodeSettingsServiceImportProfile_AppliesChannelsLast(t *testing.T) {
+	t.Parallel()
+
+	channelURL, err := BuildChannelShareURL([]NodeChannelSettings{
+		{Name: "Primary", PSK: []byte{1}, ID: 11},
+		{Name: "Ops", PSK: []byte{2}, ID: 22},
+	}, NodeLoRaSettings{
+		UsePreset:   true,
+		ModemPreset: int32(generated.Config_LoRaConfig_LONG_FAST),
+		Region:      int32(generated.Config_LoRaConfig_EU_868),
+	}, false)
+	if err != nil {
+		t.Fatalf("build channel URL: %v", err)
+	}
+	profile := &generated.DeviceProfile{
+		Config:     &generated.LocalConfig{Device: &generated.Config_DeviceConfig{ButtonGpio: 12}},
+		ChannelUrl: &channelURL,
+	}
+
+	var messageBus bus.MessageBus
+	call := 0
+	packetID := uint32(200)
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			call++
+			if wantResponse {
+				t.Fatalf("unexpected response request on call %d", call)
+			}
+			switch call {
+			case 1:
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings first")
+				}
+			case 2:
+				if payload.GetSetConfig().GetDevice().GetButtonGpio() != 12 {
+					t.Fatalf("expected regular profile settings before channels")
+				}
+			case 3:
+				if payload.GetSetConfig().GetLora().GetRegion() != generated.Config_LoRaConfig_EU_868 {
+					t.Fatalf("expected channel URL LoRa config immediately before channels")
+				}
+			case 4, 5:
+				index := int32(call - 4)
+				channel := payload.GetSetChannel()
+				if channel.GetIndex() != index {
+					t.Fatalf("unexpected channel index: got %d want %d", channel.GetIndex(), index)
+				}
+				if channel.GetRole() == generated.Channel_DISABLED {
+					t.Fatalf("expected channel %d to be enabled", index)
+				}
+			case 6, 7, 8, 9, 10, 11:
+				index := int32(call - 4)
+				channel := payload.GetSetChannel()
+				if channel.GetIndex() != index || channel.GetRole() != generated.Channel_DISABLED {
+					t.Fatalf("expected channel slot %d to be disabled, got %+v", index, channel)
+				}
+			case 12:
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected commit after all channel writes")
+				}
+			default:
+				t.Fatalf("unexpected send call %d", call)
+			}
+			publishSentStatus(messageBus, packetID)
+			result := stringFromUint32(packetID)
+			packetID++
+
+			return result, nil
+		},
+	}
+	service, busRef := newTestNodeSettingsService(t, sender, true)
+	messageBus = busRef
+
+	ctx, cancel := contextWithTimeout(t)
+	defer cancel()
+
+	if err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile, NodeProfileImportOptions{}); err != nil {
+		t.Fatalf("import profile: %v", err)
+	}
+	if call != 12 {
+		t.Fatalf("unexpected send calls count: got %d want 12", call)
+	}
+}
+
+func TestNodeSettingsServiceImportProfile_KeepExistingChannels(t *testing.T) {
+	t.Parallel()
+
+	malformedChannelURL := "not a channel URL"
+	profile := &generated.DeviceProfile{ChannelUrl: &malformedChannelURL}
+
+	var messageBus bus.MessageBus
+	call := 0
+	packetID := uint32(300)
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, _ bool, payload *generated.AdminMessage) (string, error) {
+			call++
+			switch call {
+			case 1:
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings first")
+				}
+			case 2:
+				if !payload.GetCommitEditSettings() {
+					t.Fatalf("expected channel URL to be ignored and transaction committed")
+				}
+			default:
+				t.Fatalf("unexpected payload on call %d: %s", call, fmt.Sprint(payload))
+			}
+			publishSentStatus(messageBus, packetID)
+			result := stringFromUint32(packetID)
+			packetID++
+
+			return result, nil
+		},
+	}
+	service, busRef := newTestNodeSettingsService(t, sender, true)
+	messageBus = busRef
+
+	ctx, cancel := contextWithTimeout(t)
+	defer cancel()
+
+	if err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile, NodeProfileImportOptions{
+		KeepExistingChannels: true,
+	}); err != nil {
+		t.Fatalf("import profile while keeping channels: %v", err)
+	}
+	if call != 2 {
+		t.Fatalf("unexpected send calls count: got %d want 2", call)
 	}
 }

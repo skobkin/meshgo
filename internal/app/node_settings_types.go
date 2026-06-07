@@ -338,3 +338,8 @@ type NodeChannelSettingsList struct {
 	MaxSlots int
 	Channels []NodeChannelSettings
 }
+
+// NodeProfileImportOptions controls optional parts of a device profile import.
+type NodeProfileImportOptions struct {
+	KeepExistingChannels bool
+}

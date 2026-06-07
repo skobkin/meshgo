@@ -24,6 +24,10 @@ func newNodeImportExportPage(dep RuntimeDependencies) fyne.CanvasObject {
 	status.Wrapping = fyne.TextWrapWord
 	exportButton := widget.NewButton("Export profile…", nil)
 	importButton := widget.NewButton("Import profile…", nil)
+	keepExistingChannels := widget.NewCheck("Keep existing channels", nil)
+	keepExistingChannels.SetChecked(false)
+	channelHelp := widget.NewLabel("When enabled, channel settings from the profile are ignored.")
+	channelHelp.Wrapping = fyne.TextWrapWord
 
 	if dep.Actions.NodeSettings == nil {
 		exportButton.Disable()
@@ -118,6 +122,7 @@ func newNodeImportExportPage(dep RuntimeDependencies) fyne.CanvasObject {
 			if reader == nil {
 				return
 			}
+			keepChannels := keepExistingChannels.Checked
 			go func() {
 				defer func() {
 					_ = reader.Close()
@@ -134,7 +139,7 @@ func newNodeImportExportPage(dep RuntimeDependencies) fyne.CanvasObject {
 
 					return
 				}
-				summary := buildDeviceProfileSummary(profile)
+				summary := buildDeviceProfileImportSummary(profile, keepChannels)
 				fyne.Do(func() {
 					dialog.ShowConfirm(
 						"Import node settings profile",
@@ -146,7 +151,9 @@ func newNodeImportExportPage(dep RuntimeDependencies) fyne.CanvasObject {
 							go func() {
 								ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 								defer cancel()
-								importErr := dep.Actions.NodeSettings.ImportProfile(ctx, target, profile)
+								importErr := dep.Actions.NodeSettings.ImportProfile(ctx, target, profile, app.NodeProfileImportOptions{
+									KeepExistingChannels: keepChannels,
+								})
 								fyne.Do(func() {
 									if importErr != nil {
 										status.SetText(fmt.Sprintf("Import failed: %v", importErr))
@@ -170,6 +177,8 @@ func newNodeImportExportPage(dep RuntimeDependencies) fyne.CanvasObject {
 	return container.NewVBox(
 		widget.NewLabel("Node settings profile"),
 		status,
+		keepExistingChannels,
+		channelHelp,
 		container.NewHBox(exportButton, importButton),
 	)
 }
@@ -216,6 +225,10 @@ func sanitizeProfileFilenamePart(value string) string {
 }
 
 func buildDeviceProfileSummary(profile *generated.DeviceProfile) string {
+	return buildDeviceProfileImportSummary(profile, false)
+}
+
+func buildDeviceProfileImportSummary(profile *generated.DeviceProfile, keepExistingChannels bool) string {
 	if profile == nil {
 		return "The selected file does not contain a Meshtastic device profile."
 	}
@@ -292,8 +305,17 @@ func buildDeviceProfileSummary(profile *generated.DeviceProfile) string {
 		}
 	}
 
+	channelSummary := "Channels: not included"
+	if strings.TrimSpace(profile.GetChannelUrl()) != "" {
+		if keepExistingChannels {
+			channelSummary = "Channels: keep existing (profile channels will be ignored)"
+		} else {
+			channelSummary = "Channels: replace from profile\n\nWarning: replacing channels can disrupt mesh communication and remote administration."
+		}
+	}
+
 	return fmt.Sprintf(
-		"Import profile for \"%s\" / \"%s\"?\n\nConfig sections: %d\nModule sections: %d\nFixed position: %t\nRingtone: %t\nCanned messages: %t",
+		"Import profile for \"%s\" / \"%s\"?\n\nConfig sections: %d\nModule sections: %d\nFixed position: %t\nRingtone: %t\nCanned messages: %t\n%s",
 		orUnknown(profile.GetLongName()),
 		orUnknown(profile.GetShortName()),
 		configCount,
@@ -301,5 +323,6 @@ func buildDeviceProfileSummary(profile *generated.DeviceProfile) string {
 		profile.GetFixedPosition() != nil,
 		profile.Ringtone != nil,
 		profile.CannedMessages != nil,
+		channelSummary,
 	)
 }

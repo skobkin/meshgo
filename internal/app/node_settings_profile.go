@@ -210,9 +210,23 @@ func (s *NodeSettingsService) ExportProfile(ctx context.Context, target NodeSett
 	return profile, nil
 }
 
-func (s *NodeSettingsService) ImportProfile(ctx context.Context, target NodeSettingsTarget, profile *generated.DeviceProfile) error {
+func (s *NodeSettingsService) ImportProfile(
+	ctx context.Context,
+	target NodeSettingsTarget,
+	profile *generated.DeviceProfile,
+	options NodeProfileImportOptions,
+) error {
 	if profile == nil {
 		return fmt.Errorf("device profile is empty")
+	}
+
+	var channelSet *generated.ChannelSet
+	if !options.KeepExistingChannels && strings.TrimSpace(profile.GetChannelUrl()) != "" {
+		var err error
+		channelSet, err = ParseChannelShareURL(profile.GetChannelUrl())
+		if err != nil {
+			return fmt.Errorf("parse profile channel URL: %w", err)
+		}
 	}
 
 	return s.runEditSettingsWrite(ctx, target, "install_profile", func(saveCtx context.Context, nodeNum uint32) error {
@@ -413,6 +427,41 @@ func (s *NodeSettingsService) ImportProfile(ctx context.Context, target NodeSett
 				},
 			}); err != nil {
 				return fmt.Errorf("set canned messages from profile: %w", err)
+			}
+		}
+
+		if channelSet != nil {
+			if channelSet.GetLoraConfig() != nil {
+				if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_config.lora.channel_url", &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_SetConfig{SetConfig: &generated.Config{
+						PayloadVariant: &generated.Config_Lora{
+							Lora: cloneProtoMessage(channelSet.GetLoraConfig()),
+						},
+					}},
+				}); err != nil {
+					return fmt.Errorf("set lora config from profile channel URL: %w", err)
+				}
+			}
+
+			for index := 0; index < NodeChannelMaxSlots; index++ {
+				channel := &generated.Channel{
+					Index:    int32(index),
+					Role:     generated.Channel_DISABLED,
+					Settings: &generated.ChannelSettings{},
+				}
+				if index < len(channelSet.GetSettings()) {
+					channel.Settings = cloneProtoMessage(channelSet.GetSettings()[index])
+					if index == 0 {
+						channel.Role = generated.Channel_PRIMARY
+					} else {
+						channel.Role = generated.Channel_SECONDARY
+					}
+				}
+				if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, fmt.Sprintf("set_channel.%d", index), &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_SetChannel{SetChannel: channel},
+				}); err != nil {
+					return fmt.Errorf("set channel %d from profile: %w", index, err)
+				}
 			}
 		}
 

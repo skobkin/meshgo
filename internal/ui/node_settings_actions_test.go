@@ -33,11 +33,15 @@ func TestNodeImportExportPageDisablesActionsWithoutNodeSettingsService(t *testin
 
 	exportButton := mustFindButtonByText(t, page, "Export profile…")
 	importButton := mustFindButtonByText(t, page, "Import profile…")
+	keepExistingChannels := mustFindCheckByText(t, page, "Keep existing channels")
 	if !exportButton.Disabled() {
 		t.Fatalf("expected export button to be disabled without node settings service")
 	}
 	if !importButton.Disabled() {
 		t.Fatalf("expected import button to be disabled without node settings service")
+	}
+	if keepExistingChannels.Checked {
+		t.Fatalf("expected channel import to be enabled by default")
 	}
 }
 
@@ -103,11 +107,29 @@ func TestBuildDeviceProfileSummary(t *testing.T) {
 		CannedMessages: &longName,
 		Config:         &generated.LocalConfig{Device: &generated.Config_DeviceConfig{}},
 		ModuleConfig:   &generated.LocalModuleConfig{Audio: &generated.ModuleConfig_AudioConfig{}},
+		ChannelUrl:     &longName,
 	})
 
-	for _, fragment := range []string{"Desk Node", "DN", "Config sections: 1", "Module sections: 1", "Ringtone: true", "Canned messages: true"} {
+	for _, fragment := range []string{
+		"Desk Node",
+		"DN",
+		"Config sections: 1",
+		"Module sections: 1",
+		"Ringtone: true",
+		"Canned messages: true",
+		"Channels: replace from profile",
+		"replacing channels can disrupt mesh communication",
+	} {
 		if !strings.Contains(summary, fragment) {
 			t.Fatalf("expected profile summary to contain %q, got %q", fragment, summary)
 		}
+	}
+
+	keepSummary := buildDeviceProfileImportSummary(&generated.DeviceProfile{ChannelUrl: &longName}, true)
+	if !strings.Contains(keepSummary, "Channels: keep existing") {
+		t.Fatalf("expected keep-existing channel summary, got %q", keepSummary)
+	}
+	if strings.Contains(keepSummary, "disrupt mesh communication") {
+		t.Fatalf("did not expect replacement warning when keeping channels, got %q", keepSummary)
 	}
 }

@@ -85,6 +85,33 @@ func TestBuildChannelShareURLMatchesAndroidPresetPayload(t *testing.T) {
 	}
 }
 
+func TestParseChannelShareURLAndroidFixture(t *testing.T) {
+	const rawURL = "https://meshtastic.org/e/#CgcSAQEoATABEhYIARj6ASALOAlAB0gBUBRYAmgByAYB"
+
+	channelSet, err := ParseChannelShareURL(rawURL)
+	if err != nil {
+		t.Fatalf("parse Android channel URL: %v", err)
+	}
+	if len(channelSet.GetSettings()) != 1 {
+		t.Fatalf("expected one channel, got %d", len(channelSet.GetSettings()))
+	}
+	if got := channelSet.GetSettings()[0].GetPsk(); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("unexpected channel PSK: %v", got)
+	}
+	if channelSet.GetLoraConfig().GetModemPreset() != generated.Config_LoRaConfig_LONG_FAST {
+		t.Fatalf("unexpected modem preset: %v", channelSet.GetLoraConfig().GetModemPreset())
+	}
+	if channelSet.GetLoraConfig().GetRegion() != generated.Config_LoRaConfig_RU {
+		t.Fatalf("unexpected region: %v", channelSet.GetLoraConfig().GetRegion())
+	}
+}
+
+func TestParseChannelShareURLRejectsNonMeshtasticURL(t *testing.T) {
+	if _, err := ParseChannelShareURL("https://example.com/e/#CgcSAQEoATAB"); err == nil {
+		t.Fatalf("expected non-Meshtastic URL to be rejected")
+	}
+}
+
 func TestBuildChannelShareURLAdd(t *testing.T) {
 	rawURL, err := BuildChannelShareURL([]NodeChannelSettings{
 		{
