@@ -50,12 +50,23 @@ func TestNodeSettingsServiceMaintenanceActions_SendExpectedAdminPayloads(t *test
 			},
 		},
 		{
-			name: "ResetNodeDB",
+			name: "ResetNodeDBPreserveFavorites",
 			run: func(ctx context.Context, service *NodeSettingsService) error {
 				return service.ResetNodeDB(ctx, mustLocalNodeTarget(), true)
 			},
 			check: func(t *testing.T, payload *generated.AdminMessage) {
 				if !payload.GetNodedbReset() {
+					t.Fatalf("unexpected node db reset payload: %+v", payload)
+				}
+			},
+		},
+		{
+			name: "ResetNodeDBDiscardFavorites",
+			run: func(ctx context.Context, service *NodeSettingsService) error {
+				return service.ResetNodeDB(ctx, mustLocalNodeTarget(), false)
+			},
+			check: func(t *testing.T, payload *generated.AdminMessage) {
+				if payload.GetNodedbReset() {
 					t.Fatalf("unexpected node db reset payload: %+v", payload)
 				}
 			},

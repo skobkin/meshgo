@@ -26,10 +26,8 @@ func (s *NodeSettingsService) FactoryResetNode(ctx context.Context, target NodeS
 }
 
 func (s *NodeSettingsService) ResetNodeDB(ctx context.Context, target NodeSettingsTarget, preserveFavorites bool) error {
-	_ = preserveFavorites
-
 	return s.sendAdminAction(ctx, target, "nodedb_reset", &generated.AdminMessage{
-		PayloadVariant: &generated.AdminMessage_NodedbReset{NodedbReset: true},
+		PayloadVariant: &generated.AdminMessage_NodedbReset{NodedbReset: preserveFavorites},
 	})
 }
 
