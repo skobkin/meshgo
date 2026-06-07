@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"google.golang.org/protobuf/proto"
 )
+
+const nodeSettingsProfileImportTimeout = 45 * time.Second
 
 func (s *NodeSettingsService) LoadRingtone(ctx context.Context, target NodeSettingsTarget) (string, error) {
 	return s.loadAdminString(
@@ -229,7 +232,7 @@ func (s *NodeSettingsService) ImportProfile(
 		}
 	}
 
-	return s.runEditSettingsWrite(ctx, target, "install_profile", func(saveCtx context.Context, nodeNum uint32) error {
+	err := s.runEditSettingsWriteWithTimeout(ctx, target, "install_profile", nodeSettingsProfileImportTimeout, func(saveCtx context.Context, nodeNum uint32) error {
 		if profile.LongName != nil || profile.ShortName != nil {
 			currentUser, err := s.LoadUserSettings(saveCtx, target)
 			if err != nil {
@@ -467,6 +470,11 @@ func (s *NodeSettingsService) ImportProfile(
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("profile import failed; settings may have been partially applied: %w", err)
+	}
+
+	return nil
 }
 
 func DecodeDeviceProfile(raw []byte) (*generated.DeviceProfile, error) {

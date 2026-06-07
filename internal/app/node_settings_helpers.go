@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 	"google.golang.org/protobuf/proto"
@@ -132,7 +133,17 @@ func (s *NodeSettingsService) saveModuleConfig(
 func (s *NodeSettingsService) runEditSettingsWrite(
 	ctx context.Context,
 	target NodeSettingsTarget,
+	action string,
+	write func(context.Context, uint32) error,
+) error {
+	return s.runEditSettingsWriteWithTimeout(ctx, target, action, nodeSettingsOpTimeout, write)
+}
+
+func (s *NodeSettingsService) runEditSettingsWriteWithTimeout(
+	ctx context.Context,
+	target NodeSettingsTarget,
 	_ string,
+	timeout time.Duration,
 	write func(context.Context, uint32) error,
 ) error {
 	if s == nil || s.bus == nil || s.radio == nil {
@@ -153,7 +164,7 @@ func (s *NodeSettingsService) runEditSettingsWrite(
 	}
 	defer release()
 
-	saveCtx, cancel := context.WithTimeout(ctx, nodeSettingsOpTimeout)
+	saveCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "begin_edit_settings", &generated.AdminMessage{

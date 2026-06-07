@@ -1,8 +1,12 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/skobkin/meshgo/internal/bus"
 	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
@@ -295,5 +299,89 @@ func TestNodeSettingsServiceImportProfile_KeepExistingChannels(t *testing.T) {
 	}
 	if call != 2 {
 		t.Fatalf("unexpected send calls count: got %d want 2", call)
+	}
+}
+
+func TestNodeSettingsServiceImportProfile_UsesLongAggregateTimeout(t *testing.T) {
+	t.Parallel()
+
+	var messageBus bus.MessageBus
+	packetID := uint32(400)
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, _ bool, _ *generated.AdminMessage) (string, error) {
+			publishSentStatus(messageBus, packetID)
+			result := stringFromUint32(packetID)
+			packetID++
+
+			return result, nil
+		},
+	}
+	service, busRef := newTestNodeSettingsService(t, sender, true)
+	messageBus = busRef
+
+	ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsProfileImportTimeout)
+	defer cancel()
+
+	err := service.runEditSettingsWriteWithTimeout(
+		ctx,
+		mustLocalNodeTarget(),
+		"install_profile",
+		nodeSettingsProfileImportTimeout,
+		func(saveCtx context.Context, _ uint32) error {
+			deadline, ok := saveCtx.Deadline()
+			if !ok {
+				t.Fatal("expected profile import context deadline")
+			}
+			if remaining := time.Until(deadline); remaining <= nodeSettingsOpTimeout {
+				t.Fatalf("profile import deadline was shortened to single-write timeout: %s", remaining)
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("run profile import transaction: %v", err)
+	}
+}
+
+func TestNodeSettingsServiceImportProfile_WarnsAboutPartialApplication(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("radio write failed")
+	var messageBus bus.MessageBus
+	call := 0
+	packetID := uint32(500)
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, _ bool, payload *generated.AdminMessage) (string, error) {
+			call++
+			if call == 1 {
+				if !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings first")
+				}
+				publishSentStatus(messageBus, packetID)
+
+				return stringFromUint32(packetID), nil
+			}
+
+			return "", expectedErr
+		},
+	}
+	service, busRef := newTestNodeSettingsService(t, sender, true)
+	messageBus = busRef
+	profile := &generated.DeviceProfile{
+		Config: &generated.LocalConfig{
+			Device: &generated.Config_DeviceConfig{ButtonGpio: 12},
+		},
+	}
+
+	ctx, cancel := contextWithTimeout(t)
+	defer cancel()
+
+	err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile, NodeProfileImportOptions{})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected radio error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "settings may have been partially applied") {
+		t.Fatalf("expected partial-application warning, got %q", err)
 	}
 }
