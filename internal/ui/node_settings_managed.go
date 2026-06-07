@@ -284,7 +284,6 @@ func newManagedNodeSettingsPage[T any](
 
 		mu.Lock()
 		saving = true
-		dirty = false
 		mu.Unlock()
 		updateButtons()
 		controls.SetStatus(loadingStatus, 0, 1)
