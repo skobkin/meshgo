@@ -109,10 +109,10 @@ func TestHandleNodeFavoriteAction_ErrorIsShown(t *testing.T) {
 	wantErr := errors.New("boom")
 	spy := &nodeFavoriteActionSpy{err: wantErr}
 
-	var gotErr error
+	gotErr := make(chan error, 1)
 	origShowError := nodeFavoriteShowErrorDialog
 	nodeFavoriteShowErrorDialog = func(err error, _ fyne.Window) {
-		gotErr = err
+		gotErr <- err
 	}
 	t.Cleanup(func() {
 		nodeFavoriteShowErrorDialog = origShowError
@@ -122,8 +122,12 @@ func TestHandleNodeFavoriteAction_ErrorIsShown(t *testing.T) {
 		Actions: ActionDependencies{NodeFavorite: spy},
 	}, domain.Node{NodeID: "!0000002a"}, true)
 
-	waitForCondition(t, func() bool { return gotErr != nil })
-	if !errors.Is(gotErr, wantErr) {
-		t.Fatalf("expected propagated error, got %v", gotErr)
+	select {
+	case err := <-gotErr:
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("expected propagated error, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("error dialog was not shown before timeout")
 	}
 }
