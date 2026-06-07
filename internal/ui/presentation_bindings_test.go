@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
@@ -13,6 +14,75 @@ import (
 	"github.com/skobkin/meshgo/internal/bus"
 	"github.com/skobkin/meshgo/internal/radio/busmsg"
 )
+
+func TestPresentationCallbackGateDropsQueuedCallbackAfterStop(t *testing.T) {
+	var queued func()
+	gate := newPresentationCallbackGate(func(callback func()) {
+		queued = callback
+	})
+
+	var calls atomic.Int64
+	gate.Do(func() {
+		calls.Add(1)
+	})
+	if queued == nil {
+		t.Fatal("expected callback to be queued")
+	}
+
+	gate.Stop()
+	queued()
+
+	if calls.Load() != 0 {
+		t.Fatalf("expected stopped gate to drop queued callback, got %d calls", calls.Load())
+	}
+}
+
+func TestPresentationCallbackGateDoesNotQueueAfterStop(t *testing.T) {
+	var queuedCalls atomic.Int64
+	gate := newPresentationCallbackGate(func(func()) {
+		queuedCalls.Add(1)
+	})
+
+	gate.Stop()
+	gate.Do(func() {})
+
+	if queuedCalls.Load() != 0 {
+		t.Fatalf("expected stopped gate not to queue callbacks, got %d", queuedCalls.Load())
+	}
+}
+
+func TestPresentationCallbackGateStopWaitsForExecutingCallback(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	gate := newPresentationCallbackGate(func(callback func()) {
+		go callback()
+	})
+
+	gate.Do(func() {
+		close(started)
+		<-release
+	})
+	<-started
+
+	stopped := make(chan struct{})
+	go func() {
+		gate.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+		t.Fatal("expected stop to wait for the executing callback")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for stop after callback completed")
+	}
+}
 
 func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 	app := fynetest.NewApp()
