@@ -446,6 +446,7 @@ var nodeDisplayScreenOnIntervalOptions = []nodeSettingsUint32Option{
 	{Label: nodeSettingsSecondsKnownLabel(15*60, ""), Value: 15 * 60},
 	{Label: nodeSettingsSecondsKnownLabel(30*60, ""), Value: 30 * 60},
 	{Label: nodeSettingsSecondsKnownLabel(60*60, ""), Value: 60 * 60},
+	// Android uses MaxInt32 despite the protobuf field comment documenting MAXUINT.
 	{Label: "Always on", Value: math.MaxInt32},
 }
 
