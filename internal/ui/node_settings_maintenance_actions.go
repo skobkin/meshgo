@@ -95,10 +95,11 @@ func newNodeMaintenancePage(dep RuntimeDependencies) fyne.CanvasObject {
 			if !ok {
 				return
 			}
+			keepFavorites := preserveFavorites.Checked
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), nodeSettingsOpTimeout)
 				defer cancel()
-				err := dep.Actions.NodeSettings.ResetNodeDB(ctx, target, preserveFavorites.Checked)
+				err := dep.Actions.NodeSettings.ResetNodeDB(ctx, target, keepFavorites)
 				fyne.Do(func() {
 					if err != nil {
 						status.SetText(fmt.Sprintf("Reset node DB failed: %v", err))
