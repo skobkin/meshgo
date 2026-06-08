@@ -1,4 +1,4 @@
 /.idea
-/PRD.md
-/PLAN.md
+/*.md
+!/README.md
 /dist
