@@ -299,7 +299,7 @@ func (s *NodeSettingsService) ImportProfile(
 					return fmt.Errorf("set display config from profile: %w", err)
 				}
 			}
-			if cfg.GetLora() != nil {
+			if cfg.GetLora() != nil && (channelSet == nil || channelSet.GetLoraConfig() == nil) {
 				if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_config.lora", &generated.AdminMessage{
 					PayloadVariant: &generated.AdminMessage_SetConfig{SetConfig: &generated.Config{
 						PayloadVariant: &generated.Config_Lora{Lora: cloneProtoMessage(cfg.GetLora())},

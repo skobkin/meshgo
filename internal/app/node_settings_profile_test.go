@@ -186,7 +186,13 @@ func TestNodeSettingsServiceImportProfile_AppliesChannelsLast(t *testing.T) {
 		t.Fatalf("build channel URL: %v", err)
 	}
 	profile := &generated.DeviceProfile{
-		Config:     &generated.LocalConfig{Device: &generated.Config_DeviceConfig{ButtonGpio: 12}},
+		Config: &generated.LocalConfig{
+			Device: &generated.Config_DeviceConfig{ButtonGpio: 12},
+			Lora: &generated.Config_LoRaConfig{
+				Region:   generated.Config_LoRaConfig_US,
+				HopLimit: 7,
+			},
+		},
 		ChannelUrl: &channelURL,
 	}
 
@@ -209,8 +215,12 @@ func TestNodeSettingsServiceImportProfile_AppliesChannelsLast(t *testing.T) {
 					t.Fatalf("expected regular profile settings before channels")
 				}
 			case 3:
-				if payload.GetSetConfig().GetLora().GetRegion() != generated.Config_LoRaConfig_EU_868 {
+				lora := payload.GetSetConfig().GetLora()
+				if lora.GetRegion() != generated.Config_LoRaConfig_EU_868 {
 					t.Fatalf("expected channel URL LoRa config immediately before channels")
+				}
+				if lora.GetHopLimit() == 7 {
+					t.Fatalf("expected channel URL LoRa config to replace conflicting profile config")
 				}
 			case 4, 5:
 				index := int32(call - 4)
