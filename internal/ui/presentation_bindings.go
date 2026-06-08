@@ -36,6 +36,7 @@ func (g *presentationCallbackGate) Do(callback func()) {
 	}
 	g.pendingSchedules.Add(1)
 	g.mu.Unlock()
+	defer g.pendingSchedules.Done()
 
 	g.schedule(func() {
 		g.mu.Lock()
@@ -50,7 +51,6 @@ func (g *presentationCallbackGate) Do(callback func()) {
 		defer g.runningCallbacks.Done()
 		callback()
 	})
-	g.pendingSchedules.Done()
 }
 
 func (g *presentationCallbackGate) Stop() {

@@ -84,6 +84,33 @@ func TestPresentationCallbackGateStopWaitsForExecutingCallback(t *testing.T) {
 	}
 }
 
+func TestPresentationCallbackGateSchedulerPanicDoesNotBlockStop(t *testing.T) {
+	gate := newPresentationCallbackGate(func(func()) {
+		panic("schedule failed")
+	})
+
+	func() {
+		defer func() {
+			if recovered := recover(); recovered == nil {
+				t.Fatal("expected scheduler panic")
+			}
+		}()
+		gate.Do(func() {})
+	}()
+
+	stopped := make(chan struct{})
+	go func() {
+		gate.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for stop after scheduler panic")
+	}
+}
+
 func TestBindPresentationListenersAppliesInitialAndLiveUpdates(t *testing.T) {
 	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
