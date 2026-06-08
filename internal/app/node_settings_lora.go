@@ -13,7 +13,11 @@ func (s *NodeSettingsService) LoadLoRaSettings(ctx context.Context, target NodeS
 	if err != nil {
 		return NodeLoRaSettings{}, err
 	}
-	lora := cfg.GetLora()
+
+	return nodeLoRaSettingsFromProto(target, cfg.GetLora())
+}
+
+func nodeLoRaSettingsFromProto(target NodeSettingsTarget, lora *generated.Config_LoRaConfig) (NodeLoRaSettings, error) {
 	if lora == nil {
 		return NodeLoRaSettings{}, fmt.Errorf("LoRa config payload is empty")
 	}

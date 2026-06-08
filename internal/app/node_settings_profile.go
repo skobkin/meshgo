@@ -63,7 +63,11 @@ func (s *NodeSettingsService) ExportProfile(ctx context.Context, target NodeSett
 	if err != nil {
 		return nil, err
 	}
-	lora, err := s.LoadLoRaSettings(ctx, target)
+	loraCfg, err := s.loadConfig(ctx, target, generated.AdminMessage_LORA_CONFIG, "get_config.lora")
+	if err != nil {
+		return nil, err
+	}
+	lora, err := nodeLoRaSettingsFromProto(target, loraCfg.GetLora())
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +92,6 @@ func (s *NodeSettingsService) ExportProfile(ctx context.Context, target NodeSett
 		return nil, err
 	}
 	displayCfg, err := s.loadConfig(ctx, target, generated.AdminMessage_DISPLAY_CONFIG, "get_config.display")
-	if err != nil {
-		return nil, err
-	}
-	loraCfg, err := s.loadConfig(ctx, target, generated.AdminMessage_LORA_CONFIG, "get_config.lora")
 	if err != nil {
 		return nil, err
 	}

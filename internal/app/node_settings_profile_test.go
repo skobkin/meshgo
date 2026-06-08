@@ -71,6 +71,105 @@ func TestEncodeDecodeDeviceProfile_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestNodeSettingsServiceExportProfileLoadsLoRaOnce(t *testing.T) {
+	t.Parallel()
+
+	var messageBus bus.MessageBus
+	packetID := uint32(50)
+	loraRequests := 0
+	loraConfig := &generated.Config_LoRaConfig{
+		UsePreset:   true,
+		ModemPreset: generated.Config_LoRaConfig_LONG_FAST,
+		Region:      generated.Config_LoRaConfig_EU_868,
+		HopLimit:    5,
+	}
+	sender := stubAdminSender{
+		send: func(to uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			if !wantResponse {
+				t.Fatal("expected profile export requests to require responses")
+			}
+
+			var response *generated.AdminMessage
+			switch request := payload.PayloadVariant.(type) {
+			case *generated.AdminMessage_GetOwnerRequest:
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetOwnerResponse{
+						GetOwnerResponse: &generated.User{LongName: "Test", ShortName: "T"},
+					},
+				}
+			case *generated.AdminMessage_GetConfigRequest:
+				config := &generated.Config{}
+				if request.GetConfigRequest == generated.AdminMessage_LORA_CONFIG {
+					loraRequests++
+					config.PayloadVariant = &generated.Config_Lora{Lora: loraConfig}
+				}
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetConfigResponse{GetConfigResponse: config},
+				}
+			case *generated.AdminMessage_GetChannelRequest:
+				requestIndex := request.GetChannelRequest
+				if requestIndex < 1 || requestIndex > NodeChannelMaxSlots {
+					t.Fatalf("unexpected channel request index: %d", requestIndex)
+				}
+				index := int32(requestIndex - 1) //nolint:gosec // Explicitly bounded to the supported channel slot count.
+				channel := &generated.Channel{Index: index, Role: generated.Channel_DISABLED}
+				if index == 0 {
+					channel.Role = generated.Channel_PRIMARY
+					channel.Settings = &generated.ChannelSettings{Name: "Primary", Psk: []byte{1}}
+				}
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetChannelResponse{GetChannelResponse: channel},
+				}
+			case *generated.AdminMessage_GetModuleConfigRequest:
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetModuleConfigResponse{
+						GetModuleConfigResponse: &generated.ModuleConfig{},
+					},
+				}
+			case *generated.AdminMessage_GetRingtoneRequest:
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetRingtoneResponse{},
+				}
+			case *generated.AdminMessage_GetCannedMessageModuleMessagesRequest:
+				response = &generated.AdminMessage{
+					PayloadVariant: &generated.AdminMessage_GetCannedMessageModuleMessagesResponse{},
+				}
+			default:
+				t.Fatalf("unexpected profile export request: %T", request)
+			}
+
+			publishAdminReply(messageBus, to, packetID, response)
+			result := stringFromUint32(packetID)
+			packetID++
+
+			return result, nil
+		},
+	}
+	service, busRef := newTestNodeSettingsService(t, sender, true)
+	messageBus = busRef
+
+	ctx, cancel := contextWithTimeout(t)
+	defer cancel()
+
+	profile, err := service.ExportProfile(ctx, mustLocalNodeTarget())
+	if err != nil {
+		t.Fatalf("export profile: %v", err)
+	}
+	if loraRequests != 1 {
+		t.Fatalf("unexpected LoRa request count: got %d want 1", loraRequests)
+	}
+	if profile.GetConfig().GetLora().GetHopLimit() != loraConfig.GetHopLimit() {
+		t.Fatalf("unexpected exported LoRa config: %+v", profile.GetConfig().GetLora())
+	}
+	channelSet, err := ParseChannelShareURL(profile.GetChannelUrl())
+	if err != nil {
+		t.Fatalf("parse exported channel URL: %v", err)
+	}
+	if channelSet.GetLoraConfig().GetHopLimit() != loraConfig.GetHopLimit() {
+		t.Fatalf("unexpected channel URL LoRa config: %+v", channelSet.GetLoraConfig())
+	}
+}
+
 func TestNodeSettingsServiceImportProfile_AppliesProvidedFields(t *testing.T) {
 	t.Parallel()
 
