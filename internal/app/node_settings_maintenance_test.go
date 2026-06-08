@@ -55,7 +55,8 @@ func TestNodeSettingsServiceMaintenanceActions_SendExpectedAdminPayloads(t *test
 				return service.ResetNodeDB(ctx, mustLocalNodeTarget(), true)
 			},
 			check: func(t *testing.T, payload *generated.AdminMessage) {
-				if !payload.GetNodedbReset() {
+				reset, ok := payload.PayloadVariant.(*generated.AdminMessage_NodedbReset)
+				if !ok || !reset.NodedbReset {
 					t.Fatalf("unexpected node db reset payload: %+v", payload)
 				}
 			},
@@ -66,7 +67,8 @@ func TestNodeSettingsServiceMaintenanceActions_SendExpectedAdminPayloads(t *test
 				return service.ResetNodeDB(ctx, mustLocalNodeTarget(), false)
 			},
 			check: func(t *testing.T, payload *generated.AdminMessage) {
-				if payload.GetNodedbReset() {
+				reset, ok := payload.PayloadVariant.(*generated.AdminMessage_NodedbReset)
+				if !ok || reset.NodedbReset {
 					t.Fatalf("unexpected node db reset payload: %+v", payload)
 				}
 			},
