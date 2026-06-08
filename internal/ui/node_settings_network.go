@@ -2,15 +2,22 @@ package ui
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
-	"strconv"
+	"net/netip"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/skobkin/meshgo/internal/app"
+	generated "github.com/skobkin/meshgo/internal/radio/meshtasticpb"
 )
+
+var nodeNetworkAddressModeOptions = []nodeSettingsInt32Option{
+	{Label: "DHCP", Value: int32(generated.Config_NetworkConfig_DHCP)},
+	{Label: "Static", Value: int32(generated.Config_NetworkConfig_STATIC)},
+}
 
 func newNodeNetworkSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSaveGate) (fyne.CanvasObject, func()) {
 	return newManagedNodeSettingsPage(
@@ -46,8 +53,7 @@ func buildNodeNetworkSettingsForm(onChanged func()) nodeManagedSettingsForm[app.
 	ntpServer := widget.NewEntry()
 	ntpServer.OnChanged = func(string) { onChanged() }
 	ethernetEnabled := newSettingsCheck(onChanged)
-	addressMode := widget.NewEntry()
-	addressMode.OnChanged = func(string) { onChanged() }
+	addressMode := widget.NewSelect(nil, func(string) { onChanged() })
 	ipv4Address := widget.NewEntry()
 	ipv4Address.OnChanged = func(string) { onChanged() }
 	ipv4Gateway := widget.NewEntry()
@@ -58,8 +64,7 @@ func buildNodeNetworkSettingsForm(onChanged func()) nodeManagedSettingsForm[app.
 	ipv4DNS.OnChanged = func(string) { onChanged() }
 	rsyslogServer := widget.NewEntry()
 	rsyslogServer.OnChanged = func(string) { onChanged() }
-	enabledProtocols := widget.NewEntry()
-	enabledProtocols.OnChanged = func(string) { onChanged() }
+	udpBroadcastEnabled := newSettingsCheck(onChanged)
 	ipv6Enabled := newSettingsCheck(onChanged)
 
 	form := widget.NewForm(
@@ -75,7 +80,7 @@ func buildNodeNetworkSettingsForm(onChanged func()) nodeManagedSettingsForm[app.
 		widget.NewFormItem("IPv4 subnet", ipv4Subnet),
 		widget.NewFormItem("IPv4 DNS", ipv4DNS),
 		widget.NewFormItem("Rsyslog server", rsyslogServer),
-		widget.NewFormItem("Enabled protocols", enabledProtocols),
+		widget.NewFormItem("UDP broadcast enabled", udpBroadcastEnabled),
 		widget.NewFormItem("IPv6 enabled", ipv6Enabled),
 	)
 
@@ -88,13 +93,16 @@ func buildNodeNetworkSettingsForm(onChanged func()) nodeManagedSettingsForm[app.
 			wifiPSK.SetText(v.WifiPSK)
 			ntpServer.SetText(v.NTPServer)
 			ethernetEnabled.SetChecked(v.EthernetEnabled)
-			addressMode.SetText(strconv.FormatInt(int64(v.AddressMode), 10))
-			ipv4Address.SetText(strconv.FormatUint(uint64(v.IPv4Address), 10))
-			ipv4Gateway.SetText(strconv.FormatUint(uint64(v.IPv4Gateway), 10))
-			ipv4Subnet.SetText(strconv.FormatUint(uint64(v.IPv4Subnet), 10))
-			ipv4DNS.SetText(strconv.FormatUint(uint64(v.IPv4DNS), 10))
+			nodeSettingsSetInt32Select(addressMode, nodeNetworkAddressModeOptions, v.AddressMode, nodeSettingsCustomInt32Label)
+			ipv4Address.SetText(nodeNetworkFormatIPv4(v.IPv4Address))
+			ipv4Gateway.SetText(nodeNetworkFormatIPv4(v.IPv4Gateway))
+			ipv4Subnet.SetText(nodeNetworkFormatIPv4(v.IPv4Subnet))
+			ipv4DNS.SetText(nodeNetworkFormatIPv4(v.IPv4DNS))
 			rsyslogServer.SetText(v.RsyslogServer)
-			enabledProtocols.SetText(strconv.FormatUint(uint64(v.EnabledProtocols), 10))
+			udpBroadcastEnabled.SetChecked(nodeNetworkProtocolEnabled(
+				v.EnabledProtocols,
+				uint32(generated.Config_NetworkConfig_UDP_BROADCAST),
+			))
 			ipv6Enabled.SetChecked(v.IPv6Enabled)
 		},
 		read: func(base app.NodeNetworkSettings, target app.NodeSettingsTarget) (app.NodeNetworkSettings, error) {
@@ -104,39 +112,73 @@ func buildNodeNetworkSettingsForm(onChanged func()) nodeManagedSettingsForm[app.
 			base.WifiPSK = wifiPSK.Text
 			base.NTPServer = strings.TrimSpace(ntpServer.Text)
 			base.EthernetEnabled = ethernetEnabled.Checked
-			value, err := parseOptionalInt32(addressMode.Text)
+			value, err := nodeSettingsParseInt32SelectLabel("address mode", addressMode.Selected, nodeNetworkAddressModeOptions)
 			if err != nil {
 				return app.NodeNetworkSettings{}, fieldParseError("address mode", err)
 			}
 			base.AddressMode = value
-			base.IPv4Address, err = parseOptionalUint32(ipv4Address.Text)
+			base.IPv4Address, err = nodeNetworkParseIPv4(ipv4Address.Text)
 			if err != nil {
 				return app.NodeNetworkSettings{}, fieldParseError("IPv4 address", err)
 			}
-			base.IPv4Gateway, err = parseOptionalUint32(ipv4Gateway.Text)
+			base.IPv4Gateway, err = nodeNetworkParseIPv4(ipv4Gateway.Text)
 			if err != nil {
 				return app.NodeNetworkSettings{}, fieldParseError("IPv4 gateway", err)
 			}
-			base.IPv4Subnet, err = parseOptionalUint32(ipv4Subnet.Text)
+			base.IPv4Subnet, err = nodeNetworkParseIPv4(ipv4Subnet.Text)
 			if err != nil {
 				return app.NodeNetworkSettings{}, fieldParseError("IPv4 subnet", err)
 			}
-			base.IPv4DNS, err = parseOptionalUint32(ipv4DNS.Text)
+			base.IPv4DNS, err = nodeNetworkParseIPv4(ipv4DNS.Text)
 			if err != nil {
 				return app.NodeNetworkSettings{}, fieldParseError("IPv4 DNS", err)
 			}
 			base.RsyslogServer = strings.TrimSpace(rsyslogServer.Text)
-			base.EnabledProtocols, err = parseOptionalUint32(enabledProtocols.Text)
-			if err != nil {
-				return app.NodeNetworkSettings{}, fieldParseError("enabled protocols", err)
-			}
+			base.EnabledProtocols = nodeNetworkSetProtocolEnabled(
+				base.EnabledProtocols,
+				uint32(generated.Config_NetworkConfig_UDP_BROADCAST),
+				udpBroadcastEnabled.Checked,
+			)
 			base.IPv6Enabled = ipv6Enabled.Checked
 
 			return base, nil
 		},
 		setSaving: disableWidgets(
 			wifiEnabled, wifiSSID, wifiPSK, ntpServer, ethernetEnabled, addressMode, ipv4Address,
-			ipv4Gateway, ipv4Subnet, ipv4DNS, rsyslogServer, enabledProtocols, ipv6Enabled,
+			ipv4Gateway, ipv4Subnet, ipv4DNS, rsyslogServer, udpBroadcastEnabled, ipv6Enabled,
 		),
 	}
+}
+
+func nodeNetworkFormatIPv4(value uint32) string {
+	var raw [4]byte
+	binary.LittleEndian.PutUint32(raw[:], value)
+
+	return netip.AddrFrom4(raw).String()
+}
+
+func nodeNetworkParseIPv4(raw string) (uint32, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, nil
+	}
+	address, err := netip.ParseAddr(value)
+	if err != nil || !address.Is4() {
+		return 0, fmt.Errorf("must be a dotted-decimal IPv4 address")
+	}
+	bytes := address.As4()
+
+	return binary.LittleEndian.Uint32(bytes[:]), nil
+}
+
+func nodeNetworkProtocolEnabled(protocols uint32, flag uint32) bool {
+	return protocols&flag != 0
+}
+
+func nodeNetworkSetProtocolEnabled(protocols uint32, flag uint32, enabled bool) uint32 {
+	if enabled {
+		return protocols | flag
+	}
+
+	return protocols &^ flag
 }
