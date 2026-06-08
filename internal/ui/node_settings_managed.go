@@ -179,7 +179,12 @@ func newManagedNodeSettingsPage[T any](
 	nodeSettingsTabLogger.Debug("building managed node settings page", "page_id", pageID, "service_configured", dep.Actions.NodeSettings != nil)
 
 	controls := newNodeSettingsPageControls(loadingStatus)
-	form := buildForm(func() {})
+	var markDirty func()
+	form := buildForm(func() {
+		if markDirty != nil {
+			markDirty()
+		}
+	})
 
 	var (
 		baseline             T
@@ -224,7 +229,7 @@ func newManagedNodeSettingsPage[T any](
 		}
 	}
 
-	markDirty := func() {
+	markDirty = func() {
 		if applyingForm.Load() {
 			return
 		}
@@ -249,8 +254,6 @@ func newManagedNodeSettingsPage[T any](
 		mu.Unlock()
 		updateButtons()
 	}
-
-	form = buildForm(markDirty)
 
 	applyLoadedSettings := func(next T) {
 		mu.Lock()

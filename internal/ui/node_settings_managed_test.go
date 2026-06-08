@@ -12,6 +12,40 @@ import (
 	"github.com/skobkin/meshgo/internal/app"
 )
 
+func TestManagedNodeSettingsBuildsFormOnce(t *testing.T) {
+	dep := newNodeSettingsRuntimeDeps(&nodeSettingsActionSpy{})
+	buildCalls := 0
+
+	_, _ = newManagedNodeSettingsPage(
+		dep,
+		nil,
+		"test.managed",
+		"Loading test settings...",
+		"Test settings loaded.",
+		func(context.Context, app.NodeSettingsTarget) (string, error) { return "", nil },
+		func(context.Context, app.NodeSettingsTarget, string) error { return nil },
+		func(value string) string { return value },
+		func(value string) string { return value },
+		func(onChanged func()) nodeManagedSettingsForm[string] {
+			buildCalls++
+			onChanged()
+			entry := widget.NewEntry()
+
+			return nodeManagedSettingsForm[string]{
+				content: entry,
+				set:     entry.SetText,
+				read: func(string, app.NodeSettingsTarget) (string, error) {
+					return entry.Text, nil
+				},
+			}
+		},
+	)
+
+	if buildCalls != 1 {
+		t.Fatalf("unexpected form build count: got %d want 1", buildCalls)
+	}
+}
+
 func TestManagedNodeSettingsReloadPreservesDirtyStateUntilSuccess(t *testing.T) {
 	if raceDetectorEnabled {
 		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
