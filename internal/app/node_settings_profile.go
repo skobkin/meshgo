@@ -232,12 +232,17 @@ func (s *NodeSettingsService) ImportProfile(
 		}
 	}
 
+	var currentUser NodeUserSettings
+	if profile.LongName != nil || profile.ShortName != nil {
+		var err error
+		currentUser, err = s.LoadUserSettings(ctx, target)
+		if err != nil {
+			return fmt.Errorf("load user settings for profile import: %w", err)
+		}
+	}
+
 	err := s.runEditSettingsWriteWithTimeout(ctx, target, "install_profile", nodeSettingsProfileImportTimeout, func(saveCtx context.Context, nodeNum uint32) error {
 		if profile.LongName != nil || profile.ShortName != nil {
-			currentUser, err := s.LoadUserSettings(saveCtx, target)
-			if err != nil {
-				return fmt.Errorf("load user settings for profile import: %w", err)
-			}
 			if err := s.sendAdminAndWaitStatus(saveCtx, nodeNum, "set_owner", &generated.AdminMessage{
 				PayloadVariant: &generated.AdminMessage_SetOwner{
 					SetOwner: &generated.User{

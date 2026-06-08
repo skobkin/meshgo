@@ -97,13 +97,8 @@ func TestNodeSettingsServiceImportProfile_AppliesProvidedFields(t *testing.T) {
 			call++
 			switch call {
 			case 1:
-				if wantResponse || !payload.GetBeginEditSettings() {
-					t.Fatalf("expected begin edit settings status write")
-				}
-				publishSentStatus(messageBus, packetID)
-			case 2:
 				if !wantResponse || !payload.GetGetOwnerRequest() {
-					t.Fatalf("expected get owner request during import")
+					t.Fatalf("expected get owner request before import transaction")
 				}
 				isUnmessageable := false
 				publishAdminReply(messageBus, to, packetID, &generated.AdminMessage{
@@ -116,6 +111,11 @@ func TestNodeSettingsServiceImportProfile_AppliesProvidedFields(t *testing.T) {
 						},
 					},
 				})
+			case 2:
+				if wantResponse || !payload.GetBeginEditSettings() {
+					t.Fatalf("expected begin edit settings after owner request")
+				}
+				publishSentStatus(messageBus, packetID)
 			case 3:
 				if wantResponse {
 					t.Fatalf("expected set owner write without wantResponse")
@@ -168,6 +168,41 @@ func TestNodeSettingsServiceImportProfile_AppliesProvidedFields(t *testing.T) {
 	}
 	if call != 8 {
 		t.Fatalf("unexpected send calls count: got %d want 8", call)
+	}
+}
+
+func TestNodeSettingsServiceImportProfile_OwnerReadFailsBeforeTransaction(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("owner read failed")
+	longName := "Imported node"
+	profile := &generated.DeviceProfile{LongName: &longName}
+
+	call := 0
+	sender := stubAdminSender{
+		send: func(_ uint32, _ uint32, wantResponse bool, payload *generated.AdminMessage) (string, error) {
+			call++
+			if !wantResponse || !payload.GetGetOwnerRequest() {
+				t.Fatalf("expected only get owner request, got %+v", payload)
+			}
+
+			return "", expectedErr
+		},
+	}
+	service, _ := newTestNodeSettingsService(t, sender, true)
+
+	ctx, cancel := contextWithTimeout(t)
+	defer cancel()
+
+	err := service.ImportProfile(ctx, mustLocalNodeTarget(), profile, NodeProfileImportOptions{})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected owner read error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "settings may have been partially applied") {
+		t.Fatalf("unexpected partial-application warning before transaction: %q", err)
+	}
+	if call != 1 {
+		t.Fatalf("unexpected send calls count: got %d want 1", call)
 	}
 }
 
