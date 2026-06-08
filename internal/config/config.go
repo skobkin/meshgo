@@ -60,9 +60,15 @@ type ConnectionConfig struct {
 type UIConfig struct {
 	LastSelectedChat string             `json:"last_selected_chat"`
 	Autostart        AutostartConfig    `json:"autostart"`
+	Messaging        MessagingConfig    `json:"messaging"`
 	MapViewport      MapViewportConfig  `json:"map_viewport"`
 	MapDisplay       MapDisplayConfig   `json:"map_display"`
 	Notifications    NotificationConfig `json:"notifications"`
+}
+
+// MessagingConfig stores outgoing-message UI preferences.
+type MessagingConfig struct {
+	CompactCyrillicEncoding bool `json:"compact_cyrillic_encoding"`
 }
 
 // AutostartConfig stores autostart preferences saved in user config.
@@ -144,6 +150,9 @@ func Default() AppConfig {
 			Autostart: AutostartConfig{
 				Enabled: false,
 				Mode:    AutostartModeNormal,
+			},
+			Messaging: MessagingConfig{
+				CompactCyrillicEncoding: false,
 			},
 			MapViewport: MapViewportConfig{},
 			MapDisplay:  MapDisplayConfig{},

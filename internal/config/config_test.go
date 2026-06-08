@@ -28,6 +28,9 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	if cfg.UI.Autostart.Mode != AutostartModeNormal {
 		t.Fatalf("expected default autostart mode %q, got %q", AutostartModeNormal, cfg.UI.Autostart.Mode)
 	}
+	if cfg.UI.Messaging.CompactCyrillicEncoding {
+		t.Fatalf("expected compact Cyrillic encoding to be disabled by default")
+	}
 	if cfg.UI.MapDisplay.ShowPrecisionCircles {
 		t.Fatalf("expected precision circles to be disabled by default")
 	}
@@ -45,6 +48,24 @@ func TestAppConfigFillMissingDefaults(t *testing.T) {
 	}
 	if cfg.Persistence.HistoryLimits.Identity == nil || *cfg.Persistence.HistoryLimits.Identity != DefaultIdentityHistoryLimit {
 		t.Fatalf("expected default identity history limit %d, got %v", DefaultIdentityHistoryLimit, cfg.Persistence.HistoryLimits.Identity)
+	}
+}
+
+func TestCompactCyrillicEncodingPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := Default()
+	cfg.Connection.Host = "192.168.1.10"
+	cfg.UI.Messaging.CompactCyrillicEncoding = true
+
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !loaded.UI.Messaging.CompactCyrillicEncoding {
+		t.Fatalf("expected compact Cyrillic encoding to persist")
 	}
 }
 

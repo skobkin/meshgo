@@ -318,6 +318,54 @@ func TestSettingsTabAutostartModeDisabledWhenAutostartOff(t *testing.T) {
 	}
 }
 
+func TestSettingsTabCompactCyrillicDefaultSaveAndRevert(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	cfg := config.Default()
+	var saved config.AppConfig
+	dep := RuntimeDependencies{
+		Data: DataDependencies{
+			Config: cfg,
+		},
+		Actions: ActionDependencies{
+			OnSave: func(next config.AppConfig) error {
+				saved = next
+
+				return nil
+			},
+		},
+	}
+
+	tab := newSettingsTab(dep, widget.NewLabel(""))
+	_ = fynetest.NewTempWindow(t, tab)
+	mustSelectAppTabByText(t, tab, "General")
+
+	compact := mustFindCheckByText(t, tab, "Compact encoding for Cyrillic")
+	if compact.Checked {
+		t.Fatalf("expected compact Cyrillic encoding to be disabled by default")
+	}
+	if warning := findLabelByPrefix(tab, "Warning: this intentionally creates mixed-script text"); warning == nil {
+		t.Fatalf("expected mixed-script warning to be shown")
+	}
+
+	fynetest.Tap(compact)
+	fynetest.Tap(mustFindButtonByText(t, tab, "Save"))
+	if !saved.UI.Messaging.CompactCyrillicEncoding {
+		t.Fatalf("expected compact Cyrillic encoding to be saved as enabled")
+	}
+
+	fynetest.Tap(compact)
+	if compact.Checked {
+		t.Fatalf("expected unsaved compact Cyrillic encoding value to be disabled")
+	}
+	fynetest.Tap(mustFindButtonByText(t, tab, "Revert"))
+	if !compact.Checked {
+		t.Fatalf("expected revert to restore the last saved compact Cyrillic encoding value")
+	}
+}
+
 func TestSettingsTabNotificationDefaults(t *testing.T) {
 	tab := newSettingsTab(RuntimeDependencies{Data: DataDependencies{Config: config.Default()}}, widget.NewLabel(""))
 	_ = fynetest.NewTempWindow(t, tab)

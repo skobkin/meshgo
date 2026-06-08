@@ -22,6 +22,182 @@ func (f sendTextFunc) SendText(chatKey string, text string, opts radio.TextSendO
 	return f(chatKey, text, opts)
 }
 
+func TestPrepareOutgoingText(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		compact bool
+		want    string
+		bytes   int
+	}{
+		{name: "empty", input: " \n\t ", compact: true, want: "", bytes: 0},
+		{name: "trim disabled", input: "  А test  ", want: "А test", bytes: 7},
+		{name: "trim enabled", input: "  А test  ", compact: true, want: "A test", bytes: 6},
+		{name: "disabled boundary", input: strings.Repeat("x", 200), want: strings.Repeat("x", 200), bytes: 200},
+		{name: "enabled effective boundary", input: strings.Repeat("А", 200), compact: true, want: strings.Repeat("A", 200), bytes: 200},
+		{name: "disabled oversized", input: strings.Repeat("А", 101), want: strings.Repeat("А", 101), bytes: 202},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := prepareOutgoingText(tc.input, tc.compact)
+			if got.body != tc.want {
+				t.Fatalf("expected body %q, got %q", tc.want, got.body)
+			}
+			if got.byteCount != tc.bytes {
+				t.Fatalf("expected %d bytes, got %d", tc.bytes, got.byteCount)
+			}
+		})
+	}
+}
+
+func TestChatsTabCompactCyrillicComposerBehavior(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	tests := []struct {
+		name        string
+		input       string
+		enabled     bool
+		wantBody    string
+		wantSend    bool
+		wantCounter string
+	}{
+		{
+			name:        "transformed text is sent",
+			input:       "  АаЗ  ",
+			enabled:     true,
+			wantBody:    "Aa3",
+			wantSend:    true,
+			wantCounter: "3/200 bytes",
+		},
+		{
+			name:        "oversized original accepted when effective body fits",
+			input:       strings.Repeat("А", 200),
+			enabled:     true,
+			wantBody:    strings.Repeat("A", 200),
+			wantSend:    true,
+			wantCounter: "200/200 bytes",
+		},
+		{
+			name:        "disabled optimization rejects oversized text",
+			input:       strings.Repeat("А", 101),
+			enabled:     false,
+			wantSend:    false,
+			wantCounter: "202/200 bytes",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sent := make(chan string, 1)
+			store := domain.NewChatStore()
+			store.Load(
+				[]domain.Chat{{Key: "ch:general", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: time.Now()}},
+				map[string][]domain.ChatMessage{},
+			)
+			tab := newChatsTab(
+				nil,
+				store,
+				sendTextFunc(func(_ string, text string, _ radio.TextSendOptions) <-chan radio.SendResult {
+					sent <- text
+					result := make(chan radio.SendResult, 1)
+					result <- radio.SendResult{}
+					close(result)
+
+					return result
+				}),
+				nil,
+				nil,
+				nil,
+				nil,
+				"ch:general",
+				nil,
+				nil,
+				nil,
+				nil,
+				func() bool { return tc.enabled },
+			)
+			_ = fynetest.NewTempWindow(t, tab)
+			entry := mustFindEntryByPlaceholder(t, tab, "Type message (max 200 bytes)")
+			entry.SetText(tc.input)
+			if counter := findLabelByPrefix(tab, tc.wantCounter); counter == nil {
+				t.Fatalf("expected counter %q", tc.wantCounter)
+			}
+
+			fynetest.Tap(mustFindButtonByText(t, tab, "Send"))
+			select {
+			case got := <-sent:
+				if !tc.wantSend {
+					t.Fatalf("unexpected send with body %q", got)
+				}
+				if got != tc.wantBody {
+					t.Fatalf("expected sent body %q, got %q", tc.wantBody, got)
+				}
+			case <-time.After(time.Second):
+				if tc.wantSend {
+					t.Fatalf("expected message to be sent")
+				}
+			}
+		})
+	}
+}
+
+func TestChatsTabSendReadsCurrentCompactCyrillicPreference(t *testing.T) {
+	if raceDetectorEnabled {
+		t.Skip("Fyne GUI interaction tests are not stable under the race detector")
+	}
+
+	enabled := false
+	sent := make(chan string, 1)
+	store := domain.NewChatStore()
+	store.Load(
+		[]domain.Chat{{Key: "ch:general", Title: "General", Type: domain.ChatTypeChannel, UpdatedAt: time.Now()}},
+		map[string][]domain.ChatMessage{},
+	)
+	tab := newChatsTab(
+		nil,
+		store,
+		sendTextFunc(func(_ string, text string, _ radio.TextSendOptions) <-chan radio.SendResult {
+			sent <- text
+			result := make(chan radio.SendResult, 1)
+			result <- radio.SendResult{}
+			close(result)
+
+			return result
+		}),
+		nil,
+		nil,
+		nil,
+		nil,
+		"ch:general",
+		nil,
+		nil,
+		nil,
+		nil,
+		func() bool { return enabled },
+	)
+	_ = fynetest.NewTempWindow(t, tab)
+	entry := mustFindEntryByPlaceholder(t, tab, "Type message (max 200 bytes)")
+	entry.SetText("А")
+	if counter := findLabelByPrefix(tab, "2/200 bytes"); counter == nil {
+		t.Fatalf("expected disabled preference to count original bytes")
+	}
+
+	enabled = true
+	fynetest.Tap(mustFindButtonByText(t, tab, "Send"))
+
+	select {
+	case got := <-sent:
+		if got != "A" {
+			t.Fatalf("expected current preference to transform body, got %q", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("expected message to be sent")
+	}
+}
+
 func TestChatUnreadMarker(t *testing.T) {
 	if got := chatUnreadMarker(true); got != "●" {
 		t.Fatalf("unexpected unread marker: %q", got)
@@ -812,6 +988,7 @@ func TestChatsTabSendFailureShowsStatusAndKeepsEntryText(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -868,6 +1045,7 @@ func TestChatsTabSendSuccessClearsPreviousFailureStatus(t *testing.T) {
 		nil,
 		nil,
 		"ch:general",
+		nil,
 		nil,
 		nil,
 		nil,
@@ -940,6 +1118,7 @@ func TestChatsTabMessageRichTextWrapsLongSingleLine(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 	_ = fynetest.NewTempWindow(t, tab)
 
@@ -987,6 +1166,7 @@ func TestChatsTabOpenRequestSelectsExistingChat(t *testing.T) {
 			selectedKeys = append(selectedKeys, chatKey)
 			selectedKeysMu.Unlock()
 		},
+		nil,
 		nil,
 		nil,
 	)
@@ -1068,6 +1248,7 @@ func TestChatsTabStoreDeleteSelectedDMClearsSelectionAndDisablesComposer(t *test
 		nil,
 		nil,
 		"dm:!0000002a",
+		nil,
 		nil,
 		nil,
 		nil,

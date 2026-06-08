@@ -42,6 +42,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		"log_to_file", current.Logging.LogToFile,
 		"autostart_enabled", current.UI.Autostart.Enabled,
 		"autostart_mode", current.UI.Autostart.Mode,
+		"compact_cyrillic_encoding", current.UI.Messaging.CompactCyrillicEncoding,
 		"notify_when_focused", current.UI.Notifications.NotifyWhenFocused,
 		"notify_incoming_message", current.UI.Notifications.Events.IncomingMessage,
 		"notify_node_discovered", current.UI.Notifications.Events.NodeDiscovered,
@@ -75,6 +76,9 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 
 	autostartEnabled := widget.NewCheck("", nil)
 	autostartEnabled.SetChecked(current.UI.Autostart.Enabled)
+
+	compactCyrillicEncoding := widget.NewCheck("Compact encoding for Cyrillic", nil)
+	compactCyrillicEncoding.SetChecked(current.UI.Messaging.CompactCyrillicEncoding)
 
 	autostartModeSelect := widget.NewSelect([]string{autostartOptionNormal, autostartOptionTray}, nil)
 	autostartModeSelect.SetSelected(autostartOptionFromMode(current.UI.Autostart.Mode))
@@ -416,6 +420,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			autostartModeSelect.SetSelected(autostartOptionNormal)
 		}
 		setAutostartModeEnabled(autostartEnabled.Checked)
+		compactCyrillicEncoding.SetChecked(next.UI.Messaging.CompactCyrillicEncoding)
 
 		notifyWhenFocused.SetChecked(next.UI.Notifications.NotifyWhenFocused)
 		notifyIncomingMessage.SetChecked(next.UI.Notifications.Events.IncomingMessage)
@@ -453,6 +458,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 			"log_to_file", logToFile.Checked,
 			"autostart_enabled", autostartEnabled.Checked,
 			"autostart_mode", autostartModeFromOption(autostartModeSelect.Selected),
+			"compact_cyrillic_encoding", compactCyrillicEncoding.Checked,
 			"notify_when_focused", notifyWhenFocused.Checked,
 			"notify_incoming_message", notifyIncomingMessage.Checked,
 			"notify_node_discovered", notifyNodeDiscovered.Checked,
@@ -504,6 +510,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		cfg.Logging.LogToFile = logToFile.Checked
 		cfg.UI.Autostart.Enabled = autostartEnabled.Checked
 		cfg.UI.Autostart.Mode = autostartModeFromOption(autostartModeSelect.Selected)
+		cfg.UI.Messaging.CompactCyrillicEncoding = compactCyrillicEncoding.Checked
 		cfg.UI.Notifications.NotifyWhenFocused = notifyWhenFocused.Checked
 		cfg.UI.Notifications.Events.IncomingMessage = notifyIncomingMessage.Checked
 		cfg.UI.Notifications.Events.NodeDiscovered = notifyNodeDiscovered.Checked
@@ -672,6 +679,19 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		widget.NewFormItem("Run on system startup", autostartEnabled),
 		widget.NewFormItem("Startup mode", autostartModeSelect),
 	)
+	compactCyrillicEncodingHelp := widget.NewLabel(
+		"Replaces safe Cyrillic homoglyphs with ASCII before sending to reduce UTF-8 message size. Disabled by default.",
+	)
+	compactCyrillicEncodingHelp.Wrapping = fyne.TextWrapWord
+	compactCyrillicEncodingWarning := widget.NewLabel(
+		"Warning: this intentionally creates mixed-script text, which can make copy/paste, search, exact comparison, moderation, and debugging confusing.",
+	)
+	compactCyrillicEncodingWarning.Wrapping = fyne.TextWrapWord
+	messagingContent := container.NewVBox(
+		compactCyrillicEncoding,
+		compactCyrillicEncodingHelp,
+		compactCyrillicEncodingWarning,
+	)
 	notificationsContent := container.NewVBox(
 		notifyWhenFocused,
 		notifyIncomingMessage,
@@ -699,6 +719,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		connectionFields,
 	))
 	startupBlock := widget.NewCard("Startup", "", startupForm)
+	messagingBlock := widget.NewCard("Messaging", "", messagingContent)
 	notificationsBlock := widget.NewCard("Notifications", "", notificationsContent)
 	mapBlock := widget.NewCard("Map", "", mapContent)
 	historyBlock := widget.NewCard("History", "", historyContent)
@@ -729,7 +750,7 @@ func newSettingsTab(dep RuntimeDependencies, connStatusLabel *widget.Label) fyne
 		poweredByRow,
 	))
 
-	generalTab := newSettingsSubTabPage(startupBlock)
+	generalTab := newSettingsSubTabPage(startupBlock, messagingBlock)
 	connectionTab := newSettingsSubTabPage(connectionBlock)
 	mapTab := newSettingsSubTabPage(mapBlock)
 	historyTab := newSettingsSubTabPage(historyBlock)

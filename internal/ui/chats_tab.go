@@ -21,6 +21,7 @@ import (
 
 	"github.com/skobkin/meshgo/internal/domain"
 	"github.com/skobkin/meshgo/internal/radio"
+	"github.com/skobkin/meshgo/internal/textutil"
 	"github.com/skobkin/meshgo/internal/ui/widgets"
 	chatlayout "github.com/skobkin/meshgo/internal/ui/widgets/layout"
 )
@@ -30,6 +31,25 @@ var chatsLogger = slog.With("component", "ui.chats")
 // messageRowMeasureEpsilon filters sub-pixel measurement jitter so list item
 // heights are updated only on meaningful size changes.
 const messageRowMeasureEpsilon float32 = 0.5
+
+const maxTextMessageBytes = 200
+
+type preparedOutgoingText struct {
+	body      string
+	byteCount int
+}
+
+func prepareOutgoingText(input string, compactCyrillic bool) preparedOutgoingText {
+	body := strings.TrimSpace(input)
+	if compactCyrillic {
+		body = textutil.OptimizeUTF8StringWithHomoglyphs(body)
+	}
+
+	return preparedOutgoingText{
+		body:      body,
+		byteCount: len([]byte(body)),
+	}
+}
 
 func newChatsTab(
 	window fyne.Window,
@@ -44,6 +64,7 @@ func newChatsTab(
 	onChatSelected func(string),
 	onDeleteDMChat func(string) error,
 	onShareChannel func(domain.Chat),
+	compactCyrillicEncodingEnabled func() bool,
 ) fyne.CanvasObject {
 	chats := store.ChatListSorted()
 	previewsByKey := chatPreviewByKey(store, chats, nodeNameByID)
@@ -481,8 +502,9 @@ func newChatsTab(
 	replyIndicator.Hide()
 
 	updateCounter := func(text string) {
-		count := len([]byte(text))
-		counterLabel.SetText(fmt.Sprintf("%d/200 bytes", count))
+		compactCyrillic := compactCyrillicEncodingEnabled != nil && compactCyrillicEncodingEnabled()
+		prepared := prepareOutgoingText(text, compactCyrillic)
+		counterLabel.SetText(fmt.Sprintf("%d/200 bytes", prepared.byteCount))
 	}
 	entry.OnChanged = updateCounter
 	isSending := false
@@ -504,24 +526,25 @@ func newChatsTab(
 	}
 
 	sendCurrent := func() {
-		text := strings.TrimSpace(entry.Text)
+		compactCyrillic := compactCyrillicEncodingEnabled != nil && compactCyrillicEncodingEnabled()
+		prepared := prepareOutgoingText(entry.Text, compactCyrillic)
 		if selectedKey == "" {
 			chatsLogger.Debug("send ignored: no selected chat")
 
 			return
 		}
-		if text == "" {
+		if prepared.body == "" {
 			chatsLogger.Debug("send ignored: empty message text")
 
 			return
 		}
-		if len([]byte(text)) > 200 {
-			chatsLogger.Info("send blocked: message exceeds 200 bytes", "chat_key", selectedKey, "bytes", len([]byte(text)))
+		if prepared.byteCount > maxTextMessageBytes {
+			chatsLogger.Info("send blocked: message exceeds 200 bytes", "chat_key", selectedKey, "bytes", prepared.byteCount)
 
 			return
 		}
 
-		chatsLogger.Info("sending chat message", "chat_key", selectedKey, "bytes", len([]byte(text)))
+		chatsLogger.Info("sending chat message", "chat_key", selectedKey, "bytes", prepared.byteCount)
 		pendingScrollChatKey = selectedKey
 		pendingScrollMinCount = len(messageView.Timeline) + 1
 		sendStatusLabel.SetText("")
@@ -549,7 +572,7 @@ func newChatsTab(
 				clearReplyTarget()
 				setSending(false)
 			})
-		}(selectedKey, text, opts)
+		}(selectedKey, prepared.body, opts)
 	}
 
 	entry.OnSubmitted = func(_ string) { sendCurrent() }

@@ -53,6 +53,13 @@ func buildMainView(
 		func(chat domain.Chat) {
 			handleChannelShareAction(window, dep, chat)
 		},
+		func() bool {
+			if dep.Data.CurrentConfig != nil {
+				return dep.Data.CurrentConfig().UI.Messaging.CompactCyrillicEncoding
+			}
+
+			return dep.Data.Config.UI.Messaging.CompactCyrillicEncoding
+		},
 	)
 	nodeActionHandler := func(node domain.Node, action NodeAction) {
 		switch action {
