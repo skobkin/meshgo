@@ -142,7 +142,7 @@ func (s *NodeSettingsService) runEditSettingsWrite(
 func (s *NodeSettingsService) runEditSettingsWriteWithTimeout(
 	ctx context.Context,
 	target NodeSettingsTarget,
-	_ string,
+	action string,
 	timeout time.Duration,
 	write func(context.Context, uint32) error,
 ) error {
@@ -157,6 +157,13 @@ func (s *NodeSettingsService) runEditSettingsWriteWithTimeout(
 	if err != nil {
 		return err
 	}
+	s.logger.Info(
+		"starting node settings edit transaction",
+		"action", action,
+		"node_id", strings.TrimSpace(target.NodeID),
+		"node_num", nodeNum,
+		"timeout", timeout,
+	)
 
 	release, err := s.beginSave()
 	if err != nil {
