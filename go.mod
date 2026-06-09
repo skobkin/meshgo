@@ -8,9 +8,9 @@ require (
 	github.com/cskr/pubsub v1.0.2
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
-	go.bug.st/serial v1.6.4
+	go.bug.st/serial v1.7.1
 	golang.org/x/mod v0.33.0
-	golang.org/x/sys v0.41.0
+	golang.org/x/sys v0.43.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.45.0
 	tinygo.org/x/bluetooth v0.14.0
