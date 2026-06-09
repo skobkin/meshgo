@@ -54,6 +54,7 @@
   - Mark completed items by checking relevant task checkboxes.
   - And/or update the `Current Status` section at the beginning with a short written progress summary.
 - Do not state that work is done if any of the checks above fail.
+- When writing work summary when the task is completed, also provide recommended commit message.
 
 ## Commit & Pull Request Guidelines
 - Follow Conventional Commits used in history: `feat(ui): ...`, `fix(ui): ...`, `chore: ...`.
