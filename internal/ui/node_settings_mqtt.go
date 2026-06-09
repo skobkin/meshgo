@@ -64,6 +64,7 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 	passwordEntry.Password = true
 	encryptionEnabledBox := widget.NewCheck("", nil)
 	jsonEnabledBox := widget.NewCheck("", nil)
+	jsonEnabledBox.Disable()
 	tlsEnabledBox := widget.NewCheck("", nil)
 	rootEntry := widget.NewEntry()
 	rootEntry.SetPlaceHolder("msh")
@@ -81,7 +82,7 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		widget.NewFormItem("Username", usernameEntry),
 		widget.NewFormItem("Password", passwordEntry),
 		widget.NewFormItem("Encryption enabled", encryptionEnabledBox),
-		widget.NewFormItem("JSON output enabled (legacy)", jsonEnabledBox),
+		widget.NewFormItem("JSON output enabled (legacy, read-only)", jsonEnabledBox),
 		widget.NewFormItem("TLS enabled", tlsEnabledBox),
 		widget.NewFormItem("Root topic", rootEntry),
 		widget.NewFormItem("Proxy to client enabled", proxyToClientEnabledBox),
@@ -311,7 +312,7 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		next.Username = username
 		next.Password = password
 		next.EncryptionEnabled = encryptionEnabledBox.Checked
-		next.JSONEnabled = jsonEnabledBox.Checked
+		// JSON output was removed upstream. Preserve the loaded value for older firmware.
 		next.TLSEnabled = tlsEnabledBox.Checked
 		next.Root = root
 		next.ProxyToClientEnabled = proxyToClientEnabledBox.Checked
