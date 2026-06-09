@@ -81,7 +81,7 @@ func newNodeMQTTSettingsPage(dep RuntimeDependencies, saveGate *nodeSettingsSave
 		widget.NewFormItem("Username", usernameEntry),
 		widget.NewFormItem("Password", passwordEntry),
 		widget.NewFormItem("Encryption enabled", encryptionEnabledBox),
-		widget.NewFormItem("JSON output enabled", jsonEnabledBox),
+		widget.NewFormItem("JSON output enabled (legacy)", jsonEnabledBox),
 		widget.NewFormItem("TLS enabled", tlsEnabledBox),
 		widget.NewFormItem("Root topic", rootEntry),
 		widget.NewFormItem("Proxy to client enabled", proxyToClientEnabledBox),

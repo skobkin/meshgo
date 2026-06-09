@@ -872,12 +872,12 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 							PayloadVariant: &generated.Config_Lora{
 								Lora: &generated.Config_LoRaConfig{
 									UsePreset:           true,
-									ModemPreset:         generated.Config_LoRaConfig_MEDIUM_FAST,
+									ModemPreset:         generated.Config_LoRaConfig_LITE_FAST,
 									Bandwidth:           250,
 									SpreadFactor:        11,
 									CodingRate:          6,
 									FrequencyOffset:     12.25,
-									Region:              generated.Config_LoRaConfig_EU_868,
+									Region:              generated.Config_LoRaConfig_ITU1_2M,
 									HopLimit:            4,
 									TxEnabled:           true,
 									TxPower:             27,
@@ -889,6 +889,8 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 									IgnoreIncoming:      []uint32{11, 22},
 									IgnoreMqtt:          true,
 									ConfigOkToMqtt:      true,
+									FemLnaMode:          generated.Config_LoRaConfig_NOT_PRESENT,
+									SerialHalOnly:       true,
 								},
 							},
 						},
@@ -921,7 +923,7 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 	if !settings.UsePreset {
 		t.Fatalf("expected use preset to be true")
 	}
-	if settings.ModemPreset != int32(generated.Config_LoRaConfig_MEDIUM_FAST) {
+	if settings.ModemPreset != int32(generated.Config_LoRaConfig_LITE_FAST) {
 		t.Fatalf("unexpected modem preset: %d", settings.ModemPreset)
 	}
 	if settings.Bandwidth != 250 {
@@ -936,7 +938,7 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 	if settings.FrequencyOffset != 12.25 {
 		t.Fatalf("unexpected frequency offset: %f", settings.FrequencyOffset)
 	}
-	if settings.Region != int32(generated.Config_LoRaConfig_EU_868) {
+	if settings.Region != int32(generated.Config_LoRaConfig_ITU1_2M) {
 		t.Fatalf("unexpected region: %d", settings.Region)
 	}
 	if settings.HopLimit != 4 {
@@ -971,6 +973,12 @@ func TestNodeSettingsServiceLoadLoRaSettings_MatchesReplyID(t *testing.T) {
 	}
 	if !settings.ConfigOkToMqtt {
 		t.Fatalf("expected ok-to-mqtt to be true")
+	}
+	if settings.FemLnaMode != int32(generated.Config_LoRaConfig_NOT_PRESENT) {
+		t.Fatalf("unexpected FEM LNA mode: %d", settings.FemLnaMode)
+	}
+	if !settings.SerialHalOnly {
+		t.Fatalf("expected serial HAL only to be true")
 	}
 }
 
@@ -1009,7 +1017,7 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 				if !lora.GetUsePreset() {
 					t.Fatalf("expected use preset payload")
 				}
-				if lora.GetModemPreset() != generated.Config_LoRaConfig_SHORT_FAST {
+				if lora.GetModemPreset() != generated.Config_LoRaConfig_LITE_SLOW {
 					t.Fatalf("unexpected modem preset payload")
 				}
 				if lora.GetBandwidth() != 250 {
@@ -1024,7 +1032,7 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 				if lora.GetFrequencyOffset() != 1.5 {
 					t.Fatalf("unexpected frequency offset payload")
 				}
-				if lora.GetRegion() != generated.Config_LoRaConfig_US {
+				if lora.GetRegion() != generated.Config_LoRaConfig_ITU23_2M {
 					t.Fatalf("unexpected region payload")
 				}
 				if lora.GetHopLimit() != 3 {
@@ -1060,6 +1068,12 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 				if !lora.GetConfigOkToMqtt() {
 					t.Fatalf("expected ok-to-mqtt payload")
 				}
+				if lora.GetFemLnaMode() != generated.Config_LoRaConfig_ENABLED {
+					t.Fatalf("unexpected FEM LNA mode payload")
+				}
+				if !lora.GetSerialHalOnly() {
+					t.Fatalf("expected serial HAL only payload")
+				}
 			case "commit":
 				if !payload.GetCommitEditSettings() {
 					t.Fatalf("expected commit edit settings payload")
@@ -1093,12 +1107,12 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 	err := service.SaveLoRaSettings(ctx, NodeSettingsTarget{NodeID: "!00000001", IsLocal: true}, NodeLoRaSettings{
 		NodeID:              "!00000001",
 		UsePreset:           true,
-		ModemPreset:         int32(generated.Config_LoRaConfig_SHORT_FAST),
+		ModemPreset:         int32(generated.Config_LoRaConfig_LITE_SLOW),
 		Bandwidth:           250,
 		SpreadFactor:        10,
 		CodingRate:          5,
 		FrequencyOffset:     1.5,
-		Region:              int32(generated.Config_LoRaConfig_US),
+		Region:              int32(generated.Config_LoRaConfig_ITU23_2M),
 		HopLimit:            3,
 		TxEnabled:           true,
 		TxPower:             20,
@@ -1110,6 +1124,8 @@ func TestNodeSettingsServiceSaveLoRaSettings_ImmediateStatusEvents(t *testing.T)
 		IgnoreIncoming:      []uint32{123, 456},
 		IgnoreMqtt:          true,
 		ConfigOkToMqtt:      true,
+		FemLnaMode:          int32(generated.Config_LoRaConfig_ENABLED),
+		SerialHalOnly:       true,
 	})
 	if err != nil {
 		t.Fatalf("save LoRa settings: %v", err)
@@ -1275,7 +1291,7 @@ func TestNodeSettingsServiceSaveMQTTSettings_ImmediateStatusEvents(t *testing.T)
 				if !mqtt.GetEncryptionEnabled() {
 					t.Fatalf("expected encryption enabled payload")
 				}
-				if !mqtt.GetJsonEnabled() {
+				if !mqtt.GetJsonEnabled() { //nolint:staticcheck // Verify legacy older-firmware compatibility.
 					t.Fatalf("expected JSON enabled payload")
 				}
 				if !mqtt.GetTlsEnabled() {

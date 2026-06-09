@@ -4,13 +4,13 @@ These files are generated from Meshtastic official protobuf schemas.
 
 Pinned source:
 - Repo: `https://github.com/meshtastic/protobufs`
-- Commit: `27591d98c4ca58630ddcc8bd4d3055033873a56c`
-- Commit date/subject: `2026-02-09 Merge pull request #859 from meshtastic/st31`
+- Commit: `59cb394dcfc4432cb216358ca26e861c7d13f462`
+- Commit date/subject: `2026-05-18 Add T_ECHO_CARD identifier to mesh.proto (#919)`
 
 Generation command (requires `protoc` and `protoc-gen-go`):
 
 ```bash
-go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 PATH="$(go env GOPATH)/bin:$PATH" \
   protoc -I /path/to/protobufs \
   --go_out=/tmp/meshtastic-pb-out \

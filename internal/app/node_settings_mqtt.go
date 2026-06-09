@@ -25,7 +25,7 @@ func (s *NodeSettingsService) LoadMQTTSettings(ctx context.Context, target NodeS
 		Username:             mqtt.GetUsername(),
 		Password:             mqtt.GetPassword(),
 		EncryptionEnabled:    mqtt.GetEncryptionEnabled(),
-		JSONEnabled:          mqtt.GetJsonEnabled(),
+		JSONEnabled:          mqtt.GetJsonEnabled(), //nolint:staticcheck // Preserve legacy settings from older firmware.
 		TLSEnabled:           mqtt.GetTlsEnabled(),
 		Root:                 mqtt.GetRoot(),
 		ProxyToClientEnabled: mqtt.GetProxyToClientEnabled(),

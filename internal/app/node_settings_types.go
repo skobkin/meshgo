@@ -50,6 +50,10 @@ type NodeLoRaSettings struct {
 	IgnoreIncoming      []uint32
 	IgnoreMqtt          bool
 	ConfigOkToMqtt      bool
+	// FemLnaMode and SerialHalOnly are intentionally tracked even though they
+	// are not exposed in UI, so unrelated save operations preserve them.
+	FemLnaMode    int32
+	SerialHalOnly bool
 }
 
 // NodeDeviceSettings contains editable device config settings.

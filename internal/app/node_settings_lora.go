@@ -42,6 +42,8 @@ func nodeLoRaSettingsFromProto(target NodeSettingsTarget, lora *generated.Config
 		IgnoreIncoming:      cloneUint32Slice(lora.GetIgnoreIncoming()),
 		IgnoreMqtt:          lora.GetIgnoreMqtt(),
 		ConfigOkToMqtt:      lora.GetConfigOkToMqtt(),
+		FemLnaMode:          int32(lora.GetFemLnaMode()),
+		SerialHalOnly:       lora.GetSerialHalOnly(),
 	}, nil
 }
 
@@ -67,6 +69,8 @@ func (s *NodeSettingsService) SaveLoRaSettings(ctx context.Context, target NodeS
 				IgnoreIncoming:      cloneUint32Slice(settings.IgnoreIncoming),
 				IgnoreMqtt:          settings.IgnoreMqtt,
 				ConfigOkToMqtt:      settings.ConfigOkToMqtt,
+				FemLnaMode:          generated.Config_LoRaConfig_FEM_LNA_Mode(settings.FemLnaMode),
+				SerialHalOnly:       settings.SerialHalOnly,
 			},
 		},
 	})
