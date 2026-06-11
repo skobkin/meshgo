@@ -1,5 +1,19 @@
 # Meshtastic protobuf generation
 
+## License
+
+Files in this directory are generated from Meshtastic's official protobuf
+schemas. Per the Protocol Buffers license, generated code is owned by the
+owner of the input file. The [`meshtastic/protobufs`](https://github.com/meshtastic/protobufs)
+repository is licensed under **GPL-3.0**, so these generated `.pb.go`
+files inherit the GPL-3.0 license and are kept separate from MeshGo's
+MIT-licensed original source code.
+
+See [`THIRD_PARTY_NOTICES.md`](../../../THIRD_PARTY_NOTICES.md) for the
+upstream license reference and the rationale for the inherited license.
+
+## Source
+
 These files are generated from Meshtastic official protobuf schemas.
 
 Pinned source:

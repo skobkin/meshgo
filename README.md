@@ -70,3 +70,14 @@ Check [Releases](https://git.skobk.in/skobkin/meshgo/releases) section for lates
 ![update dialog](docs/screenshot_update_dialog.png)
 
 </details>
+
+## License
+
+MeshGo's original source code is licensed under MIT unless otherwise noted.
+
+The generated Meshtastic protobuf bindings in `internal/radio/meshtasticpb/`
+are generated from Meshtastic protobuf schemas from
+[`meshtastic/protobufs`](https://github.com/meshtastic/protobufs), which
+are licensed under GPL-3.0. These generated files are kept separate from
+MeshGo's original code. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+for details and the upstream license reference.
