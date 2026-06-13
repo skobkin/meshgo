@@ -373,11 +373,14 @@ func newChatsTab(
 			}
 			message := msg
 			rowItem.onSecondary = func(position fyne.Position) {
-				showChatMessageContextMenu(canvasForObject(rowItem), position, message, func(message domain.ChatMessage, action ChatAction) {
-					if action != ChatActionReply {
-						return
+				fyneCanvas := canvasForObject(rowItem)
+				showChatMessageContextMenu(fyneCanvas, position, message, func(message domain.ChatMessage, action ChatAction) {
+					switch action {
+					case ChatActionReply:
+						_ = setReplyTarget(&message)
+					case ChatActionReact:
+						openReactionPicker(fyneCanvas, rowItem, message, sender, sendStatusLabel, chatsLogger)
 					}
-					_ = setReplyTarget(&message)
 				})
 			}
 			rowItem.onHoverChange = func(hovered bool) {
@@ -1462,6 +1465,24 @@ func canReplyToMessage(message domain.ChatMessage) bool {
 	}
 
 	return strings.TrimSpace(message.DeviceMessageID) != ""
+}
+
+// canReactToMessage reports whether a reaction can be attached to the given
+// message. Mirrors canReplyToMessage but additionally rejects outgoing
+// messages that have not yet been acknowledged — reacting to our own
+// un-sent bubble would point at a packet id the radio has not assigned yet.
+func canReactToMessage(message domain.ChatMessage) bool {
+	if isReactionMessage(message) {
+		return false
+	}
+	if !canReplyToMessage(message) {
+		return false
+	}
+	if message.Direction == domain.MessageDirectionOut && message.Status == domain.MessageStatusPending {
+		return false
+	}
+
+	return true
 }
 
 func latestReplyTarget(messages []domain.ChatMessage) *domain.ChatMessage {

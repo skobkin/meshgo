@@ -3,6 +3,7 @@ package radio
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/skobkin/meshgo/internal/domain"
@@ -83,6 +84,62 @@ func TestMeshtasticCodec_EncodeTextIncludesReplyAndEmoji(t *testing.T) {
 	}
 	if decoded.GetEmoji() != 1 {
 		t.Fatalf("expected emoji=1, got %d", decoded.GetEmoji())
+	}
+}
+
+func TestMeshtasticCodec_EncodeReactionForCuratedEmojis(t *testing.T) {
+	// Locks the wire format for the curated picker list (issue #51).
+	// Encoding a reaction for each of the 10 emojis must produce a
+	// non-empty payload, set the Emoji flag, and point ReplyId at the
+	// target device message id. Any drift here would break the picker
+	// silently because the chatstore would no longer dedupe.
+	codec := mustNewMeshtasticCodec(t)
+	emojis := []string{
+		"😀", "😂", "😢", "😡", "❤️",
+		"👍", "👎", "🔥", "🫡", "🤷‍♂️",
+	}
+	const target = "987654321"
+
+	for _, emoji := range emojis {
+		emoji := emoji
+		t.Run(emoji, func(t *testing.T) {
+			encoded, err := codec.EncodeText(
+				"channel:0",
+				emoji,
+				TextSendOptions{
+					ReplyToDeviceMessageID: target,
+					Emoji:                  1,
+				},
+			)
+			if err != nil {
+				t.Fatalf("encode reaction %q: %v", emoji, err)
+			}
+			if len(encoded.Payload) == 0 {
+				t.Fatalf("reaction %q: expected non-empty payload", emoji)
+			}
+
+			var wire generated.ToRadio
+			if err := proto.Unmarshal(encoded.Payload, &wire); err != nil {
+				t.Fatalf("unmarshal toRadio for %q: %v", emoji, err)
+			}
+			packet := wire.GetPacket()
+			if packet == nil {
+				t.Fatalf("reaction %q: expected packet payload", emoji)
+			}
+			decoded := packet.GetDecoded()
+			if decoded == nil {
+				t.Fatalf("reaction %q: expected decoded payload", emoji)
+			}
+			if decoded.GetEmoji() != 1 {
+				t.Fatalf("reaction %q: expected emoji=1, got %d", emoji, decoded.GetEmoji())
+			}
+			if got := strconv.FormatUint(uint64(decoded.GetReplyId()), 10); got != target {
+				t.Fatalf("reaction %q: expected reply_id=%s, got %s", emoji, target, got)
+			}
+			if string(decoded.GetPayload()) != emoji {
+				t.Fatalf("reaction %q: payload mismatch, got %q", emoji, string(decoded.GetPayload()))
+			}
+		})
 	}
 }
 
